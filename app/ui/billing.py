@@ -10,6 +10,7 @@ from app.config.settings import settings
 from app.models.billing import BillCreate, BillLine
 from app.printing.invoice import generate_invoice_pdf
 from app.ui.print_preview import show_print_preview
+from app.ui.duplicate_dialog import DuplicateItemDialog
 from app.services.master_service import MasterService
 from app.services.pricing_service import PricingService
 from app.utils.currency import format_inr
@@ -428,14 +429,113 @@ class BillingFrame(ttk.Frame):
 
         self._recalculate_row(row_idx)
 
+        # Check duplicate item in prior rows
+        if self._check_and_handle_duplicate(row_idx):
+            return
+
         if focus_next:
             row["qty"].focus_set()
             row["qty"].select_range(0, tk.END)
+
+    def _find_duplicate_row(self, row_idx: int) -> Optional[int]:
+        if row_idx <= 0 or row_idx >= len(self.row_widgets):
+            return None
+        curr_row = self.row_widgets[row_idx]
+        curr_id = curr_row.get("item_id")
+        curr_code = curr_row["code"].get().strip().lower()
+        if not curr_id and not curr_code:
+            return None
+        for k in range(row_idx):
+            r = self.row_widgets[k]
+            k_id = r.get("item_id")
+            k_code = r["code"].get().strip().lower()
+            if (curr_id and k_id and k_id == curr_id) or (curr_code and k_code and k_code == curr_code):
+                return k
+        return None
+
+    def resolve_duplicate(self, row_idx: int, action: str = "ADD", add_qty: Optional[float] = None) -> bool:
+        """
+        Resolves duplicate item in row_idx.
+        If action == 'ADD', adds add_qty (defaults to current row qty) to prior item row,
+        recalculates row amount and grand total, and deletes duplicate row.
+        If action == 'IGNORE', deletes duplicate row and recalculates grand total.
+        """
+        dup_idx = self._find_duplicate_row(row_idx)
+        if dup_idx is None:
+            return False
+
+        curr_row = self.row_widgets[row_idx]
+        prev_row = self.row_widgets[dup_idx]
+
+        if add_qty is None:
+            try:
+                curr_q = float(curr_row["qty"].get().strip() or "1")
+            except ValueError:
+                curr_q = 1.0
+            add_qty = curr_q
+
+        if action.upper() == "ADD":
+            try:
+                prev_q = float(prev_row["qty"].get().strip() or "0")
+            except ValueError:
+                prev_q = 0.0
+            new_q = prev_q + add_qty
+            prev_row["qty"].delete(0, tk.END)
+            prev_row["qty"].insert(0, f"{new_q:g}")
+            self._recalculate_row(dup_idx)
+            self._delete_row_and_shift_up(row_idx)
+            self._update_grand_total()
+            prev_row["qty"].focus_set()
+        else:  # IGNORE
+            self._delete_row_and_shift_up(row_idx)
+            self._update_grand_total()
+            if row_idx < len(self.row_widgets):
+                self.row_widgets[row_idx]["code"].focus_set()
+
+        return True
+
+    def _check_and_handle_duplicate(self, row_idx: int) -> bool:
+        if getattr(self, "suppress_duplicate_dialog", False):
+            return False
+
+        dup_idx = self._find_duplicate_row(row_idx)
+        if dup_idx is None:
+            return False
+
+        curr_row = self.row_widgets[row_idx]
+        prev_row = self.row_widgets[dup_idx]
+
+        try:
+            prev_q = float(prev_row["qty"].get().strip() or "0")
+        except ValueError:
+            prev_q = 0.0
+
+        try:
+            curr_q = float(curr_row["qty"].get().strip() or "1")
+        except ValueError:
+            curr_q = 1.0
+
+        item_name = prev_row["name"].get().strip() or curr_row["name"].get().strip()
+        item_code = prev_row["code"].get().strip() or curr_row["code"].get().strip()
+        unit = prev_row["unit"].get() or "Kg"
+
+        dlg = DuplicateItemDialog(
+            parent=self,
+            item_name=item_name,
+            item_code=item_code,
+            prev_row_num=dup_idx + 1,
+            prev_qty=prev_q,
+            curr_qty=curr_q,
+            unit=unit
+        )
+        return self.resolve_duplicate(row_idx, action=dlg.action, add_qty=dlg.add_qty)
 
     def _on_qty_entered(self, row_idx: int):
         if row_idx >= len(self.row_widgets):
             return
         self._recalculate_row(row_idx)
+        if self._check_and_handle_duplicate(row_idx):
+            return
         # Advance focus to Unit field
         row = self.row_widgets[row_idx]
         row["unit"].focus_set()
@@ -534,6 +634,9 @@ class BillingFrame(ttk.Frame):
         if row_idx >= len(self.row_widgets):
             return
         if self._is_row_empty(row_idx):
+            return
+
+        if self._check_and_handle_duplicate(row_idx):
             return
 
         self._recalculate_row(row_idx)

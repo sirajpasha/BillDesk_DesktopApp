@@ -29,6 +29,15 @@ def billing_frame(fake_db, tk_root):
         "status": "active",
         "is_deleted": 0
     })
+    fake_db.collection("items").insert_one({
+        "item_id": "VEG0003",
+        "item_alias": "103",
+        "name": "Amla",
+        "unit": "Kg",
+        "standard_rate": 30.0,
+        "status": "active",
+        "is_deleted": 0
+    })
 
     frame = BillingFrame(tk_root, fake_db, billing_svc, user)
     yield frame
@@ -168,7 +177,7 @@ def test_gap_compaction_with_preexisting_rows(billing_frame):
 
     # Now enter on row 6 (0-indexed 6)
     row6 = frame.row_widgets[6]
-    row6["code"].insert(0, "101")
+    row6["code"].insert(0, "103")
     frame._on_code_entered(6)
     row6["qty"].delete(0, tk.END)
     row6["qty"].insert(0, "5")
@@ -179,7 +188,7 @@ def test_gap_compaction_with_preexisting_rows(billing_frame):
 
     # It should have compacted to row 2 (Row 3 in UI)
     row2 = frame.row_widgets[2]
-    assert row2["name"].get() == "Avaraikkai"
+    assert row2["name"].get() == "Amla"
     assert row2["qty"].get() == "5"
     assert row2["rate"].get() == "40"
     assert row2["amount"].cget("text") == "₹200.00"
@@ -209,3 +218,64 @@ def test_dynamic_row_creation_at_table_end(billing_frame):
     assert len(frame.row_widgets) == initial_count + 1
     # The new row is empty and ready
     assert frame._is_row_empty(initial_count)
+
+
+def test_billing_duplicate_item_add_qty_and_delete_duplicate(billing_frame):
+    """When user enters duplicate item and confirms Add Qty, qty is added to previous row, amount recalculated, and duplicate deleted."""
+    frame = billing_frame
+
+    # Row 0: Item 101, Qty 2, Rate 20 -> Amount 40.00
+    frame.row_widgets[0]["code"].insert(0, "101")
+    frame._on_code_entered(0)
+    frame.row_widgets[0]["qty"].delete(0, tk.END)
+    frame.row_widgets[0]["qty"].insert(0, "2")
+    frame._recalculate_row(0)
+    assert frame.row_widgets[0]["amount"].cget("text") == "₹40.00"
+
+    # Row 1: User enters item 101 again with Qty 3
+    frame.suppress_duplicate_dialog = True  # programmatic resolution
+    frame.row_widgets[1]["code"].insert(0, "101")
+    frame._on_code_entered(1)
+    frame.row_widgets[1]["qty"].delete(0, tk.END)
+    frame.row_widgets[1]["qty"].insert(0, "3")
+
+    # Confirm ADD with qty 3
+    resolved = frame.resolve_duplicate(1, action="ADD", add_qty=3.0)
+    assert resolved is True
+
+    # Row 0 Qty should now be 2 + 3 = 5, Amount = 5 * 20 = 100.00
+    assert float(frame.row_widgets[0]["qty"].get()) == 5.0
+    assert frame.row_widgets[0]["amount"].cget("text") == "₹100.00"
+    assert "₹100.00" in frame.total_lbl.cget("text")
+
+    # Row 1 (duplicate) should be deleted
+    assert frame._is_row_empty(1)
+
+
+def test_billing_duplicate_item_ignore_and_delete_duplicate(billing_frame):
+    """When user enters duplicate item and selects Ignore, duplicate line item is deleted leaving previous row intact."""
+    frame = billing_frame
+
+    # Row 0: Item 101, Qty 2, Rate 20 -> Amount 40.00
+    frame.row_widgets[0]["code"].insert(0, "101")
+    frame._on_code_entered(0)
+    frame.row_widgets[0]["qty"].delete(0, tk.END)
+    frame.row_widgets[0]["qty"].insert(0, "2")
+    frame._recalculate_row(0)
+
+    # Row 1: User enters item 101 again
+    frame.suppress_duplicate_dialog = True
+    frame.row_widgets[1]["code"].insert(0, "101")
+    frame._on_code_entered(1)
+
+    # User chooses IGNORE
+    resolved = frame.resolve_duplicate(1, action="IGNORE")
+    assert resolved is True
+
+    # Row 0 Qty remains 2, Amount 40.00
+    assert float(frame.row_widgets[0]["qty"].get()) == 2.0
+    assert frame.row_widgets[0]["amount"].cget("text") == "₹40.00"
+
+    # Row 1 duplicate is deleted
+    assert frame._is_row_empty(1)
+
