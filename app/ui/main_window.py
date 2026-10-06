@@ -36,6 +36,16 @@ class MainWindow:
         root.minsize(1120, 700)
         root.configure(bg="#f8fafc")
 
+        # Set taskbar and window icon if available
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "icon.png")
+        if os.path.exists(icon_path):
+            try:
+                self._icon_img = tk.PhotoImage(file=icon_path)
+                root.iconphoto(False, self._icon_img)
+            except Exception:
+                pass
+
         self._configure_style()
         self._build_shell()
         self._bind_global_shortcuts()

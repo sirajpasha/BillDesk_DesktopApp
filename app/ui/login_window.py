@@ -25,6 +25,16 @@ class LoginWindow(tk.Toplevel):
         self.title(f"{settings.default_company_name} — Billing System")
         self.resizable(False, False)
 
+        # Set window icon if available
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "assets", "icon.png")
+        if os.path.exists(icon_path):
+            try:
+                self._icon_img = tk.PhotoImage(file=icon_path)
+                self.iconphoto(False, self._icon_img)
+            except Exception:
+                pass
+
         # 960x640 dialog centered on screen
         w, h = 960, 640
         sw = self.winfo_screenwidth()

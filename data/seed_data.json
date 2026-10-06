@@ -1,0 +1,202 @@
+{
+    "companies": [
+        {
+            "company_id": "Company0001",
+            "name": "SV Vegetables & Fruits",
+            "address": "No. E-2 Periyar Vegetable Market, Koyambedu, Chennai - 600092.",
+            "phone": "9876543210",
+            "email": "info@svveg.com",
+            "gst_number": "33ABCDE1234F1Z5",
+            "terms_and_conditions": "1. Goods once sold will not be taken back.\n2. Interest @ 24% p.a. will be charged if bill is not paid within due date.\n3. Subject to City Jurisdiction only.",
+            "signatory_label": "Authorized Signatory",
+            "logo_url": "/images/logo.png"
+        },
+        {
+            "company_id": "Company0002",
+            "name": "GK Vegetables & Fruits",
+            "address": "No. E-2 Periyar Vegetable Market, Koyambedu, Chennai - 600092.",
+            "phone": "9876543210",
+            "email": "info@gkveg.com",
+            "gst_number": "33ABCDE1234F1Z5",
+            "terms_and_conditions": "1. Goods once sold will not be taken back.\n2. Interest @ 24% p.a. will be charged if bill is not paid within due date.\n3. Subject to City Jurisdiction only.",
+            "signatory_label": "Authorized Signatory",
+            "logo_url": "/images/gk_logo.png"
+        }
+    ],
+    "items": [
+        {
+            "item_id": "FRU0001",
+            "item_alias": "101",
+            "name": "Apple",
+            "unit": "kg",
+            "category": "Fruit"
+        },
+        {
+            "item_id": "VEG0001",
+            "item_alias": "102",
+            "name": "Avarai",
+            "unit": "kg",
+            "category": "Veg"
+        },
+        {
+            "item_id": "OTH0001",
+            "item_alias": "103",
+            "name": "Banana Leaves (NUNI)",
+            "unit": "no",
+            "category": "Other"
+        },
+        {
+            "item_id": "VEG0002",
+            "item_alias": "104",
+            "name": "Bajji Chilli",
+            "unit": "kg",
+            "category": "Veg"
+        },
+        {
+            "item_id": "FRU0002",
+            "item_alias": "105",
+            "name": "Banana Green",
+            "unit": "kg",
+            "category": "Fruit"
+        }
+    ],
+    "customers": [
+        {
+            "cust_id": "Cust0001",
+            "name": "Anna Adarsh Hostel",
+            "address": "",
+            "contact_person_name": "",
+            "contact_person_phone": "",
+            "contact_person_whatsapp": "",
+            "contact_person_email": "",
+            "bill_to_phone": "9444434066",
+            "bill_to_whatsapp": "",
+            "bill_to_email": "Kumar@yahoo.co.in",
+            "company_id": "Company0001"
+        },
+        {
+            "cust_id": "COUNTER",
+            "name": "Counter Customer",
+            "address": "Walk-in",
+            "company_id": "Company0001",
+            "status": "active"
+        }
+    ],
+    "users": [
+        {
+            "user_id": "USER0001",
+            "username": "admin",
+            "password": "admin123",
+            "email": "admin@svvegetables.com",
+            "phone": "9876543210",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "user_id": "USER0002",
+            "username": "manager",
+            "password": "manager123",
+            "email": "manager@svvegetables.com",
+            "phone": "9876543211",
+            "roles": [
+                "manager"
+            ]
+        },
+        {
+            "user_id": "USER0003",
+            "username": "user",
+            "password": "user123",
+            "email": "user@svvegetables.com",
+            "phone": "9876543212",
+            "roles": [
+                "user"
+            ]
+        }
+    ],
+    "roles": [
+        {
+            "role_id": "ROLE001",
+            "name": "admin",
+            "description": "Administrator with full access"
+        },
+        {
+            "role_id": "ROLE002",
+            "name": "manager",
+            "description": "Manager with access to most features"
+        },
+        {
+            "role_id": "ROLE003",
+            "name": "user",
+            "description": "Standard user with basic access"
+        },
+        {
+            "role_id": "ROLE004",
+            "name": "customer",
+            "description": "External customer user with access to their own orders and rates"
+        },
+        {
+            "role_id": "ROLE005",
+            "name": "customer",
+            "description": "Customer administrator with access to manage their organization's users and orders"
+        }
+    ],
+    "permissions": [
+        {
+            "role": "admin",
+            "menus": [
+                "/dashboard",
+                "/billing",
+                "/bills",
+                "/items",
+                "/customers",
+                "/orders",
+                "/settings",
+                "/settings/rbac"
+            ]
+        },
+        {
+            "role": "manager",
+            "menus": [
+                "/dashboard",
+                "/billing",
+                "/bills",
+                "/items",
+                "/customers",
+                "/orders"
+            ]
+        },
+        {
+            "role": "user",
+            "menus": [
+                "/dashboard",
+                "/billing",
+                "/bills"
+            ]
+        },
+        {
+            "role": "customer",
+            "menus": [
+                "/orders"
+            ]
+        },
+        {
+            "role": "customer",
+            "menus": [
+                "/orders",
+                "/users"
+            ]
+        }
+    ],
+    "suppliers": [
+        {
+            "supplier_id": "SUP001",
+            "name": "Fresh Farm Suppliers",
+            "address": "123 Farm Road, Koyambedu Market, Chennai - 600107",
+            "phone": "9876543210",
+            "email": "contact@freshfarm.com",
+            "gst_number": "33ABCDE1234F1Z1",
+            "company_id": "Company0001"
+        }
+    ]
+}
