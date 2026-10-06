@@ -1,7 +1,7 @@
 # BillDesk Desktop — Automated Test Traceability Report
 
 **Repository**: [sirajpasha/BillDesk_DesktopApp](https://github.com/sirajpasha/BillDesk_DesktopApp)  
-**Verification Status**: **42/42 Tasks Passed (100%)**  
+**Verification Status**: **48/48 Tasks Passed (100%)**  
 **GitHub Epics & Stories**: **All Mapped Issues CLOSED & Verified**  
 
 ---
@@ -47,6 +47,12 @@
 | **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.1` | `test_order_form_view_structure` | Validates OrderFormView layout, input fields, and action buttons matching screenshot 13-order-new.png. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
 | **✔ PASS** | EPIC-04 | Story-04.2 | `Task-4.2.1` | `test_order_form_smart_importer_and_recalc` | Validates freeform multi-line WhatsApp order parser extracting item names, units, and quantities. | [#10](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/10) |
 | **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.3` | `test_order_form_load_order_for_edit` | Loads an existing order document into the order form table for editing and recalculation. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
+| **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.2` | `test_order_form_code_entered_fetches_item_and_focuses_qty` | Order Form auto-fetches Item Name, master Unit, and resolved Rate on Code Enter, focusing on Qty. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
+| **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.4` | `test_order_form_qty_and_unit_navigation` | Order Form keyboard navigation traverses from Qty to Unit, and from Unit to Rate. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
+| **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.5` | `test_order_form_realtime_rate_calculation_keystroke_by_keystroke` | Order Form recalculates Line Amount and Grand Total keystroke-by-keystroke when typing Rate. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
+| **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.6` | `test_order_form_gap_compaction_moves_to_first_empty_row` | Order Form compacts row gaps on Rate Enter, shifting out-of-order lines to first available empty slot. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
+| **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.7` | `test_order_form_dynamic_row_creation_at_table_end` | Order Form dynamically adds and enables new row when reaching table boundary on Rate Enter. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
+| **✔ PASS** | EPIC-04 | Story-04.1 | `Task-4.1.8` | `test_order_form_delete_row_shifts_up` | Order Form row delete button clears row, shifts subsequent rows up, and recalculates totals. | [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) |
 | **✔ PASS** | EPIC-01 | Story-01.2 | `Task-1.2.1` | `test_main_window_all_views_initialization` | Initializes all main window navigation frames and confirms zero runtime errors. | [#27](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/27) |
 | **✔ PASS** | EPIC-01 | Story-01.1 | `Task-1.1.1` | `test_powershell_launcher_check_only` | Validates PowerShell launcher syntax and dependency verification routines (start.ps1). | [#26](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/26) |
 | **✔ PASS** | EPIC-01 | Story-01.1 | `Task-1.1.2` | `test_batch_launcher_check_only` | Validates Windows batch launcher syntax and mongod environment checks (start.bat). | [#26](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/26) |
@@ -56,8 +62,8 @@
 ---
 
 ## Summary
-- **Total Tests Executed**: 42
-- **Passed**: 42
+- **Total Tests Executed**: 48
+- **Passed**: 48
 - **Failed**: 0
 - **Coverage**: 100% of P0 core Mandi Billing, Audit, Accounting, Order, and Printing workflows.
 

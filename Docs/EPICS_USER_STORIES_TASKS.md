@@ -10,7 +10,7 @@ This document tracks all project requirements, user stories, and technical tasks
 | :--- | :---: | :---: | :---: | :---: |
 | **Epics** | 10 | 7 | 1 | 2 |
 | **User Stories** | 15 | 9 | 1 | 5 |
-| **Verification** | 42 Tests Passed | 100% | — | — |
+| **Verification** | 48 Tests Passed | 100% | — | — |
 
 ---
 
@@ -81,9 +81,13 @@ This document tracks all project requirements, user stories, and technical tasks
 #### User Stories:
 * **Story 04.1**: Visual Order Form matching UI Guide ([#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9)) `[COMPLETED]`
   - [x] **Task 4.1.1**: Design matching screenshot `13-order-new.png` with Order Date, Delivery Date, Delivery Slot, and Notes.
-  - [x] **Task 4.1.2**: Item picker dialog with category filtering, live search, and dynamic row addition.
-  - [x] **Task 4.1.3**: Order lifecycle tracking (`draft` -> `confirmed` -> `billed` -> `delivered` -> `cancelled`).
-  - [x] **Task 4.1.4**: One-click conversion from Confirmed Order into active Mandi Bill.
+  - [x] **Task 4.1.2**: Auto-fetch Item Name, default Unit from master, and customer contract Rate on Code Enter, focusing on Qty.
+  - [x] **Task 4.1.3**: Order edit mode loading existing order documents and lifecycle status tracking.
+  - [x] **Task 4.1.4**: Fluid keyboard navigation across Qty, Unit Combobox, and Rate fields.
+  - [x] **Task 4.1.5**: Keystroke-by-keystroke real-time Line Amount and Grand Total recalculation.
+  - [x] **Task 4.1.6**: Out-of-order entry gap compaction shifting lines to $N+1$ contiguous position on Rate Enter.
+  - [x] **Task 4.1.7**: Dynamic row addition when user completes the last available line.
+  - [x] **Task 4.1.8**: Row deletion (`✕`) clearing row, shifting subsequent lines up, and updating totals.
 * **Story 04.2**: WhatsApp Freeform Order Smart Importer ([#10](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/10)) `[COMPLETED]`
   - [x] **Task 4.2.1**: Multi-line paste modal parsing freeform text (e.g. `101 5kg`, `Tomato 2 boxes`).
   - [x] **Task 4.2.2**: Intelligent token matcher resolving item aliases and master descriptions.
@@ -199,4 +203,4 @@ This document tracks all project requirements, user stories, and technical tasks
 ## Traceability & Verification
 All completed user stories and tasks are backed by automated unit and integration tests:
 * Run full verification suite: `python -m pytest tests/ -v`
-* Total passing tests: **42 tests passed in ~17.5s**
+* Total passing tests: **48 tests passed in ~19.5s**
