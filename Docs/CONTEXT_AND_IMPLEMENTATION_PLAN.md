@@ -313,3 +313,46 @@ The system mandates comprehensive field mutation testing ensuring that when any 
 | **General Ledger**| `journal_line.debit/credit`| Journal entry balance check | Must satisfy $\sum\text{Debits} == \sum\text{Credits}$; rejected if unbalanced |
 
 Detailed test cases and specifications are maintained in [DETAILED_TEST_CASES_FIELD_MUTATION.md](file:///c:/Users/PashaLOQ/Downloads/BillDesk-Native-Tkinter-27018/desktopapp_native/Docs/DETAILED_TEST_CASES_FIELD_MUTATION.md) and automated in `tests/test_field_mutation_cascade.py`.
+
+---
+
+## 8. Current Implementation Status & Agile Roadmap
+
+### 8.1 Completion Status Summary
+All native GUI and business subsystem phases are **100% completed and verified** with 42 automated tests:
+- **Zero Hardcoding**: All business rules, default rates, units, company info, and MongoDB URLs are configured dynamically via `app/config/settings.py` and environment variables.
+- **Standalone Repository**: Completely isolated from `_ref_billdesk`. All reference screenshots (`Docs/user-guide/img/`), architecture specs (`Docs/architecture/`), user guides (`Docs/USER_GUIDE.md`), application assets (`app/assets/icon.png`), and database seeds (`data/seed_data.json`) reside directly within this repository.
+- **Automated Verification**: Run `python -m pytest tests/ -v` (42 tests passing in ~17.5s).
+
+### 8.2 GitHub Agile Project Tracking
+Development is tracked via Epics, User Stories, and Tasks on [sirajpasha/BillDesk_DesktopApp Issues](https://github.com/sirajpasha/BillDesk_DesktopApp/issues):
+
+| Issue # | Type | Title | Status |
+| :---: | :---: | :--- | :---: |
+| [#1](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/1) | **Epic** | Core GUI Shell, Authentication & Multiplatform Launcher | `Closed (Completed)` |
+| [#2](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/2) | **Epic** | Fast Mandi Billing Engine & Interactive Spreadsheet Form | `Closed (Completed)` |
+| [#3](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/3) | Story | Keyboard-First Line Item Entry & Navigation | `Closed (Completed)` |
+| [#4](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/4) | Story | Intelligent Gap Compaction & Dynamic Row Management | `Closed (Completed)` |
+| [#5](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/5) | **Epic** | Bill History, Audit Ledger & Financial Reversals | `Closed (Completed)` |
+| [#6](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/6) | Story | Authentic Bill History View & Search | `Closed (Completed)` |
+| [#7](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/7) | Story | Void Bill Cascading Reversal & Audit Integrity | `Closed (Completed)` |
+| [#8](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/8) | **Epic** | Customer Order Management & WhatsApp Smart Importer | `Closed (Completed)` |
+| [#9](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/9) | Story | Visual Order Form matching UI Guide | `Closed (Completed)` |
+| [#10](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/10) | Story | WhatsApp Freeform Order Smart Importer | `Closed (Completed)` |
+| [#11](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/11) | **Epic** | Master Data Management (Customer, Item, Supplier, RBAC) | `Closed (Completed)` |
+| [#12](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/12) | Story | Customer Master with DC Company (`bill_to_name`) & Credit Limits | `Closed (Completed)` |
+| [#13](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/13) | **Epic** | Pixel-Perfect PDF Printing, Delivery Challan & Print Preview | `Closed (Completed)` |
+| [#14](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/14) | Story | Authentic Invoice & Delivery Challan PDF Generator | `Closed (Completed)` |
+| [#15](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/15) | Story | Native In-App Print Preview Dialog with Zoom & Print | `Closed (Completed)` |
+| [#16](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/16) | **Epic** | Enterprise Financial Ledger, Inventory & Procurement | `Closed (Completed)` |
+| [#17](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/17) | **Epic** | Desktop Packaging, Auto-Build & Production Distribution | `Open (In Progress)` |
+| [#18](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/18) | Story | PyInstaller Windows Standalone Build Pipeline | `Open (In Progress)` |
+| [#19](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/19) | Story | Inno Setup Windows One-Click Installer | `Open (Planned)` |
+| [#20](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/20) | **Epic** | Hardware Integrations & Direct Thermal Receipt Printing | `Open (Planned)` |
+| [#21](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/21) | Story | Direct ESC/POS Thermal Receipt Printing | `Open (Planned)` |
+| [#22](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/22) | Story | Electronic Weighing Scale COM Port Auto-Reader | `Open (Planned)` |
+| [#23](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/23) | **Epic** | Omnichannel Messaging & Offline OCR Supplier Bill Digitization | `Open (Planned)` |
+| [#24](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/24) | Story | WhatsApp Cloud API & SMS Customer Delivery | `Open (Planned)` |
+| [#25](https://github.com/sirajpasha/BillDesk_DesktopApp/issues/25) | Story | Offline Tesseract OCR Paper Bill Digitization | `Open (Planned)` |
+
+Full task-level requirements are detailed in [EPICS_USER_STORIES_TASKS.md](file:///c:/Users/PashaLOQ/Downloads/BillDesk-Native-Tkinter-27018/desktopapp_native/Docs/EPICS_USER_STORIES_TASKS.md).
