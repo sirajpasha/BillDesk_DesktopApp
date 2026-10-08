@@ -160,6 +160,7 @@ class BillingService:
                     created_by=bill.created_by,
                     session=session
                 )
+                self.inv_repo.adjust_crate_balance(bill.customer_id, bill.crate_item_id, net_crates, session=session)
 
         for line in bill.items:
             self.db.collection("items").update_one(
@@ -196,13 +197,16 @@ class BillingService:
         if bill.get("status") == "void":
             raise ValueError(f"Invoice {invoice_no} is already voided")
 
-        # 1. Restore Customer Balance
+        # 1. Restore Customer Balance (whole sale is reversed; anything already paid becomes customer credit)
         cust_id = bill.get("customer_id")
         total_amount = float(bill.get("total_amount", 0.0))
         if cust_id and cust_id != CASH_CUSTOMER_ID:
             self.cust_repo.update_balance(cust_id, -total_amount)
 
-        # 2. Restore Stock
+        # 2. Release payments that were allocated to this invoice -> they become unallocated advance/refund credit
+        credit_released = self._release_payments(invoice_no, cust_id)
+
+        # 3. Restore Stock
         for line in bill.get("items", []):
             item_id = line["item_id"]
             qty = float(line["qty"])
@@ -217,10 +221,22 @@ class BillingService:
                 created_by=user_id,
             )
 
-        # 3. Mark Bill Status Void
+        # 4. Reverse returnable crates issued on this bill
+        issued = float(bill.get("crates_issued") or 0.0)
+        returned = float(bill.get("crates_returned") or 0.0)
+        crate_item = bill.get("crate_item_id")
+        if crate_item and cust_id and cust_id != CASH_CUSTOMER_ID and issued != returned:
+            self.inv_repo.adjust_crate_balance(cust_id, crate_item, -(issued - returned))
+            self.inv_repo.record_crate_txn(
+                party_id=cust_id, party_type="customer", item_id=crate_item, item_name="Crate",
+                issued_qty=returned, returned_qty=issued, reference_id=invoice_no,
+                notes=f"Reversal of voided bill {invoice_no}", created_by=user_id,
+            )
+
+        # 5. Mark Bill Status Void
         self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {"status": "void", "balance_due": 0.0}})
 
-        # 4. Record Audit Entry
+        # 6. Record Audit Entry
         self.bill_repo.log_audit(
             invoice_no=invoice_no,
             action="VOID",
@@ -229,7 +245,28 @@ class BillingService:
             old_value=bill.get("status"),
             new_value="void"
         )
-        return {"invoice_no": invoice_no, "status": "void", "reverted_amount": total_amount}
+        return {"invoice_no": invoice_no, "status": "void", "reverted_amount": total_amount, "credit_released": credit_released}
+
+    def _release_payments(self, invoice_no: str, cust_id: Optional[str]) -> float:
+        """Detach payment allocations from a voided invoice. Returns the amount that became unallocated credit."""
+        party = cust_id or CASH_CUSTOMER_ID
+        released = 0.0
+        acc = self.payment_svc.acc_repo
+        for pay in acc.payments.find({"party_id": party}, limit=0):
+            allocs = pay.get("allocations") or []
+            mine = [a for a in allocs if a.get("invoice_id") == invoice_no]
+            if not mine:
+                continue
+            amt = sum(float(a.get("amount", 0.0)) for a in mine)
+            released += amt
+            rest = [a for a in allocs if a.get("invoice_id") != invoice_no]
+            acc.payments.update_one({"payment_id": pay["payment_id"]}, {"$set": {
+                "allocations": rest,
+                "allocation_status": "partial" if rest else "unallocated",
+                "is_advance": True,
+                "notes": f"{pay.get('notes') or ''} | Invoice {invoice_no} voided - Rs {amt:.2f} is now unallocated credit".strip(" |"),
+            }})
+        return round(released, 2)
 
     def park_bill(self, bill_data: Dict[str, Any]) -> int:
         """Park bill in memory queue for fast recall (F6/F7)."""

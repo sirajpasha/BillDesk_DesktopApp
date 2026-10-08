@@ -367,7 +367,11 @@ class OrdersView(tk.Frame):
             return
         order_id = sel[0]
         if messagebox.askyesno("Confirm Cancel", f"Are you sure you want to cancel order {order_id}?"):
-            self.db.collection("orders").update_one({"order_id": order_id}, {"$set": {"status": "cancelled"}})
+            try:
+                self.order_svc.cancel_order(order_id)
+            except ValueError as ex:
+                messagebox.showwarning("Cannot Cancel", str(ex), parent=self)
+                return
             self.load_orders()
 
     def _add_order_dialog(self):

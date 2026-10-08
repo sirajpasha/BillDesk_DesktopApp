@@ -8,6 +8,9 @@ from app.repositories.billing_repo import BillRepository
 from app.repositories.procurement_repo import ProcurementRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.models.order import OrderCreate, OrderItem
+from app.models.billing import BillCreate, BillItem
+from app.services.billing_service import BillingService
+from app.services.procurement_service import ProcurementService
 
 class OrderService:
     def __init__(self, db: Any):
@@ -19,6 +22,8 @@ class OrderService:
         self.bill_repo = BillRepository(db)
         self.proc_repo = ProcurementRepository(db)
         self.inv_repo = InventoryRepository(db)
+        self.billing_svc = BillingService(db)
+        self.procurement_svc = ProcurementService(db)
 
     def next_order_number(self) -> str:
         return self.order_repo.next_order_number()
@@ -77,125 +82,91 @@ class OrderService:
         self.order_repo.update_one({"order_id": order_id}, {"$set": clean_update})
         return self.get_order(order_id) or {}
 
-    def convert_to_bill(self, order_id: str, user_id: str = "system") -> Dict[str, Any]:
-        """1-Click convert order into sales invoice, decrement stock, and update customer balance."""
+    CONVERTIBLE_STATUSES = ("pending", "confirmed", "delivered")
+
+    def cancel_order(self, order_id: str) -> Dict[str, Any]:
         order = self.get_order(order_id)
         if not order:
             raise ValueError(f"Order {order_id} not found")
-        if order.get("status") == "billed":
+        if order.get("status") == "billed" or order.get("linked_bill_ids"):
+            raise ValueError(f"Order {order_id} is already billed (invoice {', '.join(order.get('linked_bill_ids') or [])}); void the invoice instead")
+        if order.get("status") == "cancelled":
+            raise ValueError(f"Order {order_id} is already cancelled")
+        self.order_repo.update_one({"order_id": order_id}, {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc)}})
+        return self.get_order(order_id) or {}
+
+    def convert_to_bill(self, order_id: str, user_id: str = "system") -> Dict[str, Any]:
+        """1-Click convert order into a sales invoice.
+
+        Goes through BillingService.create_bill so the invoice gets exactly the same controls as a bill
+        keyed in at the counter: credit-limit check, stock decrement + stock transactions, due date,
+        crate handling and the CREATE audit row.
+        """
+        order = self.get_order(order_id)
+        if not order:
+            raise ValueError(f"Order {order_id} not found")
+        status = order.get("status")
+        if status == "billed" or order.get("linked_bill_ids"):
             raise ValueError(f"Order {order_id} is already billed")
+        if status not in self.CONVERTIBLE_STATUSES:
+            raise ValueError(f"Order {order_id} is '{status}' and cannot be converted to a bill")
 
-        invoice_no = self.bill_repo.next_invoice_number()
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        now = datetime.now(timezone.utc)
-
-        bill_items = []
-        for it in order.get("items", []):
-            item_id = it["item_id"]
-            qty = float(it["qty"])
-            rate = float(it.get("rate", 0.0))
-            bill_items.append({
-                "item_id": item_id,
-                "name": it["name"],
-                "qty": qty,
-                "unit": it["unit"],
-                "rate": rate,
-                "amount": qty * rate,
-            })
-            # Deduct stock
-            self.item_repo.decrement_stock(item_id, qty)
-            self.inv_repo.record_stock_txn(
-                item_id=item_id,
-                item_name=it["name"],
-                qty=-abs(qty),
-                txn_type="sale",
-                reference_id=invoice_no,
+        # Claim the order so a second click / second counter cannot convert it twice.
+        if not self.order_repo.update_one({"order_id": order_id, "status": status}, {"$set": {"status": "billing"}}):
+            raise ValueError(f"Order {order_id} is being converted by someone else")
+        try:
+            lines = []
+            for it in order.get("items", []):
+                qty, rate = float(it["qty"]), float(it.get("rate", 0.0))
+                lines.append(BillItem(item_id=it["item_id"], item_alias=it.get("item_alias"), name=it["name"],
+                                      qty=qty, unit=it["unit"], rate=rate, amount=round(qty * rate, 2)))
+            total = float(order["total_amount"])
+            bill = self.billing_svc.create_bill(BillCreate(
+                invoice_date=datetime.now().strftime("%Y-%m-%d"),
+                customer_id=order["customer_id"], customer_name=order["customer_name"], company_id=order.get("company_id"),
+                items=lines, total_amount=total, balance_due=total, created_by=user_id,
+                commission_amt=float(order.get("commission_amt") or 0.0), mandi_fee_amt=float(order.get("mandi_fee_amt") or 0.0),
+                crates_issued=float(order.get("crates_issued") or 0), crates_returned=float(order.get("crates_returned") or 0),
                 notes=f"Converted from Order {order_id}",
-                created_by=user_id,
-            )
+            ))
+        except Exception:
+            self.order_repo.update_one({"order_id": order_id, "status": "billing"}, {"$set": {"status": status}})
+            raise
 
-        bill_doc = {
-            "invoice_no": invoice_no,
-            "invoice_date": today_str,
-            "customer_id": order["customer_id"],
-            "customer_name": order["customer_name"],
-            "items": bill_items,
-            "total_amount": float(order["total_amount"]),
-            "balance_due": float(order["total_amount"]),
-            "status": "unpaid",
-            "linked_source_id": order_id,
-            "created_by": user_id,
-            "created_at": now,
-            "is_deleted": 0,
-            "currency_code": "INR",
-        }
-        self.bill_repo.insert_one(bill_doc)
-
-        # Update customer balance
-        self.cust_repo.update_balance(order["customer_id"], float(order["total_amount"]))
-
-        # Update order status
+        invoice_no = bill["invoice_no"]
+        self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {"linked_source_id": order_id}})
         self.order_repo.update_one(
             {"order_id": order_id},
             {"$set": {"status": "billed"}, "$push": {"linked_bill_ids": invoice_no}}
         )
-        return {"order_id": order_id, "invoice_no": invoice_no, "total_amount": bill_doc["total_amount"]}
+        return {"order_id": order_id, "invoice_no": invoice_no, "total_amount": total}
 
-    def convert_to_purchase(self, order_id: str, supplier_id: str, supplier_name: str, user_id: str = "system") -> Dict[str, Any]:
-        """Convert order demand into a supplier purchase bill and increment warehouse stock."""
+    def convert_to_purchase(self, order_id: str, supplier_id: str, supplier_name: str = "", user_id: str = "system") -> Dict[str, Any]:
+        """Convert order demand into a supplier purchase bill (TDS applied) and increment warehouse stock."""
         order = self.get_order(order_id)
         if not order:
             raise ValueError(f"Order {order_id} not found")
+        if order.get("status") == "cancelled":
+            raise ValueError(f"Order {order_id} is cancelled and cannot be converted to a purchase")
+        if order.get("linked_purchase_ids"):
+            raise ValueError(f"Order {order_id} is already converted to purchase {', '.join(order['linked_purchase_ids'])}")
 
-        purchase_id = self.proc_repo.next_purchase_id()
-        now = datetime.now(timezone.utc)
-
-        pur_items = []
-        for it in order.get("items", []):
-            item_id = it["item_id"]
-            qty = float(it["qty"])
-            rate = float(it.get("rate", 0.0))
-            pur_items.append({
-                "item_id": item_id,
-                "name": it["name"],
-                "qty": qty,
-                "unit": it["unit"],
-                "rate": rate,
-                "amount": qty * rate,
-            })
-            # Increment stock
-            self.item_repo.increment_stock(item_id, qty)
-            self.inv_repo.record_stock_txn(
-                item_id=item_id,
-                item_name=it["name"],
-                qty=abs(qty),
-                txn_type="purchase",
-                reference_id=purchase_id,
-                notes=f"Converted from Order {order_id}",
-                created_by=user_id,
-            )
-
-        pur_doc = {
-            "purchase_id": purchase_id,
-            "supplier_id": supplier_id,
-            "supplier_name": supplier_name,
-            "bill_date": now,
-            "items": pur_items,
-            "total_amount": float(order["total_amount"]),
-            "payable_amount": float(order["total_amount"]),
-            "balance_due": float(order["total_amount"]),
-            "status": "active",
-            "created_by": user_id,
-            "created_at": now,
-            "is_deleted": 0,
-        }
-        self.proc_repo.bills.insert_one(pur_doc)
-        self.supp_repo.update_balance(supplier_id, float(order["total_amount"]))
-
-        self.order_repo.update_one(
-            {"order_id": order_id},
-            {"$push": {"linked_purchase_ids": purchase_id}}
+        items = [{"item_id": it["item_id"], "name": it["name"], "qty": float(it["qty"]), "unit": it["unit"],
+                  "rate": float(it.get("rate", 0.0)), "amount": float(it["qty"]) * float(it.get("rate", 0.0))}
+                 for it in order.get("items", [])]
+        # Validates the supplier, computes TDS/payable and books the supplier balance.
+        pur = self.procurement_svc.create_purchase_bill(
+            supplier_id=supplier_id, supplier_bill_no=order_id, items=items,
+            notes=f"Converted from Order {order_id}", user_id=user_id,
         )
+        purchase_id = pur["purchase_id"]
+        for it in items:
+            self.item_repo.increment_stock(it["item_id"], it["qty"])
+            self.inv_repo.record_stock_txn(
+                item_id=it["item_id"], item_name=it["name"], qty=abs(it["qty"]), txn_type="purchase",
+                reference_id=purchase_id, notes=f"Converted from Order {order_id}", created_by=user_id,
+            )
+        self.order_repo.update_one({"order_id": order_id}, {"$push": {"linked_purchase_ids": purchase_id}})
         return {"order_id": order_id, "purchase_id": purchase_id}
 
     def get_order_matrix(self, delivery_date: Optional[str] = None) -> Dict[str, Any]:

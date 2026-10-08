@@ -121,7 +121,8 @@ pb = bs.create_bill(mk_bill(lines=[("FRU0001","101","Apple",10,20.0)]))   # 200
 ps.record_customer_payment("Cust0001", 120.0, invoice_no=pb["invoice_no"])
 check("SVC-VOID-09a", "pre-void: balance=80 after paying 120", cust("Cust0001")["current_balance"] == 80.0, cust("Cust0001")["current_balance"])
 bs.void_bill(pb["invoice_no"])
-check("SVC-VOID-09", "void of part-paid bill leaves customer balance 0 (not negative)", cust("Cust0001")["current_balance"] == 0.0 or None, f"balance={cust('Cust0001')['current_balance']} (paid 120 of 200, voided; expected refund/credit handling)")
+pay9 = raw.payments.find_one({"party_id": "Cust0001"})
+check("SVC-VOID-09", "void of part-paid bill: customer ends with 120 credit (balance -120) and the payment is released as unallocated credit", cust("Cust0001")["current_balance"] == -120.0 and pay9["allocation_status"] == "unallocated" and pay9["is_advance"] and pay9["allocations"] == [], f"balance={cust('Cust0001')['current_balance']} payment={pay9['allocation_status']} alloc={pay9['allocations']}")
 
 # ---------------------------------------------------------------- PAYMENTS
 reset()
@@ -170,6 +171,9 @@ try:
 except Exception as e:
     check("SVC-ORD-04", "convert respects customer credit limit (limit 300, order 1000)", True, e)
 bl = raw.bills.find_one({"linked_source_id": o["order_id"]})
+if bl is None:                       # limit blocked it (correct) -> lift the limit and convert to exercise the rest
+    raw.customers.update_one({"cust_id":"Cust0001"},{"$set":{"credit_limit":0.0}}); os_.convert_to_bill(o["order_id"], "admin")
+    bl = raw.bills.find_one({"linked_source_id": o["order_id"]})
 if bl:
     check("SVC-ORD-05", "converted bill gets CREATE audit row", raw.bill_audits.count_documents({"invoice_no": bl["invoice_no"]}) > 0, "audit rows=%d" % raw.bill_audits.count_documents({"invoice_no": bl["invoice_no"]}))
     check("SVC-ORD-06", "converted bill has invoice_date/due_date consistent with direct bills", bl.get("due_date") is not None, f"due_date={bl.get('due_date')}")
@@ -185,9 +189,11 @@ o3 = os_.create_order(OrderCreate(customer_id="Cust0001", customer_name="Anna", 
         items=[OrderItem(item_id="VEG0001", name="Avarai", qty=4, unit="kg", rate=20.0, amount=80.0)]))
 before = item("VEG0001")["stock"]
 pu = os_.convert_to_purchase(o3["order_id"], "SUP001", "Fresh Farm Suppliers", "admin")
-check("SVC-ORD-11", "convert_to_purchase: stock +4, supplier balance +80", item("VEG0001")["stock"]==before+4 and raw.suppliers.find_one({"supplier_id":"SUP001"})["current_balance"]==80.0, (item("VEG0001")["stock"], raw.suppliers.find_one({"supplier_id":"SUP001"})["current_balance"]))
-pu2 = os_.convert_to_purchase(o3["order_id"], "SUP001", "Fresh Farm Suppliers", "admin")
-check("SVC-ORD-12", "same order cannot be converted to purchase twice", False if pu2 else True, "second purchase created -> stock inflated twice")
+check("SVC-ORD-11", "convert_to_purchase: stock +4, supplier balance +78.40 (80 less 2% TDS)", item("VEG0001")["stock"]==before+4 and raw.suppliers.find_one({"supplier_id":"SUP001"})["current_balance"]==78.4, (item("VEG0001")["stock"], raw.suppliers.find_one({"supplier_id":"SUP001"})["current_balance"]))
+try:
+    os_.convert_to_purchase(o3["order_id"], "SUP001", "Fresh Farm Suppliers", "admin"); check("SVC-ORD-12", "same order cannot be converted to purchase twice", False, "second purchase created -> stock inflated twice")
+except ValueError as e:
+    check("SVC-ORD-12", "same order cannot be converted to purchase twice", item("VEG0001")["stock"] == before + 4, e)
 check("SVC-ORD-13", "supplier TDS applied on order->purchase (supplier tds_applicable)", raw.purchase_bills.find_one({"purchase_id":pu["purchase_id"]}).get("tds_amount",0)>0, "tds_amount=%s" % raw.purchase_bills.find_one({"purchase_id":pu["purchase_id"]}).get("tds_amount"))
 m = os_.get_order_matrix()
 check("SVC-ORD-14", "order matrix returns rows/customers", "rows" in m and "customers" in m, m)
