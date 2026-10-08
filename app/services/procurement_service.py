@@ -6,6 +6,7 @@ from app.repositories.master_repo import ItemRepository, SupplierRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.models.procurement import PurchaseOrder, PurchaseItem
 from app.services.ledger_service import LedgerService
+from app.database.connection import transactional
 
 class ProcurementService:
     def __init__(self, db: Any):
@@ -50,6 +51,7 @@ class ProcurementService:
     def get_grns(self, limit: int = 50) -> List[Dict[str, Any]]:
         return self.proc_repo.grns.find({"is_deleted": 0}, sort=[("date", -1)], limit=limit)
 
+    @transactional
     def record_grn(self, po_id: str, received_items: List[Dict[str, Any]], received_by: str = "system") -> Dict[str, Any]:
         """Record receipt of physical produce against a PO, incrementing warehouse stock.
 
@@ -127,6 +129,7 @@ class ProcurementService:
     def get_purchase_bills(self, limit: int = 50) -> List[Dict[str, Any]]:
         return self.proc_repo.bills.find({"is_deleted": 0}, sort=[("bill_date", -1)], limit=limit)
 
+    @transactional
     def create_purchase_bill(
         self,
         supplier_id: str,

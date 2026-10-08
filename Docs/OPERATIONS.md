@@ -64,3 +64,32 @@ Practise a restore into a spare database once, before you need it.
 5. Run the Integrity Check and read the Balance Sheet.
 
 The backfill books each customer's recorded balance as their receivable. Where old bills minus recorded payments say the customer owes more or less than that balance, the difference is booked as an unrecorded receipt (assumed **Cash**; `--settle-method Bank`) or as an opening balance against Equity. `--no-settle` skips this. Because most historic payments were never recorded, the resulting **Cash on Hand is an assumption, not a count** - replace it with a real opening cash figure.
+
+## Atomic saves (transactions)
+
+Saving a bill touches several records (the bill, stock, the customer balance, the ledger, the payment). On a plain **standalone** MongoDB a crash in the middle leaves some of them written and some not - verified: a failed *void* left stock restored and the customer credited while the bill still showed as unpaid. On a **replica set** the whole save is one transaction: either everything is stored or nothing is.
+
+* Turn it on: set `MONGO_REPLICA_SET=rs0` in `%APPDATA%\BillDesk\.env` (or `.env` in a source checkout) and start BillDesk. BillDesk starts its bundled MongoDB as a single-node replica set and initialises it by itself - no extra software, no cluster.
+* **Existing data is kept**: the same data folder is simply started with `--replSet` (verified with an automated test that converts a standalone data folder and checks every record and index).
+* If a standalone MongoDB is already running on that port (for example one started by `start.ps1`), BillDesk cannot convert it and logs a warning - stop that MongoDB, then start BillDesk.
+* Nothing else changes for users. Operations covered: bill save (with payment, stock, ledger), void, payments (customer and supplier), order -> bill / purchase conversion, goods receipt, purchase bill, stock adjustment, waste.
+
+## Installing and building (Windows)
+
+**First start of a new installation:** BillDesk starts its own MongoDB (data in `%APPDATA%\BillDesk\db`), creates the company, roles and **one administrator with a random password that is shown once** - write it down. Forgot it later? `python scripts/reset_password.py --user admin`.
+
+**Configuration** lives in `%APPDATA%\BillDesk\.env` (same variables as above; create the file if you need one).
+
+**Building the installer** (needs Python 3.10+, `pip install -r requirements-dev.txt`, Inno Setup 6, and `resources\mongo\win32-x64\mongod.exe` - `scripts\fetch-mongod.ps1` downloads it):
+
+```powershell
+.\build_windows.ps1                 # tests -> PyInstaller -> self-test of the built exe -> dist\BillDesk-Setup.exe
+.\build_windows.ps1 -SkipTests -Version 1.1.0
+```
+
+The build **fails** unless the packaged `dist\BillDesk\BillDesk.exe --selftest` passes: it starts a throw-away MongoDB replica set in a temp folder, runs first-run setup and login, saves a bill with a counter payment inside a transaction, proves a failed save leaves no trace, generates the invoice and delivery-challan PDFs, backs up and restores, and runs the integrity check. Run the same check on any installed copy: `BillDesk.exe --selftest` (output is also in the log folder).
+
+* Installer: per-user by default (no administrator rights; the setup also offers an all-users install), Start Menu entry, optional desktop icon / start-with-Windows, refuses to install over a running BillDesk. **Uninstalling keeps `%APPDATA%\BillDesk`** (database, backups, logs).
+* Silent install for scripts: `BillDesk-Setup.exe /VERYSILENT /CURRENTUSER /NORESTART /DIR="C:\BillDesk"` (`/CURRENTUSER` or `/ALLUSERS` is required, otherwise setup waits at its "install mode" dialog).
+* Only one BillDesk window can run per computer.
+* The 148 MB Tesseract OCR engine is **not** bundled (the OCR feature is not built yet); `INCLUDE_TESSERACT=1` adds it.

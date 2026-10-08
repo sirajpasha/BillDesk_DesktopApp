@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from app import paths
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -797,7 +798,7 @@ class ConsolidatedReportFrame(tk.Frame):
         bill_to_safe = "".join(c for c in self.current_report_data.get("bill_to", "Report") if c.isalnum() or c in (" ", "_", "-")).strip()
         default_name = f"Consolidated_Bills_{bill_to_safe}_{self.from_date_var.get()}_to_{self.to_date_var.get()}.pdf"
 
-        out_dir = os.path.abspath("Docs/Output")
+        out_dir = str(paths.output_dir())
         os.makedirs(out_dir, exist_ok=True)
         temp_path = os.path.join(out_dir, default_name)
 
@@ -826,7 +827,7 @@ class ConsolidatedReportFrame(tk.Frame):
         bill_to_safe = "".join(c for c in self.current_report_data.get("bill_to", "Report") if c.isalnum() or c in (" ", "_", "-")).strip()
         default_name = f"Consolidated_Bills_{bill_to_safe}_{self.from_date_var.get()}_to_{self.to_date_var.get()}.pdf"
 
-        out_dir = os.path.abspath("Docs/Output")
+        out_dir = str(paths.output_dir())
         os.makedirs(out_dir, exist_ok=True)
         default_path = os.path.join(out_dir, default_name)
 

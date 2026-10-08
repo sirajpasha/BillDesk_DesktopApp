@@ -1,5 +1,6 @@
 import logging
 import os
+from app import paths
 import subprocess
 import tempfile
 import platform
@@ -1108,7 +1109,7 @@ class BillingFrame(ttk.Frame):
     def _generate_and_open_pdf(self, bill_data: dict):
         try:
             inv_no = bill_data.get("invoice_no", "bill")
-            out_dir = os.path.abspath("Docs/Output")
+            out_dir = str(paths.output_dir())
             os.makedirs(out_dir, exist_ok=True)
             pdf_path = os.path.join(out_dir, f"Inv- {inv_no}.pdf")
 

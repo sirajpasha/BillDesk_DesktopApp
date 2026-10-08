@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -10,6 +11,7 @@ from app.repositories.inventory_repo import InventoryRepository
 from app.models.order import OrderCreate, OrderItem
 from app.models.billing import BillCreate, BillItem
 from app.config.settings import settings
+from app.database.connection import transactional
 from app.utils.currency import money
 from app.services.billing_service import BillingService
 from app.services.procurement_service import ProcurementService
@@ -92,6 +94,7 @@ class OrderService:
 
     CONVERTIBLE_STATUSES = ("pending", "confirmed", "delivered")
 
+    @transactional
     def cancel_order(self, order_id: str) -> Dict[str, Any]:
         order = self.get_order(order_id)
         if not order:
@@ -103,6 +106,7 @@ class OrderService:
         self.order_repo.update_one({"order_id": order_id}, {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc)}})
         return self.get_order(order_id) or {}
 
+    @transactional
     def convert_to_bill(self, order_id: str, user_id: str = "system") -> Dict[str, Any]:
         """1-Click convert order into a sales invoice.
 
@@ -144,7 +148,10 @@ class OrderService:
                 notes=f"Converted from Order {order_id}",
             ))
         except Exception:
-            self.order_repo.update_one({"order_id": order_id, "status": "billing"}, {"$set": {"status": status}})
+            try:        # standalone MongoDB has no rollback: put the claimed order back (inside a transaction this is moot)
+                self.order_repo.update_one({"order_id": order_id, "status": "billing"}, {"$set": {"status": status}})
+            except Exception:
+                logging.getLogger(__name__).warning("Could not release the claimed order %s", order_id, exc_info=True)
             raise
 
         invoice_no = bill["invoice_no"]
@@ -155,6 +162,7 @@ class OrderService:
         )
         return {"order_id": order_id, "invoice_no": invoice_no, "total_amount": total}
 
+    @transactional
     def convert_to_purchase(self, order_id: str, supplier_id: str, supplier_name: str = "", user_id: str = "system") -> Dict[str, Any]:
         """Convert order demand into a supplier purchase bill (TDS applied) and increment warehouse stock."""
         order = self.get_order(order_id)

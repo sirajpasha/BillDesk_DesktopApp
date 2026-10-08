@@ -2,6 +2,7 @@ import logging
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os
+from app import paths
 import subprocess
 import platform
 import math
@@ -684,7 +685,7 @@ class BillHistoryFrame(tk.Frame):
             return
 
         try:
-            out_dir = os.path.abspath("Docs/Output")
+            out_dir = str(paths.output_dir())
             os.makedirs(out_dir, exist_ok=True)
             file_path = os.path.join(out_dir, f"Inv- {inv_no}.pdf")
 
@@ -717,7 +718,7 @@ class BillHistoryFrame(tk.Frame):
             return
 
         try:
-            out_dir = os.path.abspath("Docs/Output")
+            out_dir = str(paths.output_dir())
             os.makedirs(out_dir, exist_ok=True)
             file_path = os.path.join(out_dir, f"DC- {inv_no}.pdf")
 

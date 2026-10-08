@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app.repositories.master_repo import ItemRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.services.ledger_service import LedgerService
+from app.database.connection import transactional
 
 class InventoryService:
     def __init__(self, db: Any):
@@ -24,6 +25,7 @@ class InventoryService:
             ]
         return self.item_repo.find(filter_doc, sort=[("name", 1)], limit=200)
 
+    @transactional
     def adjust_stock(self, item_id: str, delta_qty: float, reason: str, user_id: str = "system") -> Dict[str, Any]:
         """Manually adjust item stock (+ or -) with mandatory reason and immutable audit log."""
         item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
@@ -49,6 +51,7 @@ class InventoryService:
         )
         return {"item_id": item_id, "delta_qty": delta_qty, "new_stock": new_stock, "transaction_id": txn["transaction_id"]}
 
+    @transactional
     def record_waste(self, item_id: str, qty: float, rate: float, reason: str, user_id: str = "system") -> Dict[str, Any]:
         """Record produce spoilage/waste, decrement stock, and log financial loss."""
         item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})

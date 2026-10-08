@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[2]
+from app import paths
+
+ROOT = paths.app_root()
+# precedence: real environment > %APPDATA%\BillDesk\.env (installed build) > ./.env (source checkout)
+load_dotenv(paths.env_file())
 load_dotenv(ROOT / ".env")
 
 @dataclass
@@ -24,6 +28,9 @@ class Settings:
     backup_dir: str = os.getenv("BACKUP_DIR", "")                      # default: %APPDATA%\\BillDesk\\backups
     backup_enabled: bool = os.getenv("AUTO_BACKUP", "true").strip().lower() in ("1", "true", "yes")
     backup_max_age_hours: float = float(os.getenv("BACKUP_MAX_AGE_HOURS", "24") or 24)
+    # Name of a single-node replica set to run the bundled MongoDB as (e.g. rs0). Required for transactions: a failure
+    # in the middle of saving a bill then leaves no half-written data. Empty = plain standalone server.
+    mongo_replica_set: str = os.getenv("MONGO_REPLICA_SET", "")
     allow_negative_stock: bool = os.getenv("ALLOW_NEGATIVE_STOCK", "true").strip().lower() in ("1", "true", "yes")
     app_title: str = os.getenv("APP_TITLE", "BillDesk — Native Mandi POS & ERP")
 

@@ -32,11 +32,7 @@ RECORD_DEFAULTS = {
     "suppliers": {"status": "active", "is_deleted": 0, "current_balance": 0.0},
 }
 
-# Menu permissions understood by MainWindow (admin is always allowed everything).
-DEFAULT_ROLE_PERMISSIONS = {
-    "manager": ["/items", "/customers", "/suppliers", "/finance", "/accounting", "/ledger"],
-    "user": [],
-}
+from app.first_run import DEFAULT_ROLE_PERMISSIONS  # noqa: E402  (shared with the first-run setup of installed builds)
 
 
 def with_defaults(collection: str, doc: dict) -> dict:
