@@ -17,6 +17,7 @@ from app.ui.finance_view import FinanceView
 from app.ui.admin_view import AdminView
 from app.ui.database_settings import DatabaseSettingsFrame
 from app.ui.consolidated_view import ConsolidatedReportFrame
+from app.ui.integrity_view import IntegrityView
 
 
 class MainWindow:
@@ -35,6 +36,7 @@ class MainWindow:
         "Finance": "finance", "Accounting Dashboard": "finance", "Trial Balance": "finance",
         "Profit & Loss": "finance", "Balance Sheet": "finance", "BRS": "finance",
         "Accounts Receivables": "finance", "Accounts Payables": "finance", "Handover & Settlement": "finance",
+        "Integrity Check": "finance",
         "Administration": "settings", "User Management": "settings", "Company Settings": "settings",
         "System Audit Logs": "settings", "DB Connection": "settings",
     }
@@ -289,6 +291,7 @@ class MainWindow:
                 ("Balance Sheet", "Balance Sheet", ""),
                 ("BRS", "BRS", ""),
                 ("Handover & Settlement", "Handover & Settlement", ""),
+                ("Integrity Check", "Integrity Check", ""),
                 ("Accounts Receivables", "Accounts Receivables", ""),
                 ("Accounts Payables", "Accounts Payables", ""),
             ]
@@ -359,6 +362,9 @@ class MainWindow:
         self.frames["BRS"] = self.finance_view
         self.frames["Accounts Receivables"] = self.finance_view
         self.frames["Accounts Payables"] = self.finance_view
+
+        self.integrity_view = IntegrityView(content, self.db, current_user=self.current_user)
+        self.frames["Integrity Check"] = self.integrity_view
 
         # 9. Administration
         self.admin_view = AdminView(content, self.db, current_user=self.current_user)
