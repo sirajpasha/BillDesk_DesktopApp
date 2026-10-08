@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import os
 import re
 import tkinter as tk
@@ -463,7 +464,7 @@ class OrderFormView(tk.Frame):
                 fraction = max(0.0, min(1.0, row_idx / total_rows))
                 self.t_canvas.yview_moveto(fraction)
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # ---------------- KEYBOARD-DRIVEN SPREADSHEET ROW LOGIC ----------------
     def _on_code_entered(self, row_idx: int, focus_next: bool = True):

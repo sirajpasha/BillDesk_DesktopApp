@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
@@ -73,7 +74,7 @@ class MainWindow:
                 self._icon_img = tk.PhotoImage(file=icon_path)
                 root.iconphoto(False, self._icon_img)
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         self._configure_style()
         self._build_shell()
@@ -86,7 +87,7 @@ class MainWindow:
             if comp and comp.get("name"):
                 return comp["name"].upper()
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
         return settings.default_company_name.upper()
 
     def _configure_style(self):
@@ -509,7 +510,7 @@ class MainWindow:
             try:
                 target_frame.refresh()
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         # Update contextual bottom function keys legend matching screenshots
         if name == "Dashboard":

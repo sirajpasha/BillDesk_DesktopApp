@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
@@ -198,20 +199,20 @@ class FinanceView(tk.Frame):
             total_ar = ar_data.get("summary", {}).get("total", 0.0)
             self.kpi_home_ar.config(text=format_inr(total_ar))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         try:
             pl = self.ledger_svc.get_profit_and_loss()
             self.kpi_home_profit.config(text=format_inr(pl.get("net_profit", 0.0)))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         try:
             accs = self.bank_svc.get_bank_accounts()
             tot_bank = sum(a.get("current_balance", 0.0) for a in accs)
             self.kpi_home_bank.config(text=format_inr(tot_bank))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         try:
             # Payables count from purchases
@@ -219,7 +220,7 @@ class FinanceView(tk.Frame):
             tot_ap = sum(p.get("balance_due", 0.0) for p in purchases)
             self.kpi_home_ap.config(text=format_inr(tot_ap))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # =========================================================================
     # 1. AR AGING & RECEIPTS TAB

@@ -9,9 +9,13 @@ if os.path.exists(tcl_candidate) and "TCL_LIBRARY" not in os.environ:
 if os.path.exists(tk_candidate) and "TK_LIBRARY" not in os.environ:
     os.environ["TK_LIBRARY"] = tk_candidate
 
+import logging
+import threading
 import tkinter as tk
 from tkinter import messagebox
 import traceback
+
+from app.logging_setup import setup_logging, install_tk_exception_handler, log_path
 
 from app.config.settings import settings
 from app.database.connection import MongoDatabase
@@ -21,7 +25,24 @@ from app.ui.login_window import LoginWindow
 from app.ui.main_window import MainWindow
 
 
+def _start_background_backup(db) -> None:
+    """One verified backup per 24 h, off the UI thread; failures are logged, never block billing."""
+    if not settings.backup_enabled:
+        return
+
+    def run():
+        try:
+            from app.services.backup_service import BackupService
+            BackupService(db).backup_if_due(settings.backup_max_age_hours)
+        except Exception:
+            logging.getLogger("backup").exception("Automatic backup failed")
+
+    threading.Thread(target=run, name="auto-backup", daemon=True).start()
+
+
 def main() -> int:
+    setup_logging()
+    log = logging.getLogger("main")
     print("=" * 60)
     print("  BillDesk — Native Desktop Mandi POS & ERP")
     print("=" * 60)
@@ -32,8 +53,10 @@ def main() -> int:
         db.connect()
         db.ensure_indexes()
         print("MongoDB connection established successfully.")
+        log.info("Connected to MongoDB %s / %s", settings.mongodb_url, settings.db_name)
     except Exception as exc:
         print(f"ERROR: Failed to connect to MongoDB: {exc}")
+        log.exception("MongoDB connection failed")
         root = tk.Tk()
         root.withdraw()
         messagebox.showerror("MongoDB Connection Error", f"Could not connect to MongoDB at {settings.mongodb_url}:\n\n{exc}")
@@ -43,6 +66,8 @@ def main() -> int:
     root = tk.Tk()
     root.title("BillDesk Native")
     root.withdraw()
+    install_tk_exception_handler(root)
+    _start_background_backup(db)
 
     auth = AuthService(db)
     billing = BillingService(db)
@@ -77,6 +102,7 @@ def main() -> int:
         window.show()
     except Exception as exc:
         print(f"ERROR: Failed to initialize MainWindow: {exc}")
+        log.exception("MainWindow failed to start")
         traceback.print_exc()
         messagebox.showerror("Application Error", f"Fatal error starting application:\n\n{exc}", parent=root)
         db.close()

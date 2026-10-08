@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import os
 import sys
 from io import BytesIO
@@ -212,7 +213,7 @@ def generate_consolidated_report_pdf(
             dt = datetime.strptime(inv_date[:10], "%Y-%m-%d")
             inv_date = dt.strftime("%d/%m/%Y")
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         amt_val = float(bill.get("amount", 0.0))
         summary_data.append([

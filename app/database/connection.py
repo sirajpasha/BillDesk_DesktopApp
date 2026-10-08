@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from pymongo import MongoClient, ASCENDING, DESCENDING
 import certifi
 
@@ -46,7 +47,7 @@ class MongoDatabase:
                 name=desired_name,
             )
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     def ensure_indexes(self) -> None:
         if self.db is None:
@@ -67,6 +68,11 @@ class MongoDatabase:
             self.client = None
             self.db = None
             self.supports_transactions = False
+
+    def list_collection_names(self):
+        if self.db is None:
+            raise RuntimeError("MongoDB is not connected")
+        return self.db.list_collection_names()
 
     def collection(self, name: str):
         if self.db is None:
