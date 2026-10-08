@@ -7,13 +7,13 @@
 | | Count |
 | :-- | --: |
 | Test cases executed (this report) | **279** |
-| Passed | **278** |
-| Failed (each maps to an open defect below) | **1** |
-| Existing pytest suite (mock DB) | 140 pass (49 original + 91 new regression tests); the hang and the live-DB dependency are fixed |
+| Passed | **279** |
+| Failed (each maps to an open defect below) | **0** |
+| Existing pytest suite (mock DB) | 147 pass (49 original + 98 new regression tests); the hang and the live-DB dependency are fixed |
 
 The 48-test pytest suite is green because it runs against an in-memory mock and asserts only the happy paths. Run against a **real MongoDB** and the real Tk windows, the application has **7 high-severity defects** that affect money, stock, security or documents. The most serious: **a payment taken at the counter is never recorded** (D-01) and **role restrictions are bypassable with keyboard shortcuts** (D-04).
 
-**Update - fixes applied after the first run:** D-01 .. D-15, D-17 and D-20 are fixed (D-16, D-18 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 91 new pytest regression tests (including `tests/test_ledger_posting.py`) (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; the commission/mandi display on orders (D-16) and persistence of parked bills (D-18) remain open. Numbers in this report are from the post-fix run.
+**Update - fixes applied after the first run:** D-01 .. D-17 and D-20 are fixed (D-18 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 98 new pytest regression tests (including `tests/test_ledger_posting.py`) (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; only persistence of parked bills (D-18) remains open. Numbers in this report are from the post-fix run.
 
 ## 2. How the testing was done
 
@@ -84,7 +84,7 @@ Severity: **High** = wrong money/stock/security or unusable document; **Medium**
 | D-13 **FIXED** | **Procurement controls missing:** a PO can be received twice (stock doubled) and over-received (7777 vs 100 ordered); 3-way match always reports `matched` when PO+GRN ids are present, even for 1000 vs 100 units. | SVC-PROC-05/06/09 | `services/procurement_service.py:51-145` |
 | D-14 **FIXED** | **Cash drawer:** expected cash counts *every* bill by the user (credit sales included): 2000 + 3500 cash + 1000 credit + 500 receipt = 7000 instead of 6000; negative opening cash accepted. | SVC-SESS-02/06 | `services/session_service.py:37-64` |
 | D-15 **FIXED** | **Master/admin validation:** customer with outstanding balance 777 can be deleted; `save_customer` accepts and overwrites `current_balance`; negative item rate and unknown roles accepted; 1-character passwords accepted; passwords identical in the first 72 bytes are equal (bcrypt truncation); `adjust_stock` accepts a blank reason; waste with negative rate; journals accept negative, empty or both-sided lines; item `default_rate` (what the seeder writes) is ignored by pricing (falls back to hard-coded 20.0). | GUI-MST-04/09/10, GUI-ADM-04/05/07, SVC-INV-05/09, SVC-GL-05/06/07, SVC-PRICE-03 | `services/master_service.py`, `admin_service.py`, `inventory_service.py`, `accounting_repo.py` |
-| D-16 **PARTLY FIXED** (free-typed customers rejected; commission/mandi fee still shown but not in the total - needs a business decision) | **Order form:** a free-typed customer name (not in the master) creates an order with `customer_id` = the text; commission 5 % / mandi fee 1 % are hard-coded and shown on screen but excluded from the order total and from the converted bill. | GUI-ORD-03/11 | `ui/order_form_view.py:1113, 1194-1196` |
+| D-16 **FIXED** | **Order form:** a free-typed customer name created an order with `customer_id` = the text (now rejected unless it is a master customer). Commission 5 % / mandi fee 1 % were hard-coded, shown on screen but excluded from the order total and from the converted bill. Production data shows no order or bill has ever carried either charge, so the rates are now configuration (`COMMISSION_RATE`, `MANDI_FEE_RATE`, default **0**), included in the order total when set, carried to the converted bill (booked as fee income in the ledger); orders saved before this change convert without charges. | GUI-ORD-03/11 | `ui/order_form_view.py`, `services/order_service.py`, `config/settings.py` |
 
 ### Low
 
@@ -310,7 +310,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-BILL-34` | EPIC-02 Billing grid & payment modal | recall restores line (Bajji Chilli, qty 3) | PASS | ('Bajji Chilli', '3') |
 | `GUI-BILL-35` | EPIC-02 Billing grid & payment modal | parked count drops to 0 after recall | PASS | 0 |
 
-### GUI: orders / importer / history  (39/40 passed)
+### GUI: orders / importer / history  (40/40 passed)
 
 | ID | Epic / story | Test case (expected behaviour) | Result | Evidence |
 | :-- | :-- | :-- | :-: | :-- |
@@ -323,9 +323,9 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-IMP-06` | EPIC-04 / Story 4.2 Smart importer | importer line '5 kg': unknown/ambiguous text is skipped, never guessed | PASS | imported=0 skipped=['5 kg'] |
 | `GUI-IMP-07` | EPIC-04 / Story 4.2 Smart importer | importer line 'avarai 4' -> ('Avarai', 4.0, 'kg') | PASS | got ('Avarai', 4.0, 'kg') |
 | `GUI-IMP-08` | EPIC-04 / Story 4.2 Smart importer | importer line 'Apple x' -> ('Apple', 1.0, 'kg') | PASS | got ('Apple', 1.0, 'kg') |
-| `GUI-ORD-01` | EPIC-04 Order form & list | order saved via form (status pending, total 600) | PASS | ('ORD-20261009-0001', 'pending', 600.0) |
+| `GUI-ORD-01` | EPIC-04 Order form & list | order saved via form (status pending, total 636 = 600 + 5% commission + 1% mandi) | PASS | ('ORD-20261009-0001', 'pending', 636.0) |
 | `GUI-ORD-02` | EPIC-04 Order form & list | order stores hidden commission=5% and mandi fee=1% of total (30 / 6) | PASS | (30.0, 6.0) |
-| `GUI-ORD-03` | EPIC-04 Order form & list | commission/mandi fee shown on the order form are included in the order total (and carried to the bill) | **FAIL** | form displays Comm/Mandi Fee but stored total_amount=600.0 excludes them (expected 636.0); converted bill also ignores them |
+| `GUI-ORD-03` | EPIC-04 Order form & list | commission/mandi fee shown on the order form are included in the order total (and carried to the bill) | PASS | form displays Comm/Mandi Fee but stored total_amount=636.0 excludes them (expected 636.0); converted bill also ignores them |
 | `GUI-ORD-04` | EPIC-04 Order form & list | delivery date before order date rejected | PASS | ('showwarning', 'Invalid Date Range', 'Delivery date (06 - 10 - 2026) cannot be before order date (09 - 10 - 2026).') |
 | `GUI-ORD-05` | EPIC-04 Order form & list | impossible date 31-02-2026 rejected | PASS | ('showwarning', 'Invalid Delivery Date', 'Please enter a valid delivery date (DD - MM - YYYY).') |
 | `GUI-ORD-06` | EPIC-04 Order form & list | non-date text rejected | PASS | ('showwarning', 'Invalid Delivery Date', 'Please enter a valid delivery date (DD - MM - YYYY).') |
@@ -344,7 +344,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-HIST-04` | EPIC-03 Bill history | regex-special text in search box does not crash | PASS |  |
 | `GUI-HIST-05` | EPIC-03 Bill history | void via UI marks bill void and shows success | PASS | ('showinfo', 'Success', 'Invoice 20261009-0001 voided and all financial/stock impacts reversed.') |
 | `GUI-HIST-06` | EPIC-03 Bill history | void restores stock of every line of that item | PASS | (90.0, 100.0, 10.0) |
-| `GUI-HIST-07` | EPIC-03 Bill history | void reduces customer balance by the bill total (balance never < 0 for an unpaid bill) | PASS | (600.0, 0.0) |
+| `GUI-HIST-07` | EPIC-03 Bill history | void reduces customer balance by the bill total (balance never < 0 for an unpaid bill) | PASS | (636.0, 0.0) |
 | `GUI-HIST-08` | EPIC-03 Bill history | voiding an already void bill warns | PASS | ('showwarning', 'Already Voided', 'Invoice 20261009-0001 is already voided.') |
 | `GUI-HIST-09` | EPIC-03 Bill history | KPI 'total bills' excludes void | PASS | 0 |
 | `GUI-HIST-10` | EPIC-03 Bill history | KPI revenue = sum of non-void bills | PASS | ui=₹ 0.00 db=0 |

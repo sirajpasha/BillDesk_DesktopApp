@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.config.settings import settings
+from app.utils.currency import money
 from app.models.order import OrderCreate, OrderItem
 from app.services.order_service import OrderService
 from app.services.master_service import MasterService
@@ -687,14 +688,11 @@ class OrderFormView(tk.Frame):
                     rate = 0.0
                 subtotal += (qty * rate)
 
+        comm, mandi_fee = OrderService.charges(subtotal)
         self.total_items_lbl.config(text=f"Total Items: {count}")
-        self.total_amount_lbl.config(text=f"Total Amount: ₹{subtotal:,.2f}")
-
-        # Update Commission & Mandi Fee estimates
-        comm = subtotal * 0.05
-        mandi_fee = subtotal * 0.01
-        self.comm_lbl.config(text=f"Comm: ₹ {comm:,.2f}")
-        self.mandi_fee_lbl.config(text=f"Mandi Fee: ₹ {mandi_fee:,.2f}")
+        self.total_amount_lbl.config(text=f"Total Amount: ₹{subtotal + comm + mandi_fee:,.2f}")
+        self.comm_lbl.config(text=f"Comm: ₹ {comm:,.2f}" + (f" ({settings.commission_rate:g}%)" if comm else ""))
+        self.mandi_fee_lbl.config(text=f"Mandi Fee: ₹ {mandi_fee:,.2f}" + (f" ({settings.mandi_fee_rate:g}%)" if mandi_fee else ""))
 
     # ---------------- SMART TEXT IMPORTER (F8) ----------------
     def _open_smart_importer(self):
@@ -1224,9 +1222,9 @@ class OrderFormView(tk.Frame):
         selected_comp = next((c for c in self.companies if c.get("name") == selected_comp_name), self.companies[0] if self.companies else {})
         company_id = selected_comp.get("company_id", "COMP-001")
 
-        total_amount = sum(i.amount for i in order_items)
-        comm = total_amount * 0.05
-        mandi = total_amount * 0.01
+        items_total = money(sum(i.amount for i in order_items))
+        comm, mandi = OrderService.charges(items_total)
+        total_amount = money(items_total + comm + mandi)
 
         status_val = self.status_cbo.get().lower() if self.is_edit else "pending"
 
