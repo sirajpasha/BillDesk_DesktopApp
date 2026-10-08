@@ -20,6 +20,7 @@ class Settings:
     # has ever carried either). Set e.g. COMMISSION_RATE=5 in .env to charge 5 %.
     commission_rate: float = float(os.getenv("COMMISSION_RATE", "0") or 0)
     mandi_fee_rate: float = float(os.getenv("MANDI_FEE_RATE", "0") or 0)
+    parked_bills_file: str = os.getenv("PARKED_BILLS_FILE", "")      # default: %APPDATA%\BillDesk\parked_bills.json
     allow_negative_stock: bool = os.getenv("ALLOW_NEGATIVE_STOCK", "true").strip().lower() in ("1", "true", "yes")
     app_title: str = os.getenv("APP_TITLE", "BillDesk — Native Mandi POS & ERP")
 
