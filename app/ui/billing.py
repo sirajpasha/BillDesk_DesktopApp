@@ -38,6 +38,7 @@ class BillingFrame(ttk.Frame):
         self._build_ui()
         self._bind_hotkeys()
         self._load_defaults()
+        self._refresh_parked_label()      # bills parked before a restart are still there
 
     def _build_ui(self):
         # Outer container with padding matching 04-billing-empty.png
@@ -1123,8 +1124,15 @@ class BillingFrame(ttk.Frame):
             messagebox.showwarning("Print Preview", f"Could not generate/preview PDF:\n{e}", parent=self)
 
     # ---------------- PARK & RECALL (F6 / F7) ----------------
+    def _refresh_parked_label(self):
+        self.parked_bills_count = len(self.billing.get_parked_bills())
+        self.parked_list_btn.config(text=f"📥 Parked ({self.parked_bills_count}) (F7)")
+
+    def _grid_has_items(self) -> bool:
+        return any(r["code"].get().strip() for r in self.row_widgets)
+
     def park_bill(self):
-        """Park current bill into memory queue."""
+        """Park the current bill; it is saved to disk so it survives closing or crashing the app."""
         total = self._update_grand_total()
         if total <= 0:
             return
@@ -1147,11 +1155,15 @@ class BillingFrame(ttk.Frame):
             "company": self.company_cbo.get(),
             "lines": lines,
             "total": total,
-            "parked_at": datetime.now().strftime("%H:%M:%S")
+            "parked_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "parked_by": self.user.username
         }
-        self.billing.park_bill(park_data)
-        self.parked_bills_count = len(self.billing.get_parked_bills())
-        self.parked_list_btn.config(text=f"📥 Parked ({self.parked_bills_count}) (F7)")
+        try:
+            self.billing.park_bill(park_data)
+        except OSError as ex:
+            messagebox.showerror("Could Not Park Bill", f"The bill was NOT parked (cannot write the parked-bills file):\n{ex}", parent=self)
+            return
+        self._refresh_parked_label()
         self._reset_bill()
         messagebox.showinfo("Bill Parked", f"Bill parked successfully. Current parked: {self.parked_bills_count}", parent=self)
 
@@ -1177,15 +1189,20 @@ class BillingFrame(ttk.Frame):
             card = tk.Frame(frame, bg="#f8fafc", highlightbackground="#e2e8f0", highlightthickness=1, padx=10, pady=8, cursor="hand2")
             card.pack(fill="x", pady=4)
             tk.Label(card, text=f"#{idx+1} {c_name} — Total: ₹{pb['total']:.2f}", font=("Segoe UI", 9, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-            tk.Label(card, text=f"Parked at {pb['parked_at']} ({len(pb['lines'])} items)", font=("Segoe UI", 8), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+            tk.Label(card, text=f"Parked {pb['parked_at']}" + (f" by {pb['parked_by']}" if pb.get("parked_by") else "") + f" ({len(pb['lines'])} items)", font=("Segoe UI", 8), fg="#64748b", bg="#f8fafc").pack(anchor="w")
 
             card.bind("<Button-1>", lambda _e, i=idx: _recall(i))
 
         def _recall(i):
-            recalled = self.billing.recall_parked_bill(i)
+            if self._grid_has_items() and not messagebox.askyesno(
+                    "Replace Current Bill", "The current bill has items that are not saved. Replace it with the parked bill?", parent=modal):
+                return
+            bills = self.billing.get_parked_bills()
             modal.destroy()
-            if recalled:
-                self._load_parked_bill(recalled)
+            if 0 <= i < len(bills):
+                self._load_parked_bill(bills[i])           # load first ...
+                self.billing.discard_parked_bill(i)        # ... then remove, so a failure never loses the bill
+                self._refresh_parked_label()
 
     def _load_parked_bill(self, pb: dict):
         self._reset_bill()
@@ -1207,8 +1224,7 @@ class BillingFrame(ttk.Frame):
             row["item_id"] = l.get("item_id")
             self._recalculate_row(idx)
 
-        self.parked_bills_count = len(self.billing.get_parked_bills())
-        self.parked_list_btn.config(text=f"📥 Parked ({self.parked_bills_count}) (F7)")
+        self._refresh_parked_label()
 
     def _reset_bill(self):
         for idx in range(len(self.row_widgets)):

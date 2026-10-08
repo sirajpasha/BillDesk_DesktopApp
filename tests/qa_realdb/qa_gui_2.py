@@ -158,5 +158,15 @@ card.master.event_generate("<Button-1>"); pump(root, 3)
 check("GUI-BILL-34", "recall restores line (Bajji Chilli, qty 3)", row(0)["name"].get() == "Bajji Chilli" and row(0)["qty"].get() == "3", (row(0)["name"].get(), row(0)["qty"].get()))
 check("GUI-BILL-35", "parked count drops to 0 after recall", bf.parked_bills_count == 0, bf.parked_bills_count)
 reset_form()
-setv(row(0)["code"], "104"); bf._on_code_entered(0); bf.park_bill()
-finish(root)
+# parked bill must survive an app restart (EPIC-02 usability): park, close everything, start a fresh process-equivalent
+setv(row(0)["code"], "104"); bf._on_code_entered(0); setv(row(0)["qty"], "2"); bf._recalculate_row(0)
+bf.park_bill(); pump(root, 3)
+root.destroy(); db.close()
+import subprocess, sys as _sys
+out = subprocess.run([_sys.executable, "-c", "from app.config.settings import settings; from app.database.connection import MongoDatabase; from app.services.billing_service import BillingService; "
+                      "db=MongoDatabase(settings); db.connect(); b=BillingService(db).get_parked_bills(); print('PARKED_AFTER_RESTART', len(b), b[0]['lines'][0]['name'] if b else None)"],
+                     capture_output=True, text=True, env=os.environ.copy())
+check("GUI-BILL-36", "a parked bill is still there after the application is closed and started again (separate process)", "PARKED_AFTER_RESTART 1 Bajji Chilli" in out.stdout, out.stdout.strip() or out.stderr[-200:])
+try: os.remove(os.environ["PARKED_BILLS_FILE"])
+except OSError: pass
+finish()

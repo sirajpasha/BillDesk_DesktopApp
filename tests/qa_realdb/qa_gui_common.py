@@ -7,6 +7,7 @@ tcl = os.path.join(sys.prefix, "tcl", "tcl8.6"); tk_ = os.path.join(sys.prefix, 
 if os.path.exists(tcl) and "TCL_LIBRARY" not in os.environ: os.environ["TCL_LIBRARY"] = tcl
 if os.path.exists(tk_) and "TK_LIBRARY" not in os.environ: os.environ["TK_LIBRARY"] = tk_
 
+os.environ.setdefault("PARKED_BILLS_FILE", os.path.join(os.environ.get("QA_SCRATCH", "."), "parked_bills_qa.json"))   # never the real %APPDATA% file
 from app.config.settings import settings
 assert "qa" in settings.db_name, "refusing to run against non-QA DB"
 from app.database.connection import MongoDatabase

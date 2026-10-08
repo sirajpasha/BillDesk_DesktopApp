@@ -8,6 +8,7 @@ from app.repositories.master_repo import ItemRepository, CustomerRepository, Fix
 from app.repositories.inventory_repo import InventoryRepository
 from app.services.payment_service import PaymentService
 from app.services.ledger_service import LedgerService
+from app.services.parked_store import ParkedBillStore
 from app.config.settings import settings
 from app.utils.currency import money
 
@@ -23,7 +24,7 @@ class BillingService:
         self.inv_repo = InventoryRepository(db)
         self.payment_svc = PaymentService(db)
         self.ledger = LedgerService(db)
-        self.parked_bills: List[Dict[str, Any]] = []
+        self._parked = ParkedBillStore(settings.parked_bills_file or None)
 
     def next_invoice_number(self) -> str:
         return self.bill_repo.next_invoice_number()
@@ -333,18 +334,28 @@ class BillingService:
             }})
         return round(released, 2)
 
+    @property
+    def parked_bills(self) -> List[Dict[str, Any]]:
+        return self._parked.all()
+
     def park_bill(self, bill_data: Dict[str, Any]) -> int:
-        """Park bill in memory queue for fast recall (F6/F7)."""
-        self.parked_bills.append(bill_data)
-        return len(self.parked_bills)
+        """Park a bill for later recall (F6/F7). Persisted, so it survives closing or crashing the app."""
+        return self._parked.add(bill_data)
 
     def get_parked_bills(self) -> List[Dict[str, Any]]:
-        return self.parked_bills
+        return self._parked.all()
 
     def recall_parked_bill(self, index: int) -> Optional[Dict[str, Any]]:
-        if 0 <= index < len(self.parked_bills):
-            return self.parked_bills.pop(index)
+        """Remove and return a parked bill."""
+        items = self._parked.all()
+        if 0 <= index < len(items):
+            bill = items[index]
+            self._parked.discard(index)
+            return bill
         return None
+
+    def discard_parked_bill(self, index: int) -> bool:
+        return self._parked.discard(index)
 
     def search_bills(
         self,

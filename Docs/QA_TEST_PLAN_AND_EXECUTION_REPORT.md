@@ -6,14 +6,14 @@
 
 | | Count |
 | :-- | --: |
-| Test cases executed (this report) | **279** |
-| Passed | **279** |
+| Test cases executed (this report) | **280** |
+| Passed | **280** |
 | Failed (each maps to an open defect below) | **0** |
-| Existing pytest suite (mock DB) | 147 pass (49 original + 98 new regression tests); the hang and the live-DB dependency are fixed |
+| Existing pytest suite (mock DB) | 155 pass (49 original + 106 new regression tests); the hang and the live-DB dependency are fixed |
 
 The 48-test pytest suite is green because it runs against an in-memory mock and asserts only the happy paths. Run against a **real MongoDB** and the real Tk windows, the application has **7 high-severity defects** that affect money, stock, security or documents. The most serious: **a payment taken at the counter is never recorded** (D-01) and **role restrictions are bypassable with keyboard shortcuts** (D-04).
 
-**Update - fixes applied after the first run:** D-01 .. D-17 and D-20 are fixed (D-18 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 98 new pytest regression tests (including `tests/test_ledger_posting.py`) (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; only persistence of parked bills (D-18) remains open. Numbers in this report are from the post-fix run.
+**Update - fixes applied after the first run:** D-01 .. D-18 and D-20 are fixed and verified against the real DB (their cases now PASS in Appendix A) and by 106 new pytest regression tests (including `tests/test_ledger_posting.py`) (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; nothing from the defect register remains open. Numbers in this report are from the post-fix run.
 
 ## 2. How the testing was done
 
@@ -91,7 +91,7 @@ Severity: **High** = wrong money/stock/security or unusable document; **Medium**
 | ID | Defect | Evidence |
 | :-: | :-- | :-- |
 | D-17 **FIXED** | Bill History loads only the latest **500** bills (KPIs/search silently incomplete beyond that); search/date inputs appear squashed (screenshot `bill_history.png`). | GUI-HIST-12 |
-| D-18 **MOSTLY FIXED** (parked bills are still memory-only) | Login form is pre-filled with `admin` + 8-char password; default seeded passwords `admin123/manager123/user123`; parked bills are in-memory only (lost on exit/crash); Payment modal shows hard-coded "UNPAID ITEMS 0", non-functional Auto-FIFO/Manual toggle and "Counter Payment" checkbox. | GUI-LOGIN-01, screenshot `payment_modal.png` |
+| D-18 **FIXED** | Login form pre-filled with `admin` + a password (hard-coded in source); payment dialog showed a hard-coded 'UNPAID ITEMS 0', a non-functional walk-in checkbox and Auto-FIFO/Manual toggle; **parked bills lived in memory only and were lost on exit or crash**. Now: no pre-filled credentials; real outstanding / unpaid-bill count and no dead controls; parked bills are saved atomically to `%APPDATA%\BillDesk\parked_bills.json` on the counter PC (`services/parked_store.py`), shown again after a restart, recalled load-first-then-delete, and recalling over a bill in progress asks first. | GUI-LOGIN-01, GUI-BILL-36 (screenshot `payment_modal.png`) |
 | D-20 **FIXED** | While fixing D-10 a further defect surfaced: the code field's `<FocusOut>` handler re-resolved the item and **overwrote a rate the cashier had typed** (e.g. Rs50 negotiated -> back to the default 20 when focus moved to the payment dialog) and could be triggered by pressing Enter on an unchanged code. Fixed: an unchanged, already-resolved code is left alone (`ui/billing.py` `_on_code_entered`). | GUI-BILL-26/27 (regressed during the work, caught by the re-run) |
 | D-19 | Test-suite items T-1 .. T-5 above. | - |
 
@@ -268,7 +268,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-RBAC-user-Control-d` | EPIC-01 Role-based access | user: <Control-d> -> Finance is blocked | PASS | active_page=Dashboard |
 | `GUI-RBAC-user-settings` | EPIC-01 Role-based access | user: User Management blocked | PASS | Dashboard |
 
-### GUI: billing grid & payment  (37/37 passed)
+### GUI: billing grid & payment  (38/38 passed)
 
 | ID | Epic / story | Test case (expected behaviour) | Result | Evidence |
 | :-- | :-- | :-- | :-: | :-- |
@@ -309,6 +309,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-BILL-33` | EPIC-02 Billing grid & payment modal | park clears form and counts 1 parked bill | PASS | 1 |
 | `GUI-BILL-34` | EPIC-02 Billing grid & payment modal | recall restores line (Bajji Chilli, qty 3) | PASS | ('Bajji Chilli', '3') |
 | `GUI-BILL-35` | EPIC-02 Billing grid & payment modal | parked count drops to 0 after recall | PASS | 0 |
+| `GUI-BILL-36` | EPIC-02 Billing grid & payment modal | a parked bill is still there after the application is closed and started again (separate process) | PASS | PARKED_AFTER_RESTART 1 Bajji Chilli |
 
 ### GUI: orders / importer / history  (40/40 passed)
 
