@@ -1,6 +1,8 @@
 """D-07: every business event posts a balanced journal; statements are derived from the ledger."""
 from datetime import datetime
 
+import pytest
+
 from app.models.billing import BillCreate, BillLine
 from app.models.common import CurrentUser
 from app.services.billing_service import BillingService
@@ -164,33 +166,87 @@ def test_finance_screens_render_real_figures(fake_db, tk_root):
 
 
 # ------------------------------------------------------------------ backfill of pre-existing (legacy) data
-def test_backfill_posts_history_once_with_original_dates_and_stays_balanced(fake_db):
+def _backfill_module():
     import importlib.util
-    from datetime import timezone
     from pathlib import Path
     spec = importlib.util.spec_from_file_location("backfill_ledger", Path(__file__).resolve().parent.parent / "scripts" / "backfill_ledger.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    return mod
 
+
+def _legacy(fake_db):
+    from datetime import timezone
     jan = datetime(2026, 1, 5, tzinfo=timezone.utc)
-    docs = fake_db.collection("bills")
-    docs.insert_one({"invoice_no": "L-1", "customer_id": "CUST001", "status": "unpaid", "total_amount": 500.0, "is_deleted": 0, "created_at": jan,
-                     "items": [{"amount": 500.0}]})
-    docs.insert_one({"invoice_no": "L-2", "customer_id": "CASH", "status": "paid", "total_amount": 300.0, "is_deleted": 0, "created_at": jan,
-                     "items": [{"amount": 300.0}]})
-    docs.insert_one({"invoice_no": "L-3", "customer_id": "CUST001", "status": "void", "total_amount": 100.0, "is_deleted": 0, "created_at": jan,
-                     "items": [{"amount": 100.0}]})
+    bills = fake_db.collection("bills")
+    bills.insert_one({"invoice_no": "L-1", "customer_id": "CUST001", "status": "active", "total_amount": 500.0, "balance_due": 0.0, "is_deleted": 0,
+                      "created_at": jan, "items": [{"amount": 500.0}]})          # old-style status
+    bills.insert_one({"invoice_no": "L-2", "customer_id": "CASH", "status": "paid", "total_amount": 300.0, "balance_due": 0.0, "is_deleted": 0,
+                      "created_at": jan, "items": [{"amount": 300.0}]})
+    bills.insert_one({"invoice_no": "L-3", "customer_id": "CUST001", "status": "void", "total_amount": 100.0, "balance_due": 0.0, "is_deleted": 0,
+                      "created_at": jan, "items": [{"amount": 100.0}]})
+    bills.insert_one({"invoice_no": "L-4", "customer_id": "CUST001", "status": "active", "total_amount": 0.0, "balance_due": 0.0, "is_deleted": 0,
+                      "created_at": jan, "items": []})                              # zero-value: nothing to post
     fake_db.collection("payments").insert_one({"payment_id": "PAY-1", "party_type": "customer", "party_id": "CUST001", "amount": 200.0,
                                                "payment_method": "UPI", "payment_date": jan, "is_deleted": 0})
+    return jan
+
+
+def test_backfill_posts_history_once_with_original_dates_and_stays_balanced(fake_db):
+    mod = _backfill_module()
+    jan = _legacy(fake_db)
+    fake_db.collection("customers").update_one({"cust_id": "CUST001"}, {"$set": {"current_balance": 300.0}})   # 500 billed - 200 paid
 
     dry = mod.backfill(fake_db, apply=False)
-    assert dry["sale"] == 3 and dry["receipt"] == 1 and fake_db.collection("journal_entries").count_documents({}) == 0   # dry run writes nothing
+    assert dry["sale"] == 4 and dry["receipt"] == 1 and fake_db.collection("journal_entries").count_documents({}) == 0   # dry run writes nothing
 
     done = mod.backfill(fake_db, apply=True)
-    assert done["sale"] == 3 and done["sale_reversal"] == 1 and done["receipt"] == 1
+    assert done["sale"] == 3 and done["sale_reversal"] == 1 and done["receipt"] == 1 and done["skipped_nothing_to_post"] == 1
+    assert done["settlement"] == 0                                      # bills - payments already equals the customer balance
     assert all(j["date"] == jan for j in fake_db.collection("journal_entries").docs)
-    assert _bal(fake_db, "1200") == 500.0 - 200.0 and _bal(fake_db, "1000") == 300.0 and _bal(fake_db, "1100") == 200.0
+    assert _bal(fake_db, "1200") == 300.0 and _bal(fake_db, "1000") == 300.0 and _bal(fake_db, "1100") == 200.0
     _assert_ledger_balanced(fake_db)
 
-    again = mod.backfill(fake_db, apply=True)                       # idempotent
-    assert again["sale"] == again["receipt"] == again["sale_reversal"] == 0 and again["skipped_existing"] >= 4
+    again = mod.backfill(fake_db, apply=True)                           # idempotent
+    assert again["sale"] == again["receipt"] == again["sale_reversal"] == again["settlement"] == 0 and again["skipped_existing"] >= 4
+
+
+@pytest.mark.parametrize("balance,ar_after,cash_after,equity_after", [
+    (-50.0, -50.0, 150.0 + 300.0, 0.0),        # customer holds an unrecorded advance of 50: bills 100 -> Dr Cash 150 / Cr AR 150
+    (500.0, 500.0, 300.0, -400.0),             # customer owes 400 more than their bills explain: Dr AR 400 / Cr Equity (opening balance)
+])
+def test_backfill_aligns_each_customer_receivable_with_their_recorded_balance(fake_db, balance, ar_after, cash_after, equity_after):
+    mod = _backfill_module()
+    from datetime import timezone
+    jan = datetime(2026, 1, 5, tzinfo=timezone.utc)
+    fake_db.collection("bills").insert_one({"invoice_no": "T-1", "customer_id": "CUST001", "status": "active", "total_amount": 100.0, "balance_due": 0.0,
+                                            "is_deleted": 0, "created_at": jan, "items": [{"amount": 100.0}]})
+    fake_db.collection("bills").insert_one({"invoice_no": "T-2", "customer_id": "CASH", "status": "paid", "total_amount": 300.0, "balance_due": 0.0,
+                                            "is_deleted": 0, "created_at": jan, "items": [{"amount": 300.0}]})
+    fake_db.collection("customers").update_one({"cust_id": "CUST001"}, {"$set": {"current_balance": balance}})
+    done = mod.backfill(fake_db, apply=True)
+    assert done["settlement"] == 1
+    assert _bal(fake_db, "1200") == ar_after == balance                  # ledger receivable == customer balance
+    assert _bal(fake_db, "1000") == cash_after and _bal(fake_db, "3000") == equity_after
+    _assert_ledger_balanced(fake_db)
+    assert mod.backfill(fake_db, apply=True)["settlement"] == 0
+
+
+def test_no_settle_option_leaves_the_receivable_as_billed_minus_paid(fake_db):
+    mod = _backfill_module()
+    _legacy(fake_db)
+    fake_db.collection("customers").update_one({"cust_id": "CUST001"}, {"$set": {"current_balance": 10000.0}})
+    mod.backfill(fake_db, apply=True, settle_paid_bills=False)
+    assert _bal(fake_db, "1200") == 300.0 and _bal(fake_db, "3000") == 0.0
+
+
+def test_integrity_agrees_after_backfill(fake_db):
+    from app.services.integrity_service import IntegrityService
+    mod = _backfill_module()
+    _legacy(fake_db)
+    fake_db.collection("customers").update_one({"cust_id": "CUST001"}, {"$set": {"current_balance": 450.0}})
+    before = {c["id"]: c["status"] for c in IntegrityService(fake_db).run_all()["checks"]}
+    assert before["ledger_coverage"] == "warn" and before["ar_vs_customers"] == "info"
+    mod.backfill(fake_db, apply=True)
+    after = {c["id"]: c["status"] for c in IntegrityService(fake_db).run_all()["checks"]}
+    assert after["ledger_coverage"] == "ok" and after["ar_vs_customers"] == "ok" and after["ledger_balanced"] == "ok" and after["balance_sheet"] == "ok"

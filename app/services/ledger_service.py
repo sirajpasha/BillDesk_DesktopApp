@@ -95,6 +95,23 @@ class LedgerService:
         credits = [(SALES, revenue if revenue > 0 else total - fees), (FEE_INCOME, fees)]
         return self.post_journal_entry(bill["invoice_no"], "sale", self._balance_lines(debits, credits), user_id, entry_date)
 
+    def post_customer_trueup(self, cust_id: str, delta: float, method: str = "Cash", user_id: str = "system",
+                             entry_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+        """One-time alignment of a customer's ledger receivable with their recorded balance (used when migrating history).
+
+        delta > 0: bills minus payments say the customer owes MORE than their balance -> they paid in ways that were never
+                   recorded: Dr Cash/Bank, Cr Receivables.
+        delta < 0: the customer owes more than bills minus payments explain (opening balance): Dr Receivables, Cr Equity."""
+        amt = money(abs(delta))
+        ref = f"{cust_id}-TRUEUP"
+        if amt <= 0 or self.has_entry(ref, "settlement"):
+            return None
+        if delta > 0:
+            lines = self._balance_lines([(settlement_account(method), amt)], [(RECEIVABLES, amt)])
+        else:
+            lines = self._balance_lines([(RECEIVABLES, amt)], [(EQUITY, amt)])
+        return self.post_journal_entry(ref, "settlement", lines, user_id, entry_date)
+
     def post_cogs(self, invoice_no: str, cost: float, user_id: str = "system",
                   entry_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
         """Cost of the goods sold (weighted-average cost): Dr COGS, Cr Inventory."""

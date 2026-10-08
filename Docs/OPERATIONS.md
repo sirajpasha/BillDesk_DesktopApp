@@ -47,3 +47,20 @@ Practise a restore into a spare database once, before you need it.
 1. Note what you were doing and the time.
 2. *Settings > Database Settings > Open Log File* (or open `billdesk.log`) - unexpected errors are recorded with the full traceback. The app also shows a "Something went wrong" message with the log path (at most once every 5 seconds).
 3. Do not delete the newest backup; send the log.
+
+## Integrity check
+
+*Accounts > Integrity Check* (or `python scripts/integrity_check.py`, exit code 1 if anything FAILS) runs 13 read-only checks: journal and trial-balance balance, balance sheet, Receivables ledger vs customer balances, each customer's balance vs open bills and payments, bill arithmetic and status, payment allocations, invoice numbering, ledger coverage, void reversals, dangling references, stock and supplier balances. Run it after a backfill, after restoring a backup, and from time to time.
+
+* **FAIL** = the data contradicts itself - investigate. **WARNING** = needs a look (often legacy data or an opening balance). **NOTE** = information.
+* It never writes anything.
+
+## Moving existing data into the ledger (one time)
+
+1. *Back Up Now* (Database Settings).
+2. `python scripts/backfill_ledger.py` - dry run, shows what would be posted.
+3. `python scripts/backfill_ledger.py --apply`.
+4. Post cash/bank/stock/capital opening balances with *Accounting Dashboard > Set Opening Balance*.
+5. Run the Integrity Check and read the Balance Sheet.
+
+The backfill books each customer's recorded balance as their receivable. Where old bills minus recorded payments say the customer owes more or less than that balance, the difference is booked as an unrecorded receipt (assumed **Cash**; `--settle-method Bank`) or as an opening balance against Equity. `--no-settle` skips this. Because most historic payments were never recorded, the resulting **Cash on Hand is an assumption, not a count** - replace it with a real opening cash figure.
