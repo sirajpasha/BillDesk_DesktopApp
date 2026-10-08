@@ -21,7 +21,7 @@ class PricingService:
         # Fallback to item standard rate / rate / default_rate
         item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
         if item:
-            val = item.get("standard_rate") or item.get("rate")
+            val = item.get("standard_rate") or item.get("rate") or item.get("default_rate")
             if val is not None:
                 return float(val), False
             if default_rate:

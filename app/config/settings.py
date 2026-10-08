@@ -16,6 +16,7 @@ class Settings:
     default_unit: str = os.getenv("DEFAULT_UNIT", "Kg")
     default_rate: float = float(os.getenv("DEFAULT_RATE", "20.0"))
     default_num_rows: int = int(os.getenv("DEFAULT_NUM_ROWS", "20"))
+    allow_negative_stock: bool = os.getenv("ALLOW_NEGATIVE_STOCK", "true").strip().lower() in ("1", "true", "yes")
     app_title: str = os.getenv("APP_TITLE", "BillDesk — Native Mandi POS & ERP")
 
 settings = Settings()

@@ -9,6 +9,7 @@ from app.repositories.procurement_repo import ProcurementRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.models.order import OrderCreate, OrderItem
 from app.models.billing import BillCreate, BillItem
+from app.utils.currency import money
 from app.services.billing_service import BillingService
 from app.services.procurement_service import ProcurementService
 
@@ -42,7 +43,7 @@ class OrderService:
                 raise ValueError("Item quantity must be greater than zero")
 
         order_id = self.next_order_number()
-        total_amount = sum(float(i.qty) * float(i.rate) for i in order_data.items)
+        total_amount = money(sum(money(float(i.qty) * float(i.rate)) for i in order_data.items))
         now = datetime.now(timezone.utc)
 
         doc = {
@@ -119,13 +120,12 @@ class OrderService:
             for it in order.get("items", []):
                 qty, rate = float(it["qty"]), float(it.get("rate", 0.0))
                 lines.append(BillItem(item_id=it["item_id"], item_alias=it.get("item_alias"), name=it["name"],
-                                      qty=qty, unit=it["unit"], rate=rate, amount=round(qty * rate, 2)))
-            total = float(order["total_amount"])
+                                      qty=qty, unit=it["unit"], rate=rate, amount=money(qty * rate)))
+            total = money(sum(l.amount for l in lines))      # the invoice total always equals its lines
             bill = self.billing_svc.create_bill(BillCreate(
                 invoice_date=datetime.now().strftime("%Y-%m-%d"),
                 customer_id=order["customer_id"], customer_name=order["customer_name"], company_id=order.get("company_id"),
                 items=lines, total_amount=total, balance_due=total, created_by=user_id,
-                commission_amt=float(order.get("commission_amt") or 0.0), mandi_fee_amt=float(order.get("mandi_fee_amt") or 0.0),
                 crates_issued=float(order.get("crates_issued") or 0), crates_returned=float(order.get("crates_returned") or 0),
                 notes=f"Converted from Order {order_id}",
             ))

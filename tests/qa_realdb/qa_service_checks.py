@@ -88,17 +88,16 @@ check("SVC-BILL-17", "CASH customer: no customer balance change, due_date None",
 # stock oversell
 raw.items.update_one({"item_id":"VEG0002"},{"$set":{"stock":3.0}})
 try:
-    bs.create_bill(mk_bill(cust_id="CASH", name="Cash", lines=[("VEG0002","104","Bajji Chilli",50,20.0)]))
-    check("SVC-BILL-18", "selling 50 when only 3 in stock is blocked or flagged", item("VEG0002")["stock"] >= 0, f"stock now {item('VEG0002')['stock']}")
+    ov = bs.create_bill(mk_bill(cust_id="CASH", name="Cash", lines=[("VEG0002","104","Bajji Chilli",50,20.0)]))
+    check("SVC-BILL-18", "selling 50 when only 3 in stock is blocked or flagged on the bill", bool(ov.get("stock_warnings")), f"stock_warnings={ov.get('stock_warnings')}")
 except Exception as e:
-    check("SVC-BILL-18", "selling 50 when only 3 in stock is blocked or flagged", True, e)
-# commission / mandi fee: total_amount supplied by caller - service trusts it
-tamper = mk_bill(cust_id="CASH", name="Cash", lines=[("FRU0002","105","Banana Green",1,10.0)]).model_copy(update={"total_amount": 1.0, "balance_due": 1.0})
-t = bs.create_bill(tamper)
-check("SVC-BILL-19", "service recomputes total from lines (total_amount=1 passed for a Rs10 line)", t["total_amount"] == 10.0, f"stored total_amount={t['total_amount']}")
+    check("SVC-BILL-18", "selling 50 when only 3 in stock is blocked or flagged on the bill", True, e)
+
+expect_err("SVC-BILL-19", "caller-supplied total that disagrees with the lines is rejected (total_amount=1 for a Rs10 line)",
+           lambda: bs.create_bill(mk_bill(cust_id="CASH", name="Cash", lines=[("FRU0002","105","Banana Green",1,10.0)]).model_copy(update={"total_amount": 1.0, "balance_due": 1.0})), "does not match")
 mism = mk_bill(cust_id="CASH", name="Cash", lines=[("FRU0002","105","Banana Green",2,10.0)]).model_copy(update={"items":[BillItem(item_id="FRU0002",name="Banana Green",qty=2,unit="kg",rate=10.0,amount=999.0)]})
 m = bs.create_bill(mism)
-check("SVC-BILL-20", "line amount must equal qty*rate (amount=999 passed for 2x10)", m["items"][0]["amount"] == 20.0, f"stored line amount={m['items'][0]['amount']}")
+check("SVC-BILL-20", "line amount is recomputed as qty*rate (amount=999 passed for 2x10 -> 20.00)", m["items"][0]["amount"] == 20.0, f"stored line amount={m['items'][0]['amount']}")
 
 # ---------------------------------------------------------------- VOID
 reset()
@@ -222,7 +221,7 @@ try:
 except Exception as e:
     check("SVC-INV-05", "adjustment requires a non-empty reason (docstring: mandatory reason)", True, e)
 w = inv.record_waste("FRU0001", 10.0, 25.0, "Rotten", "admin")
-check("SVC-INV-06", "waste: amount=250, stock 87.5->77.5 (+5 from the blank-reason adjustment above = 82.5 expected), txn type=waste", w["amount"]==250.0 and raw.stock_transactions.count_documents({"type":"waste","qty":-10.0})==1 and item("FRU0001")["stock"]==82.5, (w["amount"], item("FRU0001")["stock"]))
+check("SVC-INV-06", "waste: amount=250, stock 87.5->77.5, txn type=waste", w["amount"]==250.0 and raw.stock_transactions.count_documents({"type":"waste","qty":-10.0})==1 and item("FRU0001")["stock"]==77.5, (w["amount"], item("FRU0001")["stock"]))
 s_before = item("FRU0001")["stock"]
 try:
     inv.record_waste("FRU0001", 10000.0, 25.0, "Typo")
@@ -269,7 +268,7 @@ reset()
 raw.customers.update_one({"cust_id":"Cust0001"},{"$set":{"credit_limit":0.0}})
 s = ss.open_session("USER0001","admin",2000.0)
 expect_err("SVC-SESS-01", "second open session for same user rejected", lambda: ss.open_session("USER0001","admin",1.0), "already")
-bs.create_bill(mk_bill(cust_id="CASH", name="Cash", lines=[("FRU0001","101","Apple",100,35.0)]))      # 3500 cash walk-in
+bs.create_bill(mk_bill(cust_id="CASH", name="Cash", lines=[("FRU0001","101","Apple",100,35.0)], extra={"amount_received": 3500.0}))      # 3500 cash walk-in, paid in cash
 bs.create_bill(mk_bill(lines=[("FRU0001","101","Apple",10,100.0)]))                                    # 1000 on CREDIT to Cust0001
 ps.record_customer_payment("Cust0001", 500.0, payment_method="Cash", user_id="admin")
 exp = ss.compute_expected_cash(s["session_id"])
@@ -309,7 +308,7 @@ except Exception as e:
     check("SVC-GL-07", "a line with both debit and credit rejected", True, e)
 reset()
 raw.customers.update_one({"cust_id":"Cust0001"},{"$set":{"credit_limit":0.0}})
-bs.create_bill(mk_bill(lines=[("FRU0001","101","Apple",10,20.0)], extra={"commission_amt":10.0,"mandi_fee_amt":5.0}))
+bs.create_bill(mk_bill(lines=[("FRU0001","101","Apple",10,20.0)], extra={"commission_amt":10.0,"mandi_fee_amt":5.0,"total_amount":215.0,"balance_due":215.0}))
 pl = ls.get_profit_and_loss()
 check("SVC-GL-08", "P&L sales includes sale (200)", pl["total_sales"]>=200.0, pl)
 check("SVC-GL-09", "sale auto-posts balanced journal (AR Dr / Sales Cr)", raw.journal_entries.count_documents({"source_type":{"$in":["sale","bill","sales"]}})>0, f"journal_entries={raw.journal_entries.count_documents({})}")

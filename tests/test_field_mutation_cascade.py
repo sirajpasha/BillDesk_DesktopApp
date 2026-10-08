@@ -450,15 +450,14 @@ def test_cash_session_and_drawer_variance(fake_db):
     sess_id = opened["session_id"]
     assert opened["status"] == "open"
 
-    # Insert a cash bill for cashier1
+    # A cash sale of 3500 is a Cash receipt by cashier1; a 1000 credit sale puts no cash in the drawer
+    fake_db.collection("payments").insert_one({
+        "payment_id": "PAY-CASH-001", "created_by": "cashier1", "created_at": datetime.now(timezone.utc),
+        "amount": 3500.0, "payment_method": "Cash", "is_deleted": 0,
+    })
     fake_db.collection("bills").insert_one({
-        "invoice_no": "INV-CASH-001",
-        "created_by": "cashier1",
-        "created_at": datetime.now(timezone.utc),
-        "total_amount": 3500.0,
-        "payment_mode": "cash",
-        "status": "paid",
-        "is_deleted": 0,
+        "invoice_no": "INV-CREDIT-001", "created_by": "cashier1", "created_at": datetime.now(timezone.utc),
+        "total_amount": 1000.0, "status": "unpaid", "is_deleted": 0,
     })
 
     expected = sess_svc.compute_expected_cash(sess_id)

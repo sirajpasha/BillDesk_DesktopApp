@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date, datetime
 from app.config.settings import settings
+from app.utils.currency import money
 from app.models.billing import BillCreate, BillLine
 from app.printing.invoice import generate_invoice_pdf
 from app.ui.print_preview import show_print_preview
@@ -375,6 +376,16 @@ class BillingFrame(ttk.Frame):
         if not code:
             return
 
+        # Leaving/re-entering an already-resolved code must not re-resolve the line: that would overwrite
+        # a rate or quantity the cashier has typed since.
+        if row.get("item_id"):
+            cur = self.db.collection("items").find_one({"item_id": row["item_id"]})
+            if cur and code.lower() in (str(cur.get("item_alias", "")).lower(), str(cur.get("item_id", "")).lower()):
+                if focus_next:
+                    row["qty"].focus_set()
+                    row["qty"].select_range(0, tk.END)
+                return
+
         # Query item by item_alias or item_id or name prefix
         escaped_code = re.escape(code)
         item = self.db.collection("items").find_one({
@@ -396,10 +407,10 @@ class BillingFrame(ttk.Frame):
                 "is_deleted": 0
             })
             if not item:
-                # Fallback for test environments
-                item = self.db.collection("items").find_one({"is_deleted": 0})
-                if not item:
-                    return
+                messagebox.showwarning("Item Not Found", f"No item matches code or name '{code}'.", parent=self)
+                row["code"].delete(0, tk.END)
+                row["code"].focus_set()
+                return
 
         row["item_id"] = item["item_id"]
         row["code"].delete(0, tk.END)
@@ -418,7 +429,7 @@ class BillingFrame(ttk.Frame):
 
         # Resolve rate (Fixed pricing for customer takes priority!)
         cust_id = self.selected_customer.get("cust_id") if self.selected_customer else "CASH"
-        default_rate = float(item.get("standard_rate") or 20.0)
+        default_rate = float(item.get("standard_rate") or item.get("rate") or item.get("default_rate") or settings.default_rate)
         resolved_rate, _is_fixed = self.pricing_svc.resolve_rate(cust_id, item["item_id"], default_rate=default_rate)
         row["rate"].delete(0, tk.END)
         row["rate"].insert(0, f"{resolved_rate:.2f}")
@@ -565,7 +576,7 @@ class BillingFrame(ttk.Frame):
         except (ValueError, TypeError):
             rate = 0.0
 
-        amount = qty * rate
+        amount = money(qty * rate) if (qty > 0 and rate >= 0) else 0.0     # invalid rows never count
         row["amount"].config(text=f"₹{amount:.2f}")
         self._update_grand_total()
 
@@ -711,7 +722,8 @@ class BillingFrame(ttk.Frame):
                 rate_str = row["rate"].get().strip()
                 qty = float(qty_str) if qty_str else 0.0
                 rate = float(rate_str) if rate_str else 0.0
-                total += (qty * rate)
+                if qty > 0 and rate >= 0:
+                    total += money(qty * rate)
             except Exception:
                 pass
         self.total_lbl.config(text=f"Total: ₹{total:.2f}")
@@ -829,7 +841,7 @@ class BillingFrame(ttk.Frame):
                 if row.get("item_id"):
                     item_id = row["item_id"]
                     item = self.db.collection("items").find_one({"item_id": item_id})
-                    default_rate = float(item.get("standard_rate", 20.0)) if item else 20.0
+                    default_rate = float(item.get("standard_rate") or item.get("rate") or item.get("default_rate") or settings.default_rate) if item else settings.default_rate
                     r_rate, _ = self.pricing_svc.resolve_rate(cust_id, item_id, default_rate=default_rate)
                     row["rate"].delete(0, tk.END)
                     row["rate"].insert(0, f"{r_rate:.2f}")
@@ -976,16 +988,27 @@ class BillingFrame(ttk.Frame):
                 pay_ref = ""
             # Construct line items
             lines = []
-            for row in self.row_widgets:
+            problems = []
+            for r_idx, row in enumerate(self.row_widgets, 1):
                 code = row["code"].get().strip()
                 if not code:
                     continue
+                label = f"Row {r_idx} ({row['name'].get().strip() or code})"
                 try:
                     qty = float(row["qty"].get().strip())
+                except ValueError:
+                    problems.append(f"{label}: quantity is not a number")
+                    continue
+                try:
                     rate = float(row["rate"].get().strip())
                 except ValueError:
+                    problems.append(f"{label}: rate is not a number")
                     continue
                 if qty <= 0:
+                    problems.append(f"{label}: quantity must be greater than zero")
+                    continue
+                if rate < 0:
+                    problems.append(f"{label}: rate cannot be negative")
                     continue
 
                 lines.append(BillLine(
@@ -994,8 +1017,12 @@ class BillingFrame(ttk.Frame):
                     qty=qty,
                     unit=row["unit"].get() or "kg",
                     rate=rate,
-                    amount=qty * rate
+                    amount=money(qty * rate)
                 ))
+
+            if problems:
+                messagebox.showerror("Fix These Lines", "The bill was not saved:\n\n" + "\n".join(problems), parent=modal)
+                return
 
             if not lines:
                 messagebox.showerror("Error", "No valid items to bill.", parent=modal)
@@ -1020,7 +1047,7 @@ class BillingFrame(ttk.Frame):
                 customer_name=cust_name,
                 company_id=sel_comp_id,
                 items=lines,
-                total_amount=total_amount,
+                total_amount=money(sum(l.amount for l in lines)),
                 balance_due=max(0.0, total_amount - rec_amount),
                 amount_received=rec_amount,
                 payment_method=pay_method,

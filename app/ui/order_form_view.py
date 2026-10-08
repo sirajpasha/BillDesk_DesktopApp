@@ -777,8 +777,12 @@ class OrderFormView(tk.Frame):
                 return
 
             imported_count = self._parse_and_populate_lines(raw_text)
+            skipped = list(getattr(self, "import_skipped", []))
             dlg.destroy()
-            messagebox.showinfo("Smart Importer", f"Smart Importer: {imported_count} items imported successfully.", parent=self)
+            msg = f"Smart Importer: {imported_count} items imported successfully."
+            if skipped:
+                msg += f"\n\n{len(skipped)} line(s) could not be matched to an item and were NOT imported:\n" + "\n".join(f"  - {l}" for l in skipped[:10])
+            messagebox.showinfo("Smart Importer", msg, parent=self)
 
         tk.Button(
             btn_row,
@@ -809,82 +813,102 @@ class OrderFormView(tk.Frame):
         ).pack(side="right")
 
     def _parse_and_populate_lines(self, text: str) -> int:
+        """Parse pasted order text. Understands item codes ('102 50kg'), names ('Apple 25kg'),
+        '<qty> <unit>' in either order and plural units ('2 boxes'). Lines that cannot be matched to a
+        catalogue item are NOT guessed: they are skipped and listed in self.import_skipped.
+        Repeated items are merged into one row."""
         lines = [l.strip() for l in text.splitlines() if l.strip()]
-        imported = 0
+        units_lc = {u.lower(): u for u in self.ITEM_UNITS}
+        aliases = {str(it.get("item_alias")).lower(): it for it in self.items_cache if it.get("item_alias")}
+        self.import_skipped = []
 
-        # Find first empty row
-        start_idx = 0
-        for i, r in enumerate(self.row_widgets):
-            if not r["code_var"].get().strip() and not r["item_var"].get().strip():
-                start_idx = i
-                break
+        def unit_of(word: str):
+            w = word.lower()
+            return units_lc.get(w) or units_lc.get(w.rstrip("s")) or units_lc.get(w[:-2] if w.endswith("es") else w)
+
+        def find_by_name(q: str):
+            q = q.lower().strip()
+            if not q:
+                return None
+            for it in self.items_cache:
+                if q in (str(it.get("item_id", "")).lower(), str(it.get("item_alias", "")).lower(), str(it.get("name", "")).lower()):
+                    return it
+            inside = [it for it in self.items_cache if str(it.get("name", "")).lower() and str(it.get("name", "")).lower() in q]
+            if inside:
+                return max(inside, key=lambda it: len(it.get("name", "")))     # longest catalogue name found in the text
+            partial = [it for it in self.items_cache if q in str(it.get("name", "")).lower()]
+            return partial[0] if partial else None
+
+        # rows already holding an item (so repeated items merge instead of duplicating)
+        row_of_item = {r.get("item_id"): i for i, r in enumerate(self.row_widgets) if r.get("item_id")}
+        start_idx = next((i for i, r in enumerate(self.row_widgets)
+                          if not r["code_var"].get().strip() and not r["item_var"].get().strip()), len(self.row_widgets))
+        imported = 0
+        cust_id = self.selected_customer.get("cust_id") if self.selected_customer else "CASH"
 
         for line in lines:
-            if start_idx >= len(self.row_widgets):
-                self._add_row()
-
-            tokens = line.split()
-            qty = 0.0
-            unit = "Kg"
+            qty = None
+            unit = None
+            bare = []
             name_parts = []
-
-            for tok in tokens:
+            for tok in line.split():
+                m = re.match(r"^(\d+(?:\.\d+)?)([a-zA-Z]+)$", tok)
+                if m and unit_of(m.group(2)):
+                    qty, unit = float(m.group(1)), unit_of(m.group(2))
+                    continue
                 try:
-                    val = float(tok)
-                    if qty == 0.0:
-                        qty = val
-                        continue
+                    bare.append(str(float(tok)) if not tok.isdigit() else tok)
+                    continue
                 except ValueError:
                     pass
-
-                m = re.match(r"^(\d+(?:\.\d+)?)([a-zA-Z]+)$", tok)
-                if m:
-                    qty = float(m.group(1))
-                    unit = m.group(2).capitalize()
+                if unit_of(tok):
+                    unit = unit_of(tok)
                     continue
-
-                if tok.lower() in [u.lower() for u in self.ITEM_UNITS]:
-                    unit = tok.capitalize()
-                    continue
-
                 name_parts.append(tok)
 
-            item_query = " ".join(name_parts).strip()
-            if not item_query and not qty:
+            name = " ".join(name_parts)
+            matched = None
+            if not name:
+                code = next((b for b in bare if b.lower() in aliases), None)
+                if code:
+                    matched = aliases[code.lower()]
+                    bare.remove(code)
+            else:
+                matched = find_by_name(name)
+            if qty is None and bare:
+                qty = float(bare[0])
+
+            if not matched:
+                self.import_skipped.append(line)
+                continue
+            if qty is None or qty <= 0:
+                qty = 1.0
+
+            item_id = matched.get("item_id")
+            if item_id in row_of_item:                       # same item again -> add to the existing row
+                idx = row_of_item[item_id]
+                try:
+                    prev = float(self.row_widgets[idx]["qty_var"].get() or 0)
+                except ValueError:
+                    prev = 0.0
+                self.row_widgets[idx]["qty_var"].set(f"{prev + qty:g}")
+                self._recalculate_row(idx)
+                imported += 1
                 continue
 
-            matched_item = None
-            for it in self.items_cache:
-                if (
-                    it.get("item_id", "").lower() == item_query.lower()
-                    or it.get("item_alias", "").lower() == item_query.lower()
-                    or it.get("name", "").lower() == item_query.lower()
-                    or item_query.lower() in it.get("name", "").lower()
-                ):
-                    matched_item = it
-                    break
-
+            while start_idx >= len(self.row_widgets):
+                self._add_row()
             row = self.row_widgets[start_idx]
-            cust_id = self.selected_customer.get("cust_id") if self.selected_customer else "CASH"
-
-            if matched_item:
-                row["item_id"] = matched_item.get("item_id")
-                row["code_var"].set(matched_item.get("item_alias") or matched_item.get("item_id"))
-                row["item_var"].set(matched_item.get("name"))
-                unit = matched_item.get("unit") or unit
-                default_rate = float(matched_item.get("standard_rate") or settings.default_rate)
-                resolved_rate, _ = self.pricing_svc.resolve_rate(cust_id, matched_item["item_id"], default_rate=default_rate)
-                row["rate_var"].set(f"{resolved_rate:.2f}")
-            else:
-                row["item_id"] = item_query
-                row["code_var"].set(item_query)
-                row["item_var"].set(item_query)
-                row["rate_var"].set(f"{settings.default_rate:.2f}")
-
-            row["qty_var"].set(f"{qty:g}" if qty > 0 else "1")
-            row["unit"].set(unit)
-
+            row["item_id"] = item_id
+            row["code_var"].set(matched.get("item_alias") or item_id)
+            row["item_var"].set(matched.get("name"))
+            default_rate = float(matched.get("standard_rate") or matched.get("rate") or matched.get("default_rate") or settings.default_rate)
+            resolved_rate, _ = self.pricing_svc.resolve_rate(cust_id, item_id, default_rate=default_rate)
+            row["rate_var"].set(f"{resolved_rate:.2f}")
+            row["qty_var"].set(f"{qty:g}")
+            row["unit"].set(matched.get("unit") or unit or "Kg")
             self._recalculate_row(start_idx)
+            row_of_item[item_id] = start_idx
             start_idx += 1
             imported += 1
 
@@ -1110,7 +1134,16 @@ class OrderFormView(tk.Frame):
             self._open_customer_search()
             return
 
-        cust_id = self.selected_customer.get("cust_id") if self.selected_customer else cust_name
+        if not self.selected_customer or str(self.selected_customer.get("name", "")).strip().lower() != cust_name.lower():
+            # typed text: accept only an exact match to a customer in the master
+            exact = next((c for c in self.db.collection("customers").find({"is_deleted": 0})
+                          if str(c.get("name", "")).strip().lower() == cust_name.lower()), None)
+            if not exact:
+                messagebox.showwarning("Unknown Customer", f"'{cust_name}' is not in the customer master. Pick a customer with F5.", parent=self)
+                self._open_customer_search()
+                return
+            self.selected_customer = exact
+        cust_id = self.selected_customer.get("cust_id")
 
         order_items: List[OrderItem] = []
         for idx, row in enumerate(self.row_widgets):

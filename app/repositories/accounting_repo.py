@@ -37,6 +37,16 @@ class AccountingRepository:
         session: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Verify sum(debit) == sum(credit) before posting to journal_entries."""
+        if len(lines) < 2:
+            raise ValueError("A journal entry needs at least two lines")
+        for l in lines:
+            d, c = float(l.get("debit", 0.0) or 0.0), float(l.get("credit", 0.0) or 0.0)
+            if d < 0 or c < 0:
+                raise ValueError("Debit and credit amounts cannot be negative")
+            if d > 0 and c > 0:
+                raise ValueError("A journal line cannot have both a debit and a credit")
+            if d == 0 and c == 0:
+                raise ValueError("A journal line must have a debit or a credit amount")
         debits = sum(float(l.get("debit", 0.0)) for l in lines)
         credits = sum(float(l.get("credit", 0.0)) for l in lines)
         if abs(debits - credits) > 0.001:

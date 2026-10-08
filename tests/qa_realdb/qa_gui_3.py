@@ -15,10 +15,10 @@ setv(bf.row_widgets[1]["code"], "102"); bf._on_code_entered(1); setv(bf.row_widg
 grand = bf._update_grand_total()
 bf._open_payment_modal(); pump(root, 4); tl = toplevels(bf)[0]
 find_button(tl, "Post Payment").invoke(); pump(root, 5)
-b = raw.bills.find_one(sort=[("created_at", -1)])
-line_sum = sum(l["amount"] for l in b["items"]) if b else None
-check("GUI-BILL-13", "saved bill total equals sum of saved lines (grid total 100 vs lines 200 when a -5 qty row is present)",
-      b and abs(b["total_amount"] - line_sum) < 0.005, f"grid total={grand}; stored total_amount={b and b['total_amount']}; stored lines sum={line_sum}; lines={[ (l['name'], l['qty']) for l in b['items']] if b else None}")
+saved_n = raw.bills.count_documents({})
+check("GUI-BILL-13", "a bill containing an invalid line (qty -5) is NOT saved; the cashier is told which row to fix (no silent total/lines mismatch)",
+      saved_n == 0 and last_dialog() and last_dialog()[1] == "Fix These Lines" and "Row 2" in last_dialog()[2], f"bills saved={saved_n}; grid total={grand}; dialog={last_dialog()}")
+for _t in toplevels(bf): _t.destroy()
 bf._reset_bill()
 
 # ================================================================= ORDER FORM + SMART IMPORTER
@@ -35,21 +35,16 @@ cases = [
     ("avarai 4",       ("Avarai", 4.0, "kg")),
     ("Apple x",        ("Apple", 1.0, "kg")),
 ]
-text = "\n".join(c[0] for c in cases)
-n = of._parse_and_populate_lines(text); pump(root, 3)
-check("GUI-IMP-00", "importer reports one imported line per input line", n == len(cases), n)
 for i, (line, exp) in enumerate(cases):
-    r = of_row(i); got = (r["item_var"].get(), float(r["qty_var"].get() or 0), r["unit"].get().lower())
-    rate = r["rate_var"].get()
+    of.reset_form(); pump(root, 1)
+    n = of._parse_and_populate_lines(line); pump(root, 1)
+    r = of_row(0); got = (r["item_var"].get(), float(r["qty_var"].get() or 0), r["unit"].get().lower()) if n else None
     if exp is None:
-        # must not become a priced line for a guessed catalogue item
-        ok = got[0] not in [x["name"] for x in raw.items.find()] or line == "5 kg" and False
-        ok = (got[0] not in [x["name"] for x in raw.items.find()])
-        check(f"GUI-IMP-{i+1:02d}", f"importer line {line!r}: unknown/ambiguous text must not be matched to a catalogue item", ok, f"row -> item={got[0]!r} qty={got[1]} unit={got[2]} rate={rate}")
+        check(f"GUI-IMP-{i+1:02d}", f"importer line {line!r}: unknown/ambiguous text is skipped, never guessed", n == 0 and line in of.import_skipped, f"imported={n} skipped={of.import_skipped}")
     else:
-        check(f"GUI-IMP-{i+1:02d}", f"importer line {line!r} -> {exp}", got == exp, f"got {got} rate={rate}")
+        check(f"GUI-IMP-{i+1:02d}", f"importer line {line!r} -> {exp}", got == exp, f"got {got}")
+of.reset_form(); of._parse_and_populate_lines("101 5kg\n102 50kg\n5 kg\nMango 2 boxes\napple 3"); pump(root, 2)
 shot(root, "order_form_after_import")
-for i in range(len(cases)): of._clear_row(i)
 
 # ---- create an order through the form
 of.reset_form(); pump(root, 2)

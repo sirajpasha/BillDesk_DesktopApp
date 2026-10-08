@@ -7,6 +7,8 @@ from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, FixedPriceRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.services.payment_service import PaymentService
+from app.config.settings import settings
+from app.utils.currency import money
 
 CASH_CUSTOMER_ID = "CASH"
 
@@ -42,6 +44,24 @@ class BillingService:
             if item.rate < 0:
                 raise ValueError("Item rate cannot be negative")
 
+        # The service owns the arithmetic: never trust amounts computed by the caller.
+        for item in bill.items:
+            item.amount = money(item.qty * item.rate)
+        computed_total = money(
+            sum(i.amount for i in bill.items) + bill.commission_amt + bill.mandi_fee_amt + bill.other_charges
+        )
+        if abs(computed_total - bill.total_amount) > 0.01:
+            raise ValueError(
+                f"Bill total {bill.total_amount:.2f} does not match its lines and charges ({computed_total:.2f})"
+            )
+        bill.total_amount = computed_total
+        bill.balance_due = computed_total
+
+        stock_warnings = self._stock_shortfalls(bill)
+        if stock_warnings and not settings.allow_negative_stock:
+            w = stock_warnings[0]
+            raise ValueError(f"Insufficient stock for {w['name']}: {w['available']:g} available, {w['required']:g} required")
+
         received = bill.amount_received
         if received is not None:
             if received < 0:
@@ -75,6 +95,8 @@ class BillingService:
         due_date = invoice_dt + timedelta(days=terms) if customer else None
 
         doc = bill.model_dump(exclude={"amount_received", "payment_method", "payment_reference"})
+        if stock_warnings:
+            doc["stock_warnings"] = stock_warnings    # sold beyond recorded stock; flagged for stock take
         if received is not None:
             doc["balance_due"] = round(bill.total_amount, 2)   # payment applied below
         doc.update({
@@ -102,6 +124,22 @@ class BillingService:
         if received is not None:
             self._apply_counter_payment(doc, bill, received)
         return doc
+
+    def _stock_shortfalls(self, bill: BillCreate) -> List[Dict[str, Any]]:
+        required: Dict[str, float] = {}
+        names: Dict[str, str] = {}
+        for line in bill.items:
+            required[line.item_id] = required.get(line.item_id, 0.0) + abs(line.qty)
+            names[line.item_id] = line.name
+        out = []
+        for item_id, qty in required.items():
+            item = self.item_repo.find_one({"item_id": item_id})
+            if item is None:
+                continue
+            available = float(item.get("stock") or 0.0)
+            if qty > available + 1e-9:
+                out.append({"item_id": item_id, "name": names[item_id], "available": available, "required": qty})
+        return out
 
     def _apply_counter_payment(self, doc: Dict[str, Any], bill: BillCreate, received: float) -> None:
         """Record the payment taken while saving the bill and settle the bill/customer balance."""

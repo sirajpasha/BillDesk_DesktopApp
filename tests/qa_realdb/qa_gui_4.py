@@ -98,7 +98,8 @@ check("GUI-MST-07", "new customer is active/non-deleted and billable", cd.get("i
 try: ms.save_customer({"cust_id": "QAC001", "name": "dup"}, is_new=True); check("GUI-MST-08", "duplicate customer id rejected", False, "accepted")
 except Exception as e: check("GUI-MST-08", "duplicate customer id rejected", True, e)
 raw.customers.update_one({"cust_id": "QAC001"}, {"$set": {"current_balance": 777.0}})
-ms.delete_customer("QAC001")
+try: ms.delete_customer("QAC001")
+except ValueError: pass
 check("GUI-MST-09", "customer with outstanding balance (777) cannot be deleted", raw.customers.find_one({"cust_id": "QAC001"}).get("is_deleted") == 0, f"is_deleted={raw.customers.find_one({'cust_id': 'QAC001'}).get('is_deleted')} despite balance 777")
 ms.save_customer({"cust_id": "QAC001", "name": "QA Cust", "current_balance": 0.0}, is_new=False)
 check("GUI-MST-10", "editing a customer record cannot overwrite the ledger balance (current_balance)", raw.customers.find_one({"cust_id": "QAC001"})["current_balance"] == 777.0, f"balance after edit={raw.customers.find_one({'cust_id': 'QAC001'})['current_balance']}")

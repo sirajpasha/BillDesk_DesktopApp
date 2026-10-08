@@ -3,6 +3,7 @@ Formats currency using the Indian grouping convention (e.g. ₹ 12,34,567.89)
 and converts numerical amounts into words (Crores, Lakhs, Thousands, Rupees, Paise).
 """
 from __future__ import annotations
+from decimal import Decimal, ROUND_HALF_UP
 
 ONES = [
     "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
@@ -28,6 +29,13 @@ def _three_digits(n: int) -> str:
         two = _two_digits(rem)
         res = f"{res} {two}".strip() if res else two
     return res
+
+def money(value: float | int | str | None) -> float:
+    """Round a monetary value to 2 decimals, half-up (416.625 -> 416.63), avoiding binary-float surprises."""
+    if value is None:
+        return 0.0
+    return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
 
 def format_inr(amount: float | int | None, symbol: bool = True) -> str:
     """Format a number into Indian currency notation: 12,34,567.89"""
