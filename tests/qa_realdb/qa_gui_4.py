@@ -31,14 +31,14 @@ from app.services.ledger_service import LedgerService
 ms, ads, ps, ls = MasterService(db), AdminService(db), PaymentService(db), LedgerService(db)
 
 # bills for reports / pdf
-def mkbill(cid, cname, lines, user="admin"):
+def mkbill(cid, cname, lines, user="admin", **extra):
     items = [BillItem(item_id=i, item_alias=a, name=n, qty=q, unit="kg", rate=r, amount=q * r) for i, a, n, q, r in lines]
     tot = sum(x.amount for x in items)
-    return billing.create_bill(BillCreate(invoice_date=datetime.now().strftime("%Y-%m-%d"), customer_id=cid, customer_name=cname, items=items, total_amount=tot, balance_due=tot, created_by=user))
+    return billing.create_bill(BillCreate(invoice_date=datetime.now().strftime("%Y-%m-%d"), customer_id=cid, customer_name=cname, items=items, total_amount=tot, balance_due=tot, created_by=user, **extra))
 raw.customers.update_one({"cust_id": "Cust0001"}, {"$set": {"credit_limit": 0.0}})
 b1 = mkbill("Cust0001", "Anna Adarsh Hostel", [("FRU0001", "101", "Apple", 12.5, 33.33), ("VEG0001", "102", "Avarai", 7, 18.0)])
 b2 = mkbill("Cust0001", "Anna Adarsh Hostel", [("FRU0002", "105", "Banana Green", 40, 25.0)])
-b3 = mkbill("CASH", "Cash Customer", [("VEG0002", "104", "Bajji Chilli", 3, 99.99)])
+b3 = mkbill("CASH", "Cash Customer", [("VEG0002", "104", "Bajji Chilli", 3, 99.99)], amount_received=299.97)   # walk-in, paid in cash
 
 # ================================================================= DASHBOARD
 win.show_page("Dashboard"); pump(root, 4); dv = win.frames["Dashboard"]; dv.refresh(); pump(root, 3)
@@ -103,6 +103,7 @@ except ValueError: pass
 check("GUI-MST-09", "customer with outstanding balance (777) cannot be deleted", raw.customers.find_one({"cust_id": "QAC001"}).get("is_deleted") == 0, f"is_deleted={raw.customers.find_one({'cust_id': 'QAC001'}).get('is_deleted')} despite balance 777")
 ms.save_customer({"cust_id": "QAC001", "name": "QA Cust", "current_balance": 0.0}, is_new=False)
 check("GUI-MST-10", "editing a customer record cannot overwrite the ledger balance (current_balance)", raw.customers.find_one({"cust_id": "QAC001"})["current_balance"] == 777.0, f"balance after edit={raw.customers.find_one({'cust_id': 'QAC001'})['current_balance']}")
+raw.customers.update_one({"cust_id": "QAC001"}, {"$set": {"current_balance": 0.0}})   # test artefact: this balance never went through the ledger
 now = datetime.now(timezone.utc)
 for args, why in [((("Cust0001", "FRU0001", 0, now, now + timedelta(days=1))), "zero rate"), ((("Cust0001", "FRU0001", 10, now + timedelta(days=2), now)), "start after end")]:
     try: ms.save_fixed_price(*args); check(f"GUI-MST-fp-{why}", f"fixed price {why} rejected", False, "accepted")
@@ -118,24 +119,24 @@ shot(root, "masters_fixed_rates")
 win.show_page("Customer Master"); pump(root, 3); shot(root, "masters_customers")
 
 # ================================================================= FINANCE UI
-raw.journal_entries.delete_many({})
+# (journals are kept: the automatic postings from the bills above are part of the ledger under test)
 ls.post_journal_entry("QA-OPEN", "manual", [{"account_id": "1000", "debit": 5000.0, "credit": 0.0}, {"account_id": "3000", "debit": 0.0, "credit": 5000.0}], "admin")
 win.show_page("Finance"); pump(root, 3); fv = win.frames["Finance"]
 shot(root, "finance_home")
 win.show_page("Trial Balance"); pump(root, 6); shot(root, "finance_trial_balance")
 tb = ls.get_trial_balance()
-check("GUI-FIN-01", "trial balance reflects only the manual journal (sales/payments never auto-posted)", tb["total_debit"] == 5000.0 and len(tb["rows"]) == 2, f"rows={tb['rows']}  <- 3 bills worth {sum(b['total_amount'] for b in (b1,b2,b3)):,.2f} absent")
+check("GUI-FIN-01", "trial balance includes the automatic postings from the 3 bills AND the manual opening journal, and balances", tb["is_balanced"] and tb["total_debit"] > 5000.0 and any(r["account_code"] == "4000" for r in tb["rows"]) and any(r["account_code"] == "1000" for r in tb["rows"]), f"rows={[(r['account_code'], r['debit'], r['credit']) for r in tb['rows']]}")
 win.show_page("Profit & Loss"); pump(root, 6); shot(root, "finance_pl")
 pl = ls.get_profit_and_loss()
-check("GUI-FIN-02", "P&L sales = sum of bills", abs(pl["total_sales"] - sum(b["total_amount"] for b in raw.bills.find({"status": {"$ne": "void"}}))) < 0.01, pl)
-clear_dialogs(); fv._view_balance_sheet(); bs_msg = last_dialog()[2]
-check("GUI-FIN-05", "Balance Sheet screen shows real asset/liability/equity figures (EPIC-07 Task 7.2)", any(ch.isdigit() for ch in bs_msg.replace("=== BALANCE SHEET ===", "")), bs_msg.replace(chr(10), " | "))
+check("GUI-FIN-02", "P&L total revenue = sum of non-void bills", abs(pl["total_revenue"] - sum(b["total_amount"] for b in raw.bills.find({"status": {"$ne": "void"}}))) < 0.01, pl)
+fv._view_balance_sheet(); bs_msg = fv.last_report[1]
+check("GUI-FIN-05", "Balance Sheet screen shows real asset/liability/equity figures and balances (EPIC-07 Task 7.2)", "Total assets" in bs_msg and "Cash on Hand" in bs_msg and "YES" in bs_msg, bs_msg.replace(chr(10), " | ")[:160])
 from app.services.procurement_service import ProcurementService as _PS
 _PS(db).create_purchase_bill("SUP001", "QA-PB-1", [{"item_id": "FRU0001", "name": "Apple", "qty": 100, "rate": 40.0}], user_id="admin")   # buy 4000 of stock
 pl2 = ls.get_profit_and_loss()
 check("GUI-FIN-06", "P&L charges COGS only (goods sold), not every purchase: buying Rs4000 stock and selling ~Rs1,100 must not show a ~Rs-2,900 'loss' while stock is still on the shelf", pl2["net_profit"] > -1000, f"sales={pl2['total_sales']:.2f} purchases={pl2['total_purchases']:.2f} net_profit={pl2['net_profit']:.2f}")
-clear_dialogs(); fv._view_trial_balance(); tb_msg = last_dialog()[2]
-check("GUI-FIN-07", "Trial Balance dialog lists per-account debit/credit rows (not just totals)", "1000" in tb_msg or "Cash" in tb_msg, tb_msg.replace(chr(10), " | "))
+fv._view_trial_balance(); tb_msg = fv.last_report[1]
+check("GUI-FIN-07", "Trial Balance dialog lists per-account debit/credit rows (not just totals)", "Cash on Hand" in tb_msg and "Debits equal credits: YES" in tb_msg, tb_msg.replace(chr(10), " | ")[:160])
 win.show_page("Balance Sheet"); pump(root, 6); shot(root, "finance_bs")
 win.show_page("Accounts Receivables"); pump(root, 4); shot(root, "finance_ar")
 ps.record_customer_payment("Cust0001", 100.0, user_id="admin")

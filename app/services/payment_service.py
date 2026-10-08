@@ -5,6 +5,7 @@ from app.repositories.accounting_repo import AccountingRepository
 from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import CustomerRepository, SupplierRepository
 from app.repositories.procurement_repo import ProcurementRepository
+from app.services.ledger_service import LedgerService
 
 class PaymentService:
     def __init__(self, db: Any):
@@ -14,6 +15,7 @@ class PaymentService:
         self.cust_repo = CustomerRepository(db)
         self.supp_repo = SupplierRepository(db)
         self.proc_repo = ProcurementRepository(db)
+        self.ledger = LedgerService(db)
 
     # ---------------- CUSTOMER PAYMENTS (AR) ----------------
     def record_customer_payment(
@@ -90,6 +92,7 @@ class PaymentService:
             "created_at": now,
         }
         self.acc_repo.payments.insert_one(doc)
+        self.ledger.post_receipt(doc, user_id=user_id)
 
         # Decrement customer current balance
         self.cust_repo.update_balance(customer_id, -amount)
@@ -155,6 +158,7 @@ class PaymentService:
             "created_at": now,
         }
         self.proc_repo.ap_payments.insert_one(doc)
+        self.ledger.post_supplier_payment(doc, user_id=user_id)
 
         # Reduce supplier balance
         self.supp_repo.update_balance(supplier_id, -amount)

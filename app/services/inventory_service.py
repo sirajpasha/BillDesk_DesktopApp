@@ -3,12 +3,14 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from app.repositories.master_repo import ItemRepository
 from app.repositories.inventory_repo import InventoryRepository
+from app.services.ledger_service import LedgerService
 
 class InventoryService:
     def __init__(self, db: Any):
         self.db = db
         self.item_repo = ItemRepository(db)
         self.inv_repo = InventoryRepository(db)
+        self.ledger = LedgerService(db)
 
     def get_stock_overview(self, category: Optional[str] = None, search: str = "") -> List[Dict[str, Any]]:
         filter_doc: Dict[str, Any] = {"is_deleted": 0}
@@ -73,7 +75,7 @@ class InventoryService:
             notes=f"Waste: {reason}",
             created_by=user_id,
         )
-        return self.inv_repo.record_waste(
+        waste = self.inv_repo.record_waste(
             item_id=item_id,
             item_name=item["name"],
             qty=qty,
@@ -81,6 +83,8 @@ class InventoryService:
             reason=reason,
             created_by=user_id,
         )
+        self.ledger.post_waste(waste, user_id=user_id)
+        return waste
 
     def get_stock_transactions(self, item_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         filter_doc = {}
