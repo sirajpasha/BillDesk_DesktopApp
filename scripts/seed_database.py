@@ -24,6 +24,34 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
+# Fields every app query filters on (status + is_deleted) plus balances the services increment.
+RECORD_DEFAULTS = {
+    "users": {"status": "active", "is_deleted": 0},
+    "items": {"status": "active", "is_deleted": 0, "stock": 0.0},
+    "customers": {"status": "active", "is_deleted": 0, "current_balance": 0.0, "credit_limit": 0.0, "payment_terms_days": 30},
+    "suppliers": {"status": "active", "is_deleted": 0, "current_balance": 0.0},
+}
+
+# Menu permissions understood by MainWindow (admin is always allowed everything).
+DEFAULT_ROLE_PERMISSIONS = {
+    "manager": ["/items", "/customers", "/suppliers", "/finance", "/accounting", "/ledger"],
+    "user": [],
+}
+
+
+def with_defaults(collection: str, doc: dict) -> dict:
+    """Return doc with the app-required default fields filled in (existing values win)."""
+    return {**RECORD_DEFAULTS.get(collection, {}), **doc}
+
+
+def backfill_defaults(db, collection: str) -> int:
+    """Add missing required fields to records created by older seeder versions."""
+    fixed = 0
+    for field, value in RECORD_DEFAULTS.get(collection, {}).items():
+        fixed += db[collection].update_many({field: {"$exists": False}}, {"$set": {field: value}}).modified_count
+    return fixed
+
+
 def load_seed_json() -> dict:
     seed_file = root_dir / "data" / "seed_data.json"
     if not seed_file.exists():
@@ -53,8 +81,15 @@ def seed_database():
         print(f"[ERROR] Failed to connect to MongoDB: {e}")
         sys.exit(1)
 
-    db = db_mgr.db
-    data = load_seed_json()
+    stats = seed_collections(db_mgr.db, load_seed_json(), load_extra_items())
+
+    print("[SUCCESS] Database seeding complete!")
+    for k, v in stats.items():
+        print(f"  - {k}: {v} new records added (existing retained).")
+
+
+def seed_collections(db, data: dict, extra_items: list[dict]) -> dict:
+    """Insert missing seed records into `db` (a pymongo Database or compatible) and return stats."""
     stats = {}
 
     # 1. Companies
@@ -69,7 +104,6 @@ def seed_database():
 
     # 2. Items
     items = data.get("items", [])
-    extra_items = load_extra_items()
     all_items = items + extra_items
     inserted_items = 0
     for item in all_items:
@@ -87,7 +121,7 @@ def seed_database():
             # Ensure price if not present
             if "default_rate" not in item:
                 item["default_rate"] = settings.default_rate
-            db.items.insert_one(item)
+            db.items.insert_one(with_defaults("items", item))
             inserted_items += 1
     stats["items"] = inserted_items
 
@@ -98,7 +132,7 @@ def seed_database():
         cid = cust.get("cust_id")
         query = {"cust_id": cid} if cid else {"name": cust.get("name")}
         if not db.customers.find_one(query):
-            db.customers.insert_one(cust)
+            db.customers.insert_one(with_defaults("customers", cust))
             inserted_cust += 1
     stats["customers"] = inserted_cust
 
@@ -109,7 +143,7 @@ def seed_database():
         sid = supp.get("supplier_id")
         query = {"supplier_id": sid} if sid else {"name": supp.get("name")}
         if not db.suppliers.find_one(query):
-            db.suppliers.insert_one(supp)
+            db.suppliers.insert_one(with_defaults("suppliers", supp))
             inserted_supp += 1
     stats["suppliers"] = inserted_supp
 
@@ -132,13 +166,25 @@ def seed_database():
             raw_pwd = u.get("password", "")
             doc = {k: v for k, v in u.items() if k != "password"}
             doc["password_hash"] = hash_password(raw_pwd) if raw_pwd else ""
-            db.users.insert_one(doc)
+            db.users.insert_one(with_defaults("users", doc))
             inserted_users += 1
     stats["users"] = inserted_users
 
-    print("[SUCCESS] Database seeding complete!")
-    for k, v in stats.items():
-        print(f"  - {k}: {v} new records added (existing retained).")
+    # 7. Default role -> menu permissions (only for roles that have none yet)
+    inserted_perms = 0
+    for role, menus in DEFAULT_ROLE_PERMISSIONS.items():
+        if not db.role_permissions.find_one({"role": role}):
+            db.role_permissions.insert_one({"role": role, "menus": menus})
+            inserted_perms += 1
+    stats["role_permissions"] = inserted_perms
+
+    # 8. Repair records written by older seeder versions (missing status / is_deleted / balances)
+    for coll in RECORD_DEFAULTS:
+        n = backfill_defaults(db, coll)
+        if n:
+            stats[f"{coll} repaired (missing fields)"] = n
+
+    return stats
 
 
 if __name__ == "__main__":

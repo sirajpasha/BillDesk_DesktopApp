@@ -6,6 +6,7 @@ from app.models.billing import BillCreate, BillLine
 from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, FixedPriceRepository
 from app.repositories.inventory_repo import InventoryRepository
+from app.services.payment_service import PaymentService
 
 CASH_CUSTOMER_ID = "CASH"
 
@@ -17,6 +18,7 @@ class BillingService:
         self.cust_repo = CustomerRepository(db)
         self.price_repo = FixedPriceRepository(db)
         self.inv_repo = InventoryRepository(db)
+        self.payment_svc = PaymentService(db)
         self.parked_bills: List[Dict[str, Any]] = []
 
     def next_invoice_number(self) -> str:
@@ -39,6 +41,15 @@ class BillingService:
                 raise ValueError("Item quantity must be greater than zero")
             if item.rate < 0:
                 raise ValueError("Item rate cannot be negative")
+
+        received = bill.amount_received
+        if received is not None:
+            if received < 0:
+                raise ValueError("Amount received cannot be negative")
+            if received - bill.total_amount > 0.005:
+                raise ValueError(
+                    f"Amount received ({received:.2f}) exceeds the bill total ({bill.total_amount:.2f})"
+                )
 
         if bill.invoice_no is None:
             bill.invoice_no = self.next_invoice_number()
@@ -63,7 +74,9 @@ class BillingService:
         terms = int(customer.get("payment_terms_days", 30)) if customer else 30
         due_date = invoice_dt + timedelta(days=terms) if customer else None
 
-        doc = bill.model_dump()
+        doc = bill.model_dump(exclude={"amount_received", "payment_method", "payment_reference"})
+        if received is not None:
+            doc["balance_due"] = round(bill.total_amount, 2)   # payment applied below
         doc.update({
             "invoice_no": bill.invoice_no,
             "created_at": now,
@@ -86,7 +99,43 @@ class BillingService:
         else:
             self._write_bill(doc, customer, bill, None)
 
+        if received is not None:
+            self._apply_counter_payment(doc, bill, received)
         return doc
+
+    def _apply_counter_payment(self, doc: Dict[str, Any], bill: BillCreate, received: float) -> None:
+        """Record the payment taken while saving the bill and settle the bill/customer balance."""
+        received = round(received, 2)
+        if received <= 0:
+            return
+        method = bill.payment_method or "Cash"
+        if bill.customer_id != CASH_CUSTOMER_ID:
+            # Lowers customer.current_balance, settles this bill, writes payments + ledger rows.
+            self.payment_svc.record_customer_payment(
+                customer_id=bill.customer_id, amount=received, payment_method=method,
+                reference_no=bill.payment_reference, invoice_no=bill.invoice_no,
+                notes="Received at billing", user_id=bill.created_by,
+            )
+        else:
+            # Walk-in sale: no customer ledger, but the receipt is still recorded.
+            due = round(bill.total_amount - received, 2)
+            now = datetime.now(timezone.utc)
+            self.bill_repo.update_one(
+                {"invoice_no": bill.invoice_no},
+                {"$set": {"balance_due": due, "status": "paid" if due <= 0 else "partial"}},
+            )
+            acc = self.payment_svc.acc_repo
+            acc.payments.insert_one({
+                "payment_id": acc.next_payment_id(), "party_id": CASH_CUSTOMER_ID, "party_type": "walk-in",
+                "amount": received, "payment_date": now, "payment_method": method,
+                "reference_no": bill.payment_reference, "is_advance": False, "allocation_status": "full",
+                "allocations": [{"invoice_id": bill.invoice_no, "amount": received}],
+                "reconciliation_status": "unreconciled", "notes": "Received at billing",
+                "is_deleted": 0, "created_by": bill.created_by, "created_at": now,
+            })
+        fresh = self.bill_repo.find_one({"invoice_no": bill.invoice_no}) or {}
+        doc["balance_due"] = fresh.get("balance_due", doc.get("balance_due"))
+        doc["status"] = fresh.get("status", doc.get("status"))
 
     def _write_bill(self, doc: Dict[str, Any], customer: Optional[Dict[str, Any]], bill: BillCreate, session: Any):
         kw = {"session": session} if session else {}

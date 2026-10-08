@@ -532,6 +532,10 @@ class BillHistoryFrame(tk.Frame):
     def refresh(self):
         bills = self.billing.search_bills(limit=500)
         self._all_bills = []
+        try:
+            company_names = {c.get("company_id"): c.get("name") for c in self.db.collection("companies").find({})}
+        except Exception:
+            company_names = {}
 
         total_rev = 0.0
         today_str = datetime.now().strftime("%Y-%m-%d")
@@ -544,7 +548,7 @@ class BillHistoryFrame(tk.Frame):
             d["items_count_display"] = f"{len(d.get('items', []))} items"
             amt = float(d.get("total_amount", 0.0))
             d["amount_display"] = format_inr(amt)
-            d["company_display"] = d.get("company_name") or "-"
+            d["company_display"] = d.get("company_name") or company_names.get(d.get("company_id")) or "-"
             d["status_display"] = str(d.get("status", "unpaid")).lower()
 
             if d["status_display"] != "void":

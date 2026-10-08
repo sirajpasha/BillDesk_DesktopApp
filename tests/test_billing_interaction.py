@@ -201,6 +201,7 @@ def test_gap_compaction_with_preexisting_rows(billing_frame):
 def test_dynamic_row_creation_at_table_end(billing_frame):
     """When the user reaches the end of rows, pressing Enter on Rate creates and enables a new row."""
     frame = billing_frame
+    frame.suppress_duplicate_dialog = True   # every row uses item 101; don't open the modal duplicate dialog
     initial_count = len(frame.row_widgets)
 
     # Fill all rows up to initial_count - 1

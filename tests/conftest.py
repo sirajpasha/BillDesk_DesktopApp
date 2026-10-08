@@ -80,6 +80,9 @@ class MockCollection:
                     elif op == "$ne":
                         if val == target:
                             return False
+                    elif op == "$exists":
+                        if (k in doc) != bool(target):
+                            return False
             else:
                 if doc.get(k) != v:
                     return False
@@ -123,6 +126,16 @@ class MockCollection:
                 return True
         return False
 
+    def update_many(self, filter_query, update_doc, session=None):
+        import types
+        n = 0
+        for doc in self.docs:
+            if self._matches(doc, filter_query):
+                for field, set_val in update_doc.get("$set", {}).items():
+                    doc[field] = copy.deepcopy(set_val)
+                n += 1
+        return types.SimpleNamespace(modified_count=n)
+
     def count_documents(self, query=None):
         return len([d for d in self.docs if self._matches(d, query or {})])
 
@@ -153,6 +166,32 @@ class MockMongoDatabase:
 
     def list_collection_names(self):
         return list(self._collections.keys())
+
+class SeederDbAdapter:
+    """Gives the in-memory mock the pymongo Database access styles (db.items / db['items']) the seeder uses."""
+    def __init__(self, fake): self._f = fake
+    def __getattr__(self, name): return self._f.collection(name)
+    def __getitem__(self, name): return self._f.collection(name)
+
+
+@pytest.fixture(scope="session")
+def seeder():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parent.parent / "scripts" / "seed_database.py"
+    spec = importlib.util.spec_from_file_location("seed_database", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.fixture
+def seeded_mock_db(seeder):
+    """Hermetic stand-in for a freshly seeded database (repo seed data + data/items.json), never a live MongoDB."""
+    db = MockMongoDatabase()
+    seeder.seed_collections(SeederDbAdapter(db), seeder.load_seed_json(), seeder.load_extra_items())
+    return db
+
 
 @pytest.fixture
 def fake_db():

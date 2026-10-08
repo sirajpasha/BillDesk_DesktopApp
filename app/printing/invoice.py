@@ -5,6 +5,8 @@ import subprocess
 import tempfile
 import base64
 import math
+import shutil
+import time
 from typing import Any, Dict, Optional, List
 from app.config.settings import settings
 from app.utils.currency import format_inr, amount_in_words
@@ -703,42 +705,96 @@ body {{
 </html>
 """
 
-def _generate_pdf_via_browser(html_content: str, output_path: str) -> bool:
-    """Print HTML to PDF using headless Edge or Chrome."""
+def _generate_pdf_via_browser(html_content: str, output_path: str, timeout: float = 25.0) -> bool:
+    """Print HTML to PDF using headless Edge or Chrome.
+
+    A throw-away --user-data-dir is essential: with the default profile, an already-running
+    Edge/Chrome swallows the command (exit code 0, no PDF). The browser also writes the PDF
+    after the launcher process has returned, so we poll for the finished file.
+    """
     browser_exe = _get_edge_path()
     if not browser_exe:
         return False
 
     abs_output = os.path.abspath(output_path)
     os.makedirs(os.path.dirname(abs_output), exist_ok=True)
-    temp_html = os.path.join(tempfile.gettempdir(), f"billdesk_{os.getpid()}_{abs(hash(output_path))}.html")
+    work_dir = tempfile.mkdtemp(prefix="billdesk_pdf_")
+    temp_html = os.path.join(work_dir, "doc.html")
+    profile_dir = os.path.join(work_dir, "profile")
 
     try:
+        if os.path.exists(abs_output):
+            os.remove(abs_output)          # never mistake a stale PDF for the new one
         with open(temp_html, "w", encoding="utf-8") as f:
             f.write(html_content)
 
         cmd = [
             browser_exe,
-            "--headless",
+            "--headless=new",
             "--disable-gpu",
+            "--no-first-run",
+            "--no-default-browser-check",
+            f"--user-data-dir={profile_dir}",
             "--no-pdf-header-footer",
             f"--print-to-pdf={abs_output}",
-            temp_html
+            temp_html,
         ]
-        ret = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-        return ret.returncode == 0 and os.path.exists(abs_output) and os.path.getsize(abs_output) > 0
+        ret = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        if ret.returncode != 0:
+            return False
+
+        deadline = time.monotonic() + timeout
+        last_size = -1
+        while time.monotonic() < deadline:
+            if os.path.exists(abs_output):
+                size = os.path.getsize(abs_output)
+                if size > 0 and size == last_size:      # size stable across two polls => fully written
+                    return True
+                last_size = size
+            time.sleep(0.25)
+        return False
     except Exception as ex:
         print(f"Browser PDF generation error: {ex}")
         return False
     finally:
-        if temp_html and os.path.exists(temp_html):
-            try:
-                os.remove(temp_html)
-            except Exception:
-                pass
+        shutil.rmtree(work_dir, ignore_errors=True)
 
-def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], company: Optional[Dict[str, Any]] = None, customer: Optional[Dict[str, Any]] = None) -> None:
-    """Fallback ReportLab generator for Tax Invoice when no headless browser is available."""
+_PDF_FONTS: Optional[tuple] = None
+
+def _pdf_fonts() -> tuple:
+    """(regular, bold, rupee_symbol) for ReportLab output; a TTF with U+20B9 if one is installed."""
+    global _PDF_FONTS
+    if _PDF_FONTS is not None:
+        return _PDF_FONTS
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    pairs = [
+        (r"C:\Windows\Fonts\arial.ttf", r"C:\Windows\Fonts\arialbd.ttf"),
+        (r"C:\Windows\Fonts\segoeui.ttf", r"C:\Windows\Fonts\segoeuib.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ("/Library/Fonts/Arial Unicode.ttf", "/Library/Fonts/Arial Unicode.ttf"),
+    ]
+    result = ("Helvetica", "Helvetica-Bold", "Rs.")      # built-in fonts have no rupee glyph
+    for reg_path, bold_path in pairs:
+        if not (os.path.exists(reg_path) and os.path.exists(bold_path)):
+            continue
+        try:
+            reg = TTFont("BillDeskSans", reg_path)
+            if 0x20B9 not in reg.face.charToGlyph:
+                continue
+            pdfmetrics.registerFont(reg)
+            pdfmetrics.registerFont(TTFont("BillDeskSans-Bold", bold_path))
+            pdfmetrics.registerFontFamily("BillDeskSans", normal="BillDeskSans", bold="BillDeskSans-Bold",
+                                          italic="BillDeskSans", boldItalic="BillDeskSans-Bold")
+            result = ("BillDeskSans", "BillDeskSans-Bold", "\u20b9")
+            break
+        except Exception:
+            continue
+    _PDF_FONTS = result
+    return result
+
+def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], company: Optional[Dict[str, Any]] = None, customer: Optional[Dict[str, Any]] = None, is_dc: bool = False) -> None:
+    """Fallback ReportLab generator (Tax Invoice, or Delivery Challan without rates/amounts) used when no headless browser works."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -748,6 +804,8 @@ def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], compan
     comp = company or {}
     cust = customer or {}
     styles = getSampleStyleSheet()
+    reg_font, bold_font, sym = _pdf_fonts()
+    normal = ParagraphStyle("BDNormal", parent=styles["Normal"], fontName=reg_font)
 
     doc = SimpleDocTemplate(
         path,
@@ -765,20 +823,20 @@ def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], compan
     comp_email = comp.get("email") or "info@svveg.com"
     comp_gst = comp.get("gst_number") or "33ABCDE1234F1Z5"
 
-    header_style = ParagraphStyle("H1", parent=styles["Heading1"], fontSize=18, leading=22, textColor=colors.HexColor("#008000"), alignment=1)
-    sub_style = ParagraphStyle("Sub", parent=styles["Normal"], fontSize=9, leading=12, textColor=colors.HexColor("#1a1a1a"), alignment=1)
+    header_style = ParagraphStyle("H1", parent=styles["Heading1"], fontName=bold_font, fontSize=18, leading=22, textColor=colors.HexColor("#008000"), alignment=1)
+    sub_style = ParagraphStyle("Sub", parent=normal, fontName=reg_font, fontSize=9, leading=12, textColor=colors.HexColor("#1a1a1a"), alignment=1)
 
     story.append(Paragraph(comp_name, header_style))
     story.append(Paragraph(f"{comp_addr}<br/>Ph: {comp_phone} | Email: {comp_email} | GSTIN: {comp_gst}", sub_style))
     story.append(Spacer(1, 4 * mm))
 
-    pm = "CASH" if str(bill.get("customer_name", "")).lower() == "cash" else "CREDIT"
-    banner_data = [[f"INVOICE ({pm})"]]
+    pm = "CASH" if str(bill.get("customer_name", "")).strip().lower().startswith("cash") else "CREDIT"
+    banner_data = [["DELIVERY CHALLAN"]] if is_dc else [[f"INVOICE ({pm})"]]
     banner_table = Table(banner_data, colWidths=[190 * mm])
     banner_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#009e49")),
         ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, -1), bold_font),
         ("FONTSIZE", (0, 0), (-1, -1), 11),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("GRID", (0, 0), (-1, -1), 1, colors.black),
@@ -797,12 +855,12 @@ def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], compan
 
     c1 = f"<b>BILL TO:</b><br/><b>{bill_to_name}</b><br/>{bill_to_addr}<br/>Ph: {bill_to_phone}"
     c2 = f"<b>SHIP TO:</b><br/><b>{ship_to_name}</b><br/>{ship_to_addr}<br/>Ph: {ship_to_phone}"
-    c3 = f"<b>INVOICE DETAILS:</b><br/>No: <b>{bill.get('invoice_no')}</b><br/>Date: {format_date(bill.get('invoice_date'))}<br/>Place: Local"
+    c3 = f"<b>{"DELIVERY DETAILS" if is_dc else "INVOICE DETAILS"}:</b><br/>No: <b>{bill.get('invoice_no')}</b><br/>Date: {format_date(bill.get('invoice_date'))}<br/>Place: Local"
 
     grid_table = Table([[
-        Paragraph(c1, styles["Normal"]),
-        Paragraph(c2, styles["Normal"]),
-        Paragraph(c3, styles["Normal"])
+        Paragraph(c1, normal),
+        Paragraph(c2, normal),
+        Paragraph(c3, normal)
     ]], colWidths=[65 * mm, 65 * mm, 60 * mm])
     grid_table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 1, colors.black),
@@ -815,21 +873,22 @@ def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], compan
 
     # Items table
     items = bill.get("items", [])
-    data = [["Sno", "Description", "Qty", "Unit", "Rate (₹)", "Amount (₹)"]]
+    if is_dc:
+        data = [["Sno", "Description", "Qty", "Unit"]]
+    else:
+        data = [["Sno", "Description", "Qty", "Unit", f"Rate ({sym})", f"Amount ({sym})"]]
     for i, itm in enumerate(items, 1):
-        data.append([
-            str(i),
-            itm.get("name", ""),
-            f"{float(itm.get('qty', 0)):g}",
-            itm.get("unit", "kg"),
-            f"{float(itm.get('rate', 0)):.2f}",
-            f"{float(itm.get('amount', 0)):.2f}"
-        ])
+        row = [str(i), itm.get("name", ""), f"{float(itm.get('qty', 0)):g}", itm.get("unit", "kg")]
+        if not is_dc:
+            row += [f"{float(itm.get('rate', 0)):.2f}", f"{float(itm.get('amount', 0)):.2f}"]
+        data.append(row)
 
-    table = Table(data, colWidths=[12 * mm, 82 * mm, 18 * mm, 18 * mm, 26 * mm, 34 * mm])
+    col_widths = [12 * mm, 118 * mm, 30 * mm, 30 * mm] if is_dc else [12 * mm, 82 * mm, 18 * mm, 18 * mm, 26 * mm, 34 * mm]
+    table = Table(data, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 1, colors.black),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, -1), reg_font),
+        ("FONTNAME", (0, 0), (-1, 0), bold_font),
         ("ALIGN", (0, 0), (0, -1), "CENTER"),
         ("ALIGN", (2, 0), (2, -1), "RIGHT"),
         ("ALIGN", (3, 0), (3, -1), "CENTER"),
@@ -841,17 +900,18 @@ def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], compan
     story.append(Spacer(1, 4 * mm))
 
     # Total and Footer
-    tot_amt = float(bill.get("total_amount", 0.0))
-    words = amount_in_words(tot_amt)
-    story.append(Paragraph(f"<b>Amount in Words:</b> {words}", styles["Normal"]))
-    story.append(Paragraph(f"<b>Total: ₹{tot_amt:,.2f}</b>", ParagraphStyle("Tot", parent=styles["Normal"], fontSize=12, alignment=2)))
+    if not is_dc:
+        tot_amt = float(bill.get("total_amount", 0.0))
+        words = amount_in_words(tot_amt)
+        story.append(Paragraph(f"<b>Amount in Words:</b> {words}", normal))
+        story.append(Paragraph(f"<b>Total: {sym}{tot_amt:,.2f}</b>", ParagraphStyle("Tot", parent=normal, fontName=reg_font, fontSize=12, alignment=2)))
     story.append(Spacer(1, 6 * mm))
 
     terms = comp.get("terms_and_conditions") or "1. Goods once sold will not be taken back."
     sig_label = comp.get("signatory_label") or "Authorized Signatory"
     foot = [[
-        Paragraph(f"<b>Terms & Conditions:</b><br/>{terms}", styles["Normal"]),
-        Paragraph(f"<b>For {comp_name}</b><br/><br/><br/>{sig_label}", ParagraphStyle("Sig", parent=styles["Normal"], alignment=2))
+        Paragraph(f"<b>Terms & Conditions:</b><br/>{terms}", normal),
+        Paragraph(f"<b>For {comp_name}</b><br/><br/><br/>{sig_label}", ParagraphStyle("Sig", parent=normal, fontName=reg_font, alignment=2))
     ]]
     foot_table = Table(foot, colWidths=[110 * mm, 80 * mm])
     foot_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
@@ -893,6 +953,6 @@ def generate_dc_pdf(arg1: Any, arg2: Any, company: Optional[Dict[str, Any]] = No
     html = render_dc_html(bill, company=comp, customer=cust)
     success = _generate_pdf_via_browser(html, output_path)
     if not success:
-        _generate_reportlab_invoice_fallback(output_path, bill, company=comp, customer=cust)
+        _generate_reportlab_invoice_fallback(output_path, bill, company=comp, customer=cust, is_dc=True)
 
     return output_path

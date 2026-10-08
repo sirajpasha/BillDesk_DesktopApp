@@ -949,12 +949,31 @@ class BillingFrame(ttk.Frame):
         bot_btns.pack(fill="x", side="bottom")
 
         def _execute_post():
-            try:
-                rec_amount = float(amt_rec_ent.get().strip() or 0.0)
-            except ValueError:
-                rec_amount = total_amount
-
             pay_method = method_cbo.get()
+            raw_amt = amt_rec_ent.get().strip().replace(",", "")
+            try:
+                rec_amount = float(raw_amt) if raw_amt else 0.0
+            except ValueError:
+                messagebox.showerror("Invalid Amount", f"'{amt_rec_ent.get()}' is not a valid amount received.", parent=modal)
+                amt_rec_ent.focus_set()
+                return
+            if rec_amount < 0 or rec_amount != rec_amount:
+                messagebox.showerror("Invalid Amount", "Amount received cannot be negative.", parent=modal)
+                amt_rec_ent.focus_set()
+                return
+            if rec_amount - total_amount > 0.005:
+                messagebox.showerror(
+                    "Invalid Amount",
+                    f"Amount received (₹{rec_amount:.2f}) is more than the bill total (₹{total_amount:.2f}).",
+                    parent=modal,
+                )
+                amt_rec_ent.focus_set()
+                return
+            if pay_method == "Credit/Due":
+                rec_amount = 0.0
+            pay_ref = utr_ent.get().strip()
+            if pay_ref.upper() == "NEW":   # untouched placeholder
+                pay_ref = ""
             # Construct line items
             lines = []
             for row in self.row_widgets:
@@ -1003,7 +1022,9 @@ class BillingFrame(ttk.Frame):
                 items=lines,
                 total_amount=total_amount,
                 balance_due=max(0.0, total_amount - rec_amount),
-                status="paid" if rec_amount >= total_amount else ("partial" if rec_amount > 0 else "unpaid"),
+                amount_received=rec_amount,
+                payment_method=pay_method,
+                payment_reference=pay_ref or None,
                 created_by=self.user.username
             )
 

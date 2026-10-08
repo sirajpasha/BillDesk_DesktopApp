@@ -2,8 +2,6 @@ import pytest
 import tkinter as tk
 from datetime import datetime, date, timedelta, timezone
 
-from app.config.settings import Settings
-from app.database.connection import MongoDatabase
 from app.models.auth import User
 from app.models.order import OrderCreate, OrderItem
 from app.services.order_service import OrderService
@@ -22,12 +20,18 @@ def mock_user():
 
 
 @pytest.fixture
-def db():
-    settings = Settings()
-    db_inst = MongoDatabase(settings)
-    db_inst.connect()
-    yield db_inst
-    db_inst.close()
+def db(seeded_mock_db):
+    """In-memory database with a fixed item catalogue - these tests must never touch a live MongoDB
+    (they used to read the real `sv_billing` data, so results changed with whatever was in it)."""
+    items = seeded_mock_db.collection("items")
+    items.docs.clear()
+    for n, (alias, name, unit) in enumerate([
+        ("101", "Avaraikkai", "Kg"), ("102", "Arvi", "Kg"), ("103", "Amla", "Kg"),
+        ("104", "Banana Leaves (E)", "Nos"), ("220", "Mango", "Kg"),
+    ], 1):
+        items.insert_one({"item_id": f"VEG{n:04d}", "item_alias": alias, "name": name, "unit": unit,
+                          "standard_rate": 20.0, "stock": 100.0, "status": "active", "is_deleted": 0})
+    return seeded_mock_db
 
 
 def test_order_form_view_structure(tk_root, db, mock_user):
