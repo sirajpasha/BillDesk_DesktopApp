@@ -5,6 +5,7 @@ from app.repositories.procurement_repo import ProcurementRepository
 from app.repositories.master_repo import ItemRepository, SupplierRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.models.procurement import PurchaseOrder, PurchaseItem
+from app.services.ledger_service import LedgerService
 
 class ProcurementService:
     def __init__(self, db: Any):
@@ -13,6 +14,7 @@ class ProcurementService:
         self.item_repo = ItemRepository(db)
         self.supp_repo = SupplierRepository(db)
         self.inv_repo = InventoryRepository(db)
+        self.ledger = LedgerService(db)
 
     # ---------------- PURCHASE ORDERS ----------------
     def get_purchase_orders(self, status: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
@@ -175,10 +177,24 @@ class ProcurementService:
             "created_at": now,
         }
         self.proc_repo.bills.insert_one(doc)
+        self._update_item_costs(items)
+        self.ledger.post_purchase_bill(doc, user_id=user_id)
 
         # Update supplier AP balance
         self.supp_repo.update_balance(supplier_id, payable_amount)
         return doc
+
+    def _update_item_costs(self, items: List[Dict[str, Any]]) -> None:
+        """Weighted-average cost: avg_cost over the costed quantity (cost_qty), updated by each vendor bill."""
+        for it in items:
+            item = self.item_repo.find_one({"item_id": it["item_id"]})
+            qty, rate = float(it["qty"]), float(it["rate"])
+            if not item or qty <= 0:
+                continue
+            cq, avg = float(item.get("cost_qty") or 0.0), float(item.get("avg_cost") or 0.0)
+            new_avg = (cq * avg + qty * rate) / (cq + qty)
+            self.item_repo.update_one({"item_id": it["item_id"]},
+                                      {"$set": {"avg_cost": round(new_avg, 4), "cost_qty": cq + qty, "last_purchase_rate": rate}})
 
     def _three_way_match(self, items: List[Dict[str, Any]], po_id: Optional[str], grn_id: Optional[str]):
         """Compare the vendor bill with the PO (rates) and the GRN (quantities actually received)."""

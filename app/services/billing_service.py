@@ -2,11 +2,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 import uuid
-from app.models.billing import BillCreate, BillLine
+from app.models.billing import BillCreate, BillLine, BillItem
 from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, FixedPriceRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.services.payment_service import PaymentService
+from app.services.ledger_service import LedgerService
 from app.config.settings import settings
 from app.utils.currency import money
 
@@ -21,6 +22,7 @@ class BillingService:
         self.price_repo = FixedPriceRepository(db)
         self.inv_repo = InventoryRepository(db)
         self.payment_svc = PaymentService(db)
+        self.ledger = LedgerService(db)
         self.parked_bills: List[Dict[str, Any]] = []
 
     def next_invoice_number(self) -> str:
@@ -121,9 +123,29 @@ class BillingService:
         else:
             self._write_bill(doc, customer, bill, None)
 
+        # ---- general ledger: sale, cost of goods sold (and, below, the receipt)
+        cost = self._consume_cost(bill.items)
+        doc["cost_of_goods"] = cost
+        self.bill_repo.update_one({"invoice_no": bill.invoice_no}, {"$set": {"cost_of_goods": cost}})
+        self.ledger.post_sale(doc, received=received or 0.0, method=bill.payment_method, user_id=bill.created_by)
+        self.ledger.post_cogs(bill.invoice_no, cost, user_id=bill.created_by)
+
         if received is not None:
             self._apply_counter_payment(doc, bill, received)
         return doc
+
+    def _consume_cost(self, lines: List[BillItem]) -> float:
+        """Cost of the goods sold at the item's weighted-average cost; reduces the costed quantity."""
+        total = 0.0
+        for line in lines:
+            item = self.item_repo.find_one({"item_id": line.item_id})
+            if not item:
+                continue
+            qty = abs(line.qty)
+            total += float(item.get("avg_cost") or 0.0) * qty
+            self.item_repo.update_one({"item_id": line.item_id},
+                                      {"$set": {"cost_qty": max(0.0, float(item.get("cost_qty") or 0.0) - qty)}})
+        return round(total, 2)
 
     def _stock_shortfalls(self, bill: BillCreate) -> List[Dict[str, Any]]:
         required: Dict[str, float] = {}
@@ -270,6 +292,11 @@ class BillingService:
                 issued_qty=returned, returned_qty=issued, reference_id=invoice_no,
                 notes=f"Reversal of voided bill {invoice_no}", created_by=user_id,
             )
+
+        # 4b. Reverse the general-ledger postings (sale + cost of goods) and put the costed quantity back
+        self.ledger.reverse_entries(invoice_no, ["sale", "cogs"], user_id)
+        for line in bill.get("items", []):
+            self.item_repo.update_one({"item_id": line["item_id"]}, {"$inc": {"cost_qty": float(line["qty"])}})
 
         # 5. Mark Bill Status Void
         self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {"status": "void", "balance_due": 0.0}})

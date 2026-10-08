@@ -7,13 +7,13 @@
 | | Count |
 | :-- | --: |
 | Test cases executed (this report) | **279** |
-| Passed | **270** |
-| Failed (each maps to an open defect below) | **9** |
-| Existing pytest suite (mock DB) | 127 pass (49 original + 78 new regression tests); the hang and the live-DB dependency are fixed |
+| Passed | **278** |
+| Failed (each maps to an open defect below) | **1** |
+| Existing pytest suite (mock DB) | 140 pass (49 original + 91 new regression tests); the hang and the live-DB dependency are fixed |
 
 The 48-test pytest suite is green because it runs against an in-memory mock and asserts only the happy paths. Run against a **real MongoDB** and the real Tk windows, the application has **7 high-severity defects** that affect money, stock, security or documents. The most serious: **a payment taken at the counter is never recorded** (D-01) and **role restrictions are bypassable with keyboard shortcuts** (D-04).
 
-**Update - fixes applied after the first run:** D-01 .. D-06, D-08 .. D-15 and D-12 are fixed (D-16 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 78 new pytest regression tests (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; D-07 (ledger posting - needs accounting rules), the commission/mandi part of D-16 and persistence of parked bills (D-18) remain open. Numbers in this report are from the post-fix run.
+**Update - fixes applied after the first run:** D-01 .. D-15, D-17 and D-20 are fixed (D-16, D-18 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 91 new pytest regression tests (including `tests/test_ledger_posting.py`) (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; the commission/mandi display on orders (D-16) and persistence of parked bills (D-18) remain open. Numbers in this report are from the post-fix run.
 
 ## 2. How the testing was done
 
@@ -70,7 +70,7 @@ Severity: **High** = wrong money/stock/security or unusable document; **Medium**
 | D-04 **FIXED** | **Access control is menu-only.** Menus are hidden by role, but `F10`, `F11`, `Ctrl+D`... go straight to Item/Customer Master and the whole Accounting dashboard for a plain `user`; the *Reports* menu lists Profit & Loss / Balance Sheet for everyone. The seeder creates no `role_permissions`, so `manager` == `user`. | GUI-RBAC-manager-02/F10/F11/Control-d, GUI-RBAC-user-* , SVC-AUTH-perm-manager (screenshot `user_menu.png`) | `ui/main_window.py:355-369` (global binds), `show_page` has no permission check | Enforce permissions in `show_page`/`can_open(name)`; seed default role permissions. |
 | D-05 **FIXED** | **Delivery Challan / Invoice PDF silently degrades.** `generate_*_pdf` shells out to headless Edge with the default profile; when Edge is already running the command returns 0 **without writing a PDF**, and the code falls back to a ReportLab *invoice* layout for **both** documents: the Delivery Challan then shows rates and amounts (commercially sensitive), is titled "INVOICE (CREDIT)", and the rupee sign renders as a black box (Helvetica has no U+20B9). Reproduced with 34 Edge processes running. | PDF-DC-01 (screenshot `invoice_pdf.png`) | `printing/invoice.py:720-729, 877, 896` | Pass `--user-data-dir=<temp>` (verified to work) and `--headless=new`; make the fallback honour `is_dc`; register a TTF with Rs glyph. |
 | D-06 **FIXED** (journal part -> D-07) | **Void leaves loose ends.** Re-test showed the balance arithmetic itself was right (paid Rs120 of Rs200 -> customer correctly ends with Rs120 credit), but the Rs120 payment stayed allocated to the voided invoice, crate balances were never created at billing (`customers.crate_balances` stayed empty) nor reversed on void (TC-BILL-04/06), and no contra journal is posted (Task 3.2.3). Now: payments are released as unallocated credit, crate balances are tracked and reversed with mirror crate transactions. | SVC-VOID-00b/05/09 (contra journal: SVC-VOID-06, open under D-07) | `services/billing_service.py` `void_bill`, `repositories/inventory_repo.py` | Done; contra journal needs the D-07 posting design. |
-| D-07 | **Ledger is not driven by transactions.** Sales, receipts, purchases, AP payments and voids never post journal entries (`journal_entries` stays empty; the only caller of `post_journal_entry` is the manual-journal dialog), so Trial Balance contains only hand-keyed journals. Balance Sheet is a static text placeholder with no numbers; P&L = all sales - all purchases (no COGS/closing stock), so buying Rs4000 of stock and selling Rs1,842 shows a Rs2,157 loss; AR aging counts walk-in CASH bills as receivables (aging 1742.60 vs customer sub-ledger 1442.63). | SVC-VOID-06, SVC-PAY-14, SVC-PROC-13, SVC-GL-09, GUI-FIN-01/04/05/06/07 | `services/ledger_service.py`, `ui/finance_view.py:596-629` | Post journals from the service methods (single transaction); real Balance Sheet; COGS-based P&L; exclude `CASH` from AR. |
+| D-07 **FIXED** | **Ledger was not driven by transactions** (as found: no sale, receipt, purchase, AP payment, waste or void posted a journal; Balance Sheet was static text; P&L = sales - all purchases; Trial Balance showed only hand-keyed journals). Now every event posts a balanced, idempotent journal (`services/ledger_service.py`): sale Dr Receivables / Cr Sales + Cr Commission & fee income (mandi fee treated as fee income for now); walk-in sale Dr Cash/Bank for the amount received; cost of goods Dr COGS / Cr Inventory at weighted-average cost; receipt Dr Cash or Bank / Cr Receivables; purchase bill Dr Inventory / Cr Payables + TDS Payable; supplier payment Dr Payables / Cr Cash/Bank; waste Dr Waste / Cr Inventory; void posts mirror entries. Trial Balance, P&L (revenue - COGS - expenses) and a real Balance Sheet (A = L + E incl. current profit) are derived from the ledger; the Payables tile now reads `purchase_bills`. History is migrated with the new idempotent `scripts/backfill_ledger.py` (dry-run by default). | SVC-VOID-06, SVC-PAY-14, SVC-PROC-13, SVC-GL-09, GUI-FIN-01/04/05/06/07 | `services/ledger_service.py`, `billing/payment/procurement/inventory services`, `ui/finance_view.py` | Done. Not backfilled: COGS for historic bills (no item cost) and opening balances - post with *Set Opening Balance*. |
 
 ### Medium
 
@@ -119,18 +119,18 @@ Severity: **High** = wrong money/stock/security or unusable document; **Medium**
 Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evidence` is what the application actually did.
 
 
-### Service layer (real MongoDB)  (106/110 passed)
+### Service layer (real MongoDB)  (110/110 passed)
 
 | ID | Epic / story | Test case (expected behaviour) | Result | Evidence |
 | :-- | :-- | :-- | :-: | :-- |
-| `SVC-BILL-01` | EPIC-02 / Story 2.1-2.3 Billing engine | create bill stores doc with invoice YYYYMMDD-0001 | PASS | 20261008-0001 |
+| `SVC-BILL-01` | EPIC-02 / Story 2.1-2.3 Billing engine | create bill stores doc with invoice YYYYMMDD-0001 | PASS | 20261009-0001 |
 | `SVC-BILL-02` | EPIC-02 / Story 2.1-2.3 Billing engine | stock decremented 100 -> 90 | PASS | 90.0 |
 | `SVC-BILL-03` | EPIC-02 / Story 2.1-2.3 Billing engine | customer balance +200 | PASS | 200.0 |
 | `SVC-BILL-04` | EPIC-02 / Story 2.1-2.3 Billing engine | stock_transactions row type=sale qty=-10 | PASS |  |
 | `SVC-BILL-05` | EPIC-02 / Story 2.1-2.3 Billing engine | bill_audits CREATE row written | PASS |  |
-| `SVC-BILL-06` | EPIC-02 / Story 2.1-2.3 Billing engine | due_date = invoice_date + 30d | PASS | 2026-11-07 00:00:00+00:00 |
-| `SVC-BILL-07` | EPIC-02 / Story 2.1-2.3 Billing engine | second invoice increments sequence -0002 | PASS | 20261008-0002 |
-| `SVC-BILL-08` | EPIC-02 / Story 2.1-2.3 Billing engine | duplicate invoice_no rejected | PASS | ValueError: Invoice 20261008-0001 already exists |
+| `SVC-BILL-06` | EPIC-02 / Story 2.1-2.3 Billing engine | due_date = invoice_date + 30d | PASS | 2026-11-08 00:00:00+00:00 |
+| `SVC-BILL-07` | EPIC-02 / Story 2.1-2.3 Billing engine | second invoice increments sequence -0002 | PASS | 20261009-0002 |
+| `SVC-BILL-08` | EPIC-02 / Story 2.1-2.3 Billing engine | duplicate invoice_no rejected | PASS | ValueError: Invoice 20261009-0001 already exists |
 | `SVC-BILL-09` | EPIC-02 / Story 2.1-2.3 Billing engine | qty=0 rejected | PASS | ValueError: Item quantity must be greater than zero |
 | `SVC-BILL-10` | EPIC-02 / Story 2.1-2.3 Billing engine | negative qty rejected | PASS | ValueError: Item quantity must be greater than zero |
 | `SVC-BILL-11` | EPIC-02 / Story 2.1-2.3 Billing engine | negative rate rejected | PASS | ValueError: Item rate cannot be negative |
@@ -150,8 +150,8 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `SVC-VOID-03` | EPIC-03 / Story 3.2 Void & reversal | void restores customer balance to 0 | PASS | 0.0 |
 | `SVC-VOID-04` | EPIC-03 / Story 3.2 Void & reversal | VOID audit row written | PASS |  |
 | `SVC-VOID-05` | EPIC-03 / Story 3.2 Void & reversal | void reverses crate balance (TC-BILL-06) | PASS | [{'item_id': 'CRATE-PLASTIC', 'balance': 0.0}] |
-| `SVC-VOID-06` | EPIC-03 / Story 3.2 Void & reversal | void posts contra journal entry (EPIC-03 Task 3.2.3) | **FAIL** | journal_entries=0 |
-| `SVC-VOID-07` | EPIC-03 / Story 3.2 Void & reversal | double void rejected | PASS | ValueError: Invoice 20261008-0001 is already voided |
+| `SVC-VOID-06` | EPIC-03 / Story 3.2 Void & reversal | void posts contra journal entry (EPIC-03 Task 3.2.3) | PASS | journal_entries=2 |
+| `SVC-VOID-07` | EPIC-03 / Story 3.2 Void & reversal | double void rejected | PASS | ValueError: Invoice 20261009-0001 is already voided |
 | `SVC-VOID-08` | EPIC-03 / Story 3.2 Void & reversal | void unknown invoice rejected | PASS | ValueError: Invoice 19990101-0001 not found |
 | `SVC-VOID-09a` | EPIC-03 / Story 3.2 Void & reversal | pre-void: balance=80 after paying 120 | PASS | 80.0 |
 | `SVC-VOID-09` | EPIC-03 / Story 3.2 Void & reversal | void of part-paid bill: customer ends with 120 credit (balance -120) and the payment is released as unallocated credit | PASS | balance=-120.0 payment=unallocated alloc=[] |
@@ -163,24 +163,24 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `SVC-PAY-06` | EPIC-02 / Story 2.3 Payments & AR | negative payment rejected | PASS | ValueError: Payment amount must be greater than zero |
 | `SVC-PAY-07` | EPIC-02 / Story 2.3 Payments & AR | unknown customer rejected | PASS | ValueError: Customer 'NOPE' not found |
 | `SVC-PAY-08` | EPIC-02 / Story 2.3 Payments & AR | paying exact remainder -> status paid, due 0 | PASS |  |
-| `SVC-PAY-09` | EPIC-02 / Story 2.3 Payments & AR | FIFO alloc pays b2 fully, remainder is advance | PASS | ('partial', [{'invoice_id': '20261008-0002', 'amount': 100.0}], True) |
+| `SVC-PAY-09` | EPIC-02 / Story 2.3 Payments & AR | FIFO alloc pays b2 fully, remainder is advance | PASS | ('partial', [{'invoice_id': '20261009-0002', 'amount': 100.0}], True) |
 | `SVC-PAY-10` | EPIC-02 / Story 2.3 Payments & AR | customer balance goes negative (-30) = advance credit | PASS | -30.0 |
 | `SVC-PAY-11` | EPIC-02 / Story 2.3 Payments & AR | 3 x 33.33 against 99.99 settles to paid (float rounding) | PASS | ('paid', '0.0') |
 | `SVC-PAY-12` | EPIC-02 / Story 2.3 Payments & AR | payment against a VOID invoice rejected | PASS | ValueError: Allocation amount 10.00 exceeds invoice balance due 0.00 |
 | `SVC-PAY-13` | EPIC-02 / Story 2.3 Payments & AR | payment against another customer's invoice rejected | PASS | ValueError: Allocation amount 10.00 exceeds invoice balance due 0.00 |
-| `SVC-PAY-14` | EPIC-02 / Story 2.3 Payments & AR | payment posts journal entry (EPIC-07 Task 7.1) | **FAIL** | journal_entries=0 |
-| `SVC-ORD-01` | EPIC-04 / Story 4.3 Order lifecycle & conversion | order created pending with total 1000 | PASS | ('ORD-20261008-0001', 'pending') |
+| `SVC-PAY-14` | EPIC-02 / Story 2.3 Payments & AR | payment posts journal entry (EPIC-07 Task 7.1) | PASS | journal_entries=6 |
+| `SVC-ORD-01` | EPIC-04 / Story 4.3 Order lifecycle & conversion | order created pending with total 1000 | PASS | ('ORD-20261009-0001', 'pending') |
 | `SVC-ORD-02` | EPIC-04 / Story 4.3 Order lifecycle & conversion | empty order rejected | PASS | ValueError: Order must contain at least one item |
 | `SVC-ORD-03` | EPIC-04 / Story 4.3 Order lifecycle & conversion | order qty<=0 rejected | PASS | ValueError: Item quantity must be greater than zero |
 | `SVC-ORD-04` | EPIC-04 / Story 4.3 Order lifecycle & conversion | convert respects customer credit limit (limit 300, order 1000) | PASS | Credit limit exceeded (300.00) |
 | `SVC-ORD-05` | EPIC-04 / Story 4.3 Order lifecycle & conversion | converted bill gets CREATE audit row | PASS | audit rows=1 |
-| `SVC-ORD-06` | EPIC-04 / Story 4.3 Order lifecycle & conversion | converted bill has invoice_date/due_date consistent with direct bills | PASS | due_date=2026-11-07 00:00:00 |
+| `SVC-ORD-06` | EPIC-04 / Story 4.3 Order lifecycle & conversion | converted bill has invoice_date/due_date consistent with direct bills | PASS | due_date=2026-11-08 00:00:00 |
 | `SVC-ORD-07` | EPIC-04 / Story 4.3 Order lifecycle & conversion | order -> billed, linked_bill_ids set | PASS |  |
-| `SVC-ORD-08` | EPIC-04 / Story 4.3 Order lifecycle & conversion | re-convert billed order rejected | PASS | ValueError: Order ORD-20261008-0001 is already billed |
-| `SVC-ORD-09` | EPIC-04 / Story 4.3 Order lifecycle & conversion | cancelled order cannot be converted | PASS | ValueError: Order ORD-20261008-0001 is already billed |
-| `SVC-ORD-10` | EPIC-04 / Story 4.3 Order lifecycle & conversion | cancelled order cannot be converted to bill | PASS | ValueError: Order ORD-20261008-0002 is 'cancelled' and cannot be converted to a bill |
+| `SVC-ORD-08` | EPIC-04 / Story 4.3 Order lifecycle & conversion | re-convert billed order rejected | PASS | ValueError: Order ORD-20261009-0001 is already billed |
+| `SVC-ORD-09` | EPIC-04 / Story 4.3 Order lifecycle & conversion | cancelled order cannot be converted | PASS | ValueError: Order ORD-20261009-0001 is already billed |
+| `SVC-ORD-10` | EPIC-04 / Story 4.3 Order lifecycle & conversion | cancelled order cannot be converted to bill | PASS | ValueError: Order ORD-20261009-0002 is 'cancelled' and cannot be converted to a bill |
 | `SVC-ORD-11` | EPIC-04 / Story 4.3 Order lifecycle & conversion | convert_to_purchase: stock +4, supplier balance +78.40 (80 less 2% TDS) | PASS | (104.0, 78.4) |
-| `SVC-ORD-12` | EPIC-04 / Story 4.3 Order lifecycle & conversion | same order cannot be converted to purchase twice | PASS | Order ORD-20261008-0003 is already converted to purchase PUR-20261008235504-B778 |
+| `SVC-ORD-12` | EPIC-04 / Story 4.3 Order lifecycle & conversion | same order cannot be converted to purchase twice | PASS | Order ORD-20261009-0003 is already converted to purchase PUR-20261009003530-DF7C |
 | `SVC-ORD-13` | EPIC-04 / Story 4.3 Order lifecycle & conversion | supplier TDS applied on order->purchase (supplier tds_applicable) | PASS | tds_amount=1.6 |
 | `SVC-ORD-14` | EPIC-04 / Story 4.3 Order lifecycle & conversion | order matrix returns rows/customers | PASS | {'customers': ['Anna'], 'rows': [{'item_id': 'VEG0001', 'name': 'Avarai', 'unit': 'kg', 'current_stock': 104.0, 'total_demand': 4.0, 'shortfall': 0.0, 'customer |
 | `SVC-PRICE-01` | EPIC-05 / Story 5.2 Pricing | active fixed price used | PASS | (12.0, True) |
@@ -200,19 +200,19 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `SVC-PROC-02` | EPIC-07 / Story 7.2 Procurement | PO unknown supplier | PASS | ValueError: Supplier 'NOPE' not found |
 | `SVC-PROC-03` | EPIC-07 / Story 7.2 Procurement | PO empty items | PASS | ValueError: PO must contain at least one item |
 | `SVC-PROC-04` | EPIC-07 / Story 7.2 Procurement | GRN: stock +100, PO received | PASS | 200.0 |
-| `SVC-PROC-05` | EPIC-07 / Story 7.2 Procurement | second GRN against an already-received PO rejected | PASS | Purchase Order 'PO-20261008-2056' is already received |
-| `SVC-PROC-06` | EPIC-07 / Story 7.2 Procurement | GRN qty greater than PO ordered qty (100) rejected/flagged | PASS | Purchase Order 'PO-20261008-2056' is already received |
+| `SVC-PROC-05` | EPIC-07 / Story 7.2 Procurement | second GRN against an already-received PO rejected | PASS | Purchase Order 'PO-20261009-E82D' is already received |
+| `SVC-PROC-06` | EPIC-07 / Story 7.2 Procurement | GRN qty greater than PO ordered qty (100) rejected/flagged | PASS | Purchase Order 'PO-20261009-E82D' is already received |
 | `SVC-PROC-07` | EPIC-07 / Story 7.2 Procurement | purchase bill TDS 2% on 50000 = 1000, payable 49000 | PASS | (1000.0, 49000.0) |
 | `SVC-PROC-08` | EPIC-07 / Story 7.2 Procurement | supplier balance += payable | PASS |  |
 | `SVC-PROC-09` | EPIC-07 / Story 7.2 Procurement | 3-way match: purchase bill qty (1000) vs GRN qty (100) flagged | PASS | match_status=mismatch |
 | `SVC-PROC-10` | EPIC-07 / Story 7.2 Procurement | supplier part-pay: due 40000 status partial | PASS |  |
 | `SVC-PROC-11` | EPIC-07 / Story 7.2 Procurement | supplier over-payment rejected | PASS | ValueError: Payment amount 99999.00 exceeds purchase balance due 40000.00 |
 | `SVC-PROC-12` | EPIC-07 / Story 7.2 Procurement | supplier payment on unknown bill | PASS | ValueError: Purchase Bill 'NOPE' not found |
-| `SVC-PROC-13` | EPIC-07 / Story 7.2 Procurement | AP payment posts journal entry | **FAIL** | journal_entries=0 |
+| `SVC-PROC-13` | EPIC-07 / Story 7.2 Procurement | AP payment posts journal entry | PASS | journal_entries=2 |
 | `SVC-SESS-01` | EPIC-07 / Story 7.3 Cash sessions | second open session for same user rejected | PASS | ValueError: You already have an open cashier session. Please close it first. |
 | `SVC-SESS-02` | EPIC-07 / Story 7.3 Cash sessions | expected cash = 2000 + 3500 cash sale + 500 receipt = 6000 (credit bill excluded) | PASS | expected_cash=6000.0 (credit bill of 1000 excluded) |
 | `SVC-SESS-03` | EPIC-07 / Story 7.3 Cash sessions | close: difference = actual - expected | PASS | -50.0 |
-| `SVC-SESS-04` | EPIC-07 / Story 7.3 Cash sessions | closing a closed session rejected | PASS | ValueError: Session 'SES-20261008-886ED6' is already closed |
+| `SVC-SESS-04` | EPIC-07 / Story 7.3 Cash sessions | closing a closed session rejected | PASS | ValueError: Session 'SES-20261009-B9A66E' is already closed |
 | `SVC-SESS-05` | EPIC-07 / Story 7.3 Cash sessions | close unknown session | PASS | ValueError: Session 'NOPE' not found |
 | `SVC-SESS-06` | EPIC-07 / Story 7.3 Cash sessions | negative opening cash rejected | PASS | Opening cash cannot be negative |
 | `SVC-GL-01` | EPIC-07 / Story 7.1 General ledger | balanced journal posts with state=posted | PASS |  |
@@ -222,8 +222,8 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `SVC-GL-05` | EPIC-07 / Story 7.1 General ledger | negative debit/credit amounts rejected | PASS | Debit and credit amounts cannot be negative |
 | `SVC-GL-06` | EPIC-07 / Story 7.1 General ledger | empty journal (no lines) rejected | PASS | A journal entry needs at least two lines |
 | `SVC-GL-07` | EPIC-07 / Story 7.1 General ledger | a line with both debit and credit rejected | PASS | A journal line cannot have both a debit and a credit |
-| `SVC-GL-08` | EPIC-07 / Story 7.1 General ledger | P&L sales includes sale (200) | PASS | {'total_sales': 215.0, 'total_purchases': 0, 'total_waste': 0, 'gross_profit': 215.0, 'net_profit': 215.0} |
-| `SVC-GL-09` | EPIC-07 / Story 7.1 General ledger | sale auto-posts balanced journal (AR Dr / Sales Cr) | **FAIL** | journal_entries=0 |
+| `SVC-GL-08` | EPIC-07 / Story 7.1 General ledger | P&L sales includes sale (200) | PASS | {'total_sales': 200.0, 'fee_income': 15.0, 'other_income': 0, 'total_revenue': 215.0, 'cost_of_goods_sold': 500.0, 'total_purchases': -0.0, 'gross_profit': -285 |
+| `SVC-GL-09` | EPIC-07 / Story 7.1 General ledger | sale auto-posts balanced journal (AR Dr / Sales Cr) | PASS | journal_entries=2 |
 | `SVC-AUTH-admin-ok` | EPIC-01 / Story 1.3 Authentication & RBAC | login 'admin'/'admin123' -> success | PASS |  |
 | `SVC-AUTH-manager-ok` | EPIC-01 / Story 1.3 Authentication & RBAC | login 'manager'/'manager123' -> success | PASS |  |
 | `SVC-AUTH-user-ok` | EPIC-01 / Story 1.3 Authentication & RBAC | login 'user'/'user123' -> success | PASS |  |
@@ -232,7 +232,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `SVC-AUTH-admin-empty-pw-bad` | EPIC-01 / Story 1.3 Authentication & RBAC | login 'admin-empty-pw'/'' -> rejected | PASS |  |
 | `SVC-AUTH-audit` | EPIC-01 / Story 1.3 Authentication & RBAC | login writes user_activity_audits | PASS |  |
 | `SVC-AUTH-inactive` | EPIC-01 / Story 1.3 Authentication & RBAC | inactive user cannot log in | PASS |  |
-| `SVC-AUTH-perm-manager` | EPIC-01 / Story 1.3 Authentication & RBAC | manager role has non-empty menu permissions (role_permissions seeded) | PASS | {'/ledger', '/finance', '/items', '/accounting', '/customers', '/suppliers'} |
+| `SVC-AUTH-perm-manager` | EPIC-01 / Story 1.3 Authentication & RBAC | manager role has non-empty menu permissions (role_permissions seeded) | PASS | {'/accounting', '/customers', '/ledger', '/finance', '/suppliers', '/items'} |
 
 ### GUI: login / navigation / RBAC  (29/29 passed)
 
@@ -355,7 +355,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-CONS-03` | EPIC-06 / Task 6.1.4 Consolidated report | blank customer rejected | PASS |  |
 | `GUI-CONS-04` | EPIC-06 / Task 6.1.4 Consolidated report | reversed date range (from > to) yields empty / is rejected | PASS |  |
 
-### GUI: masters / finance / PDF / admin  (59/63 passed)
+### GUI: masters / finance / PDF / admin  (63/63 passed)
 
 | ID | Epic / story | Test case (expected behaviour) | Result | Evidence |
 | :-- | :-- | :-- | :-: | :-- |
@@ -384,7 +384,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-DASH-01` | EPIC-03/06 Dashboard | dashboard 'Sales Today' equals sum of today's non-void bills | PASS | ui='₹ 1,842.60' db=1842.6 |
 | `GUI-DASH-02` | EPIC-03/06 Dashboard | dashboard bill count = 3 | PASS | 3 bills |
 | `PDF-INV-01` | EPIC-06 / Story 6.1 PDF generation | invoice PDF has 1 page for a 2-line bill | PASS | 1 |
-| `PDF-INV-02` | EPIC-06 / Story 6.1 PDF generation | invoice PDF contains invoice number | PASS | 20261008-0001 |
+| `PDF-INV-02` | EPIC-06 / Story 6.1 PDF generation | invoice PDF contains invoice number | PASS | 20261009-0001 |
 | `PDF-INV-03` | EPIC-06 / Story 6.1 PDF generation | invoice PDF contains customer name | PASS |  |
 | `PDF-INV-04` | EPIC-06 / Story 6.1 PDF generation | invoice PDF contains grand total 542.63 | PASS | ['Total: ₹542.63'] |
 | `PDF-INV-05` | EPIC-06 / Story 6.1 PDF generation | invoice PDF contains amount in words | PASS | ['Amount in Words: Five Hundred Forty Two Rupees and Sixty Three Paise Only'] |
@@ -408,13 +408,13 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-MST-fp-zero rate` | EPIC-05 Master data | fixed price zero rate rejected | PASS | Fixed rate must be greater than zero |
 | `GUI-MST-fp-start after end` | EPIC-05 Master data | fixed price start after end rejected | PASS | Start date must be before end date |
 | `GUI-MST-11` | EPIC-05 Master data | re-saving a fixed price leaves exactly one active price | PASS | 1 |
-| `GUI-FIN-01` | EPIC-07 Finance screens | trial balance reflects only the manual journal (sales/payments never auto-posted) | PASS | rows=[{'account_code': '1000', 'debit': 5000.0, 'credit': 0.0}, {'account_code': '3000', 'debit': 0.0, 'credit': 5000.0}]  <- 3 bills worth 1,842.60 absent |
-| `GUI-FIN-02` | EPIC-07 Finance screens | P&L sales = sum of bills | PASS | {'total_sales': 1842.6, 'total_purchases': 0, 'total_waste': 0, 'gross_profit': 1842.6, 'net_profit': 1842.6} |
-| `GUI-FIN-05` | EPIC-07 Finance screens | Balance Sheet screen shows real asset/liability/equity figures (EPIC-07 Task 7.2) | **FAIL** | === BALANCE SHEET === \|  \| Assets = Liabilities + Equity \| Real-time financial position verified against double-entry General Ledger. |
-| `GUI-FIN-06` | EPIC-07 Finance screens | P&L charges COGS only (goods sold), not every purchase: buying Rs4000 stock and selling ~Rs1,100 must not show a ~Rs-2,900 'loss' while stock is still on the shelf | **FAIL** | sales=1842.60 purchases=4000.00 net_profit=-2157.40 |
-| `GUI-FIN-07` | EPIC-07 Finance screens | Trial Balance dialog lists per-account debit/credit rows (not just totals) | **FAIL** | === TRIAL BALANCE === \|  \| Total Debits:  ₹ 5,000.00 \| Total Credits: ₹ 5,000.00 \|  \| Integrity Status: BALANCED (Debits == Credits) \| Active Accounts: 2 |
-| `GUI-FIN-03` | EPIC-07 Finance screens | AR aging total equals sum of open balance_due | PASS | {'current': 1742.6000000000001, '1_30': 0.0, '31_60': 0.0, '61_90': 0.0, '90_plus': 0.0, 'total': 1742.6000000000001} |
-| `GUI-FIN-04` | EPIC-07 Finance screens | AR aging total equals sum of customer.current_balance (sub-ledger = control account) | **FAIL** | aging=1742.6000000000001 vs customers=2219.63 |
+| `GUI-FIN-01` | EPIC-07 Finance screens | trial balance includes the automatic postings from the 3 bills AND the manual opening journal, and balances | PASS | rows=[('1000', 5299.97, 0.0), ('1200', 1542.63, 0.0), ('1300', 0.0, 741.23), ('3000', 0.0, 5000.0), ('4000', 0.0, 1842.6), ('5050', 741.23, 0.0)] |
+| `GUI-FIN-02` | EPIC-07 Finance screens | P&L total revenue = sum of non-void bills | PASS | {'total_sales': 1842.6, 'fee_income': 0.0, 'other_income': 0, 'total_revenue': 1842.6, 'cost_of_goods_sold': 741.23, 'total_purchases': 0.0, 'gross_profit': 110 |
+| `GUI-FIN-05` | EPIC-07 Finance screens | Balance Sheet screen shows real asset/liability/equity figures and balances (EPIC-07 Task 7.2) | PASS | BALANCE SHEET \| ============================================================ \| ASSETS \|   Cash on Hand                                      5,299.97 \|   Acc |
+| `GUI-FIN-06` | EPIC-07 Finance screens | P&L charges COGS only (goods sold), not every purchase: buying Rs4000 stock and selling ~Rs1,100 must not show a ~Rs-2,900 'loss' while stock is still on the shelf | PASS | sales=1842.60 purchases=0.00 net_profit=1101.37 |
+| `GUI-FIN-07` | EPIC-07 Finance screens | Trial Balance dialog lists per-account debit/credit rows (not just totals) | PASS | TRIAL BALANCE \| ====================================================================== \| Code  Account                                      Debit        Credi |
+| `GUI-FIN-03` | EPIC-07 Finance screens | AR aging total equals sum of open balance_due | PASS | {'current': 1442.63, '1_30': 0.0, '31_60': 0.0, '61_90': 0.0, '90_plus': 0.0, 'total': 1442.63} |
+| `GUI-FIN-04` | EPIC-07 Finance screens | AR aging total equals sum of customer.current_balance (sub-ledger = control account) | PASS | aging=1442.63 vs customers=1442.63 |
 | `GUI-ADM-01` | EPIC-05/01 Administration | user list never exposes password hashes | PASS |  |
 | `GUI-ADM-02` | EPIC-05/01 Administration | create user | PASS |  |
 | `GUI-ADM-03` | EPIC-05/01 Administration | duplicate username rejected | PASS | User 'tester' already exists |

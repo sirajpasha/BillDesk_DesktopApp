@@ -34,7 +34,9 @@ class AccountingRepository:
         source_type: str,
         lines: List[Dict[str, Any]],
         created_by: str = "system",
-        session: Optional[Any] = None
+        session: Optional[Any] = None,
+        entry_date: Optional[datetime] = None,
+        extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Verify sum(debit) == sum(credit) before posting to journal_entries."""
         if len(lines) < 2:
@@ -54,12 +56,13 @@ class AccountingRepository:
 
         doc = {
             "entry_id": self.next_journal_id(),
-            "date": datetime.now(timezone.utc),
+            "date": entry_date or datetime.now(timezone.utc),
             "reference": reference,
             "source_type": source_type,
             "lines": lines,
             "state": "posted",
             "created_at": datetime.now(timezone.utc),
             "created_by": created_by,
+            **(extra or {}),
         }
         return self.journals.insert_one(doc, session=session)
