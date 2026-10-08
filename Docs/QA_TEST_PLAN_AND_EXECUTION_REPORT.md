@@ -7,13 +7,13 @@
 | | Count |
 | :-- | --: |
 | Test cases executed (this report) | **279** |
-| Passed | **269** |
-| Failed (each maps to an open defect below) | **10** |
-| Existing pytest suite (mock DB) | 124 pass (49 original + 75 new regression tests); the hang and the live-DB dependency are fixed |
+| Passed | **270** |
+| Failed (each maps to an open defect below) | **9** |
+| Existing pytest suite (mock DB) | 127 pass (49 original + 78 new regression tests); the hang and the live-DB dependency are fixed |
 
 The 48-test pytest suite is green because it runs against an in-memory mock and asserts only the happy paths. Run against a **real MongoDB** and the real Tk windows, the application has **7 high-severity defects** that affect money, stock, security or documents. The most serious: **a payment taken at the counter is never recorded** (D-01) and **role restrictions are bypassable with keyboard shortcuts** (D-04).
 
-**Update - fixes applied after the first run:** D-01 .. D-06, D-08 .. D-15 and D-12 are fixed (D-16 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 75 new pytest regression tests (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; D-07 (ledger posting - needs accounting rules), the commission/mandi part of D-16, D-17, D-18 remain open. Numbers in this report are from the post-fix run.
+**Update - fixes applied after the first run:** D-01 .. D-06, D-08 .. D-15 and D-12 are fixed (D-16 partly) and verified against the real DB (their cases now PASS in Appendix A) and by 78 new pytest regression tests (`tests/test_payment_capture.py`, `tests/test_seed_and_access.py`, `tests/test_pdf_generation_paths.py`, `tests/test_void_and_order_controls.py`, `tests/test_integrity_controls.py`). T-1 (hanging test) and T-2/T-6 (suite depended on the live database) are fixed. The sections below describe the defects as found; D-07 (ledger posting - needs accounting rules), the commission/mandi part of D-16 and persistence of parked bills (D-18) remain open. Numbers in this report are from the post-fix run.
 
 ## 2. How the testing was done
 
@@ -90,8 +90,8 @@ Severity: **High** = wrong money/stock/security or unusable document; **Medium**
 
 | ID | Defect | Evidence |
 | :-: | :-- | :-- |
-| D-17 | Bill History loads only the latest **500** bills (KPIs/search silently incomplete beyond that); search/date inputs appear squashed (screenshot `bill_history.png`). | GUI-HIST-12 |
-| D-18 | Login form is pre-filled with `admin` + 8-char password; default seeded passwords `admin123/manager123/user123`; parked bills are in-memory only (lost on exit/crash); Payment modal shows hard-coded "UNPAID ITEMS 0", non-functional Auto-FIFO/Manual toggle and "Counter Payment" checkbox. | GUI-LOGIN-01, screenshot `payment_modal.png` |
+| D-17 **FIXED** | Bill History loads only the latest **500** bills (KPIs/search silently incomplete beyond that); search/date inputs appear squashed (screenshot `bill_history.png`). | GUI-HIST-12 |
+| D-18 **MOSTLY FIXED** (parked bills are still memory-only) | Login form is pre-filled with `admin` + 8-char password; default seeded passwords `admin123/manager123/user123`; parked bills are in-memory only (lost on exit/crash); Payment modal shows hard-coded "UNPAID ITEMS 0", non-functional Auto-FIFO/Manual toggle and "Counter Payment" checkbox. | GUI-LOGIN-01, screenshot `payment_modal.png` |
 | D-20 **FIXED** | While fixing D-10 a further defect surfaced: the code field's `<FocusOut>` handler re-resolved the item and **overwrote a rate the cashier had typed** (e.g. Rs50 negotiated -> back to the default 20 when focus moved to the payment dialog) and could be triggered by pressing Enter on an unchanged code. Fixed: an unchanged, already-resolved code is left alone (`ui/billing.py` `_on_code_entered`). | GUI-BILL-26/27 (regressed during the work, caught by the re-run) |
 | D-19 | Test-suite items T-1 .. T-5 above. | - |
 
@@ -238,7 +238,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 
 | ID | Epic / story | Test case (expected behaviour) | Result | Evidence |
 | :-- | :-- | :-- | :-: | :-- |
-| `GUI-LOGIN-01` | EPIC-01 Login | login form pre-fills a username/password | PASS | username prefilled='admin', password chars prefilled=8 |
+| `GUI-LOGIN-01` | EPIC-01 Login | login form is NOT pre-filled with credentials | PASS | username='', password chars=0 |
 | `GUI-LOGIN-02` | EPIC-01 Login | blank credentials -> warning, no login | PASS | ('showwarning', 'Sign In', 'Please enter both username and password.') |
 | `GUI-LOGIN-03` | EPIC-01 Login | wrong password -> 'Sign In Failed' error, window stays | PASS | ('showerror', 'Sign In Failed', 'Invalid username or password') |
 | `GUI-LOGIN-04` | EPIC-01 Login | correct password -> CurrentUser set and window closed | PASS |  |
@@ -291,7 +291,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-BILL-15` | EPIC-02 Billing grid & payment modal | search by bill_to_phone finds Anna Adarsh Hostel | PASS | ['Select Customer (F5)', 'Anna Adarsh Hostel', '9444434066'] |
 | `GUI-BILL-16` | EPIC-02 Billing grid & payment modal | picking customer applies contract rate 12.00 to existing row (was 20.00) | PASS | 12.00 |
 | `GUI-BILL-17` | EPIC-02 Billing grid & payment modal | delivery/bill-to labels filled | PASS | Anna Adarsh Hostel |
-| `GUI-BILL-18` | EPIC-02 Billing grid & payment modal | save shows 'Bill Saved' with invoice number | PASS | ('showinfo', 'Bill Saved', 'Invoice #20261008-0001 generated successfully!\nTotal: ₹120.00') |
+| `GUI-BILL-18` | EPIC-02 Billing grid & payment modal | save shows 'Bill Saved' with invoice number | PASS | ('showinfo', 'Bill Saved', 'Invoice #20261009-0001 generated successfully!\nTotal: ₹120.00') |
 | `GUI-BILL-19` | EPIC-02 Billing grid & payment modal | bill persisted with total 120 | PASS | 120.0 |
 | `GUI-BILL-20` | EPIC-02 Billing grid & payment modal | fully-paid-at-counter bill is stored as status=paid, balance_due=0 | PASS | status=paid balance_due=0.0 |
 | `GUI-BILL-21` | EPIC-02 Billing grid & payment modal | payment receipt (Cash 120) recorded in payments collection | PASS | payments=1 |
@@ -310,7 +310,7 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-BILL-34` | EPIC-02 Billing grid & payment modal | recall restores line (Bajji Chilli, qty 3) | PASS | ('Bajji Chilli', '3') |
 | `GUI-BILL-35` | EPIC-02 Billing grid & payment modal | parked count drops to 0 after recall | PASS | 0 |
 
-### GUI: orders / importer / history  (38/40 passed)
+### GUI: orders / importer / history  (39/40 passed)
 
 | ID | Epic / story | Test case (expected behaviour) | Result | Evidence |
 | :-- | :-- | :-- | :-: | :-- |
@@ -323,10 +323,10 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-IMP-06` | EPIC-04 / Story 4.2 Smart importer | importer line '5 kg': unknown/ambiguous text is skipped, never guessed | PASS | imported=0 skipped=['5 kg'] |
 | `GUI-IMP-07` | EPIC-04 / Story 4.2 Smart importer | importer line 'avarai 4' -> ('Avarai', 4.0, 'kg') | PASS | got ('Avarai', 4.0, 'kg') |
 | `GUI-IMP-08` | EPIC-04 / Story 4.2 Smart importer | importer line 'Apple x' -> ('Apple', 1.0, 'kg') | PASS | got ('Apple', 1.0, 'kg') |
-| `GUI-ORD-01` | EPIC-04 Order form & list | order saved via form (status pending, total 600) | PASS | ('ORD-20261008-0001', 'pending', 600.0) |
+| `GUI-ORD-01` | EPIC-04 Order form & list | order saved via form (status pending, total 600) | PASS | ('ORD-20261009-0001', 'pending', 600.0) |
 | `GUI-ORD-02` | EPIC-04 Order form & list | order stores hidden commission=5% and mandi fee=1% of total (30 / 6) | PASS | (30.0, 6.0) |
 | `GUI-ORD-03` | EPIC-04 Order form & list | commission/mandi fee shown on the order form are included in the order total (and carried to the bill) | **FAIL** | form displays Comm/Mandi Fee but stored total_amount=600.0 excludes them (expected 636.0); converted bill also ignores them |
-| `GUI-ORD-04` | EPIC-04 Order form & list | delivery date before order date rejected | PASS | ('showwarning', 'Invalid Date Range', 'Delivery date (05 - 10 - 2026) cannot be before order date (08 - 10 - 2026).') |
+| `GUI-ORD-04` | EPIC-04 Order form & list | delivery date before order date rejected | PASS | ('showwarning', 'Invalid Date Range', 'Delivery date (06 - 10 - 2026) cannot be before order date (09 - 10 - 2026).') |
 | `GUI-ORD-05` | EPIC-04 Order form & list | impossible date 31-02-2026 rejected | PASS | ('showwarning', 'Invalid Delivery Date', 'Please enter a valid delivery date (DD - MM - YYYY).') |
 | `GUI-ORD-06` | EPIC-04 Order form & list | non-date text rejected | PASS | ('showwarning', 'Invalid Delivery Date', 'Please enter a valid delivery date (DD - MM - YYYY).') |
 | `GUI-ORD-07` | EPIC-04 Order form & list | qty 0 rejected | PASS | ('showwarning', 'Invalid Quantity', 'Please enter a valid quantity for row 1 (Apple).') |
@@ -336,20 +336,20 @@ Legend: PASS = behaviour as specified; **FAIL** = defect (see section 5). `Evide
 | `GUI-ORD-11` | EPIC-04 Order form & list | free-typed customer name that is not in the master cannot create an order | PASS | orders 1->1, customer_id stored='Cust0001' |
 | `GUI-ORD-12` | EPIC-04 Order form & list | orders list shows saved orders | PASS | 1 |
 | `GUI-ORD-13` | EPIC-04 Order form & list | convert-to-bill (UI) honours customer credit limit (limit 100, order 600) | PASS | bill created=False; customer balance=0.0; dialog=('showerror', 'Error', 'Credit limit exceeded (100.00)') |
-| `GUI-ORD-14` | EPIC-04 Order form & list | convert-to-bill creates invoice and marks order billed | PASS | 20261008-0001 |
-| `GUI-ORD-15` | EPIC-04 Order form & list | an already-BILLED order cannot be cancelled (would orphan the invoice) | PASS | order status now 'billed'; invoice 20261008-0001 status=unpaid |
+| `GUI-ORD-14` | EPIC-04 Order form & list | convert-to-bill creates invoice and marks order billed | PASS | 20261009-0001 |
+| `GUI-ORD-15` | EPIC-04 Order form & list | an already-BILLED order cannot be cancelled (would orphan the invoice) | PASS | order status now 'billed'; invoice 20261009-0001 status=unpaid |
 | `GUI-HIST-01` | EPIC-03 Bill history | history lists every bill in DB | PASS | ui=1 db=1 |
 | `GUI-HIST-02` | EPIC-03 Bill history | search with no match shows 'Showing 0 of 0' | PASS | Showing 0 of 0 bills |
 | `GUI-HIST-03` | EPIC-03 Bill history | search by customer name (case-insensitive) | PASS | 1 |
 | `GUI-HIST-04` | EPIC-03 Bill history | regex-special text in search box does not crash | PASS |  |
-| `GUI-HIST-05` | EPIC-03 Bill history | void via UI marks bill void and shows success | PASS | ('showinfo', 'Success', 'Invoice 20261008-0001 voided and all financial/stock impacts reversed.') |
+| `GUI-HIST-05` | EPIC-03 Bill history | void via UI marks bill void and shows success | PASS | ('showinfo', 'Success', 'Invoice 20261009-0001 voided and all financial/stock impacts reversed.') |
 | `GUI-HIST-06` | EPIC-03 Bill history | void restores stock of every line of that item | PASS | (90.0, 100.0, 10.0) |
 | `GUI-HIST-07` | EPIC-03 Bill history | void reduces customer balance by the bill total (balance never < 0 for an unpaid bill) | PASS | (600.0, 0.0) |
-| `GUI-HIST-08` | EPIC-03 Bill history | voiding an already void bill warns | PASS | ('showwarning', 'Already Voided', 'Invoice 20261008-0001 is already voided.') |
+| `GUI-HIST-08` | EPIC-03 Bill history | voiding an already void bill warns | PASS | ('showwarning', 'Already Voided', 'Invoice 20261009-0001 is already voided.') |
 | `GUI-HIST-09` | EPIC-03 Bill history | KPI 'total bills' excludes void | PASS | 0 |
 | `GUI-HIST-10` | EPIC-03 Bill history | KPI revenue = sum of non-void bills | PASS | ui=₹ 0.00 db=0 |
 | `GUI-HIST-11` | EPIC-03 Bill history | void with nothing selected asks to select a bill | PASS | ('showinfo', 'Select Bill', 'Please select an invoice to void.') |
-| `GUI-HIST-12` | EPIC-03 Bill history | history shows ALL bills (>500) and KPI counts are correct | **FAIL** | ui=500 db=521 |
+| `GUI-HIST-12` | EPIC-03 Bill history | history shows ALL bills (>500) and KPI counts are correct | PASS | ui=521 db=521 |
 | `GUI-CONS-01` | EPIC-06 / Task 6.1.4 Consolidated report | consolidated report view opens | PASS |  |
 | `GUI-CONS-02` | EPIC-06 / Task 6.1.4 Consolidated report | consolidated total equals sum of non-void bills for the customer | PASS | (0, 0) |
 | `GUI-CONS-03` | EPIC-06 / Task 6.1.4 Consolidated report | blank customer rejected | PASS |  |

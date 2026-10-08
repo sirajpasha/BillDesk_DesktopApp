@@ -29,6 +29,8 @@ class BillHistoryFrame(tk.Frame):
         * Full details modal with itemized breakdown.
         * Void bill with double-entry and inventory rollback.
     """
+    MAX_BILLS = 5000   # newest bills loaded; a notice is shown when the history is longer
+
     def __init__(self, parent, db, billing, current_user=None, on_navigate=None, **kwargs):
         super().__init__(parent, bg="#f8fafc", **kwargs)
         self.db = db
@@ -530,7 +532,7 @@ class BillHistoryFrame(tk.Frame):
             self._render_current_page()
 
     def refresh(self):
-        bills = self.billing.search_bills(limit=500)
+        bills = self.billing.search_bills(limit=self.MAX_BILLS)
         self._all_bills = []
         try:
             company_names = {c.get("company_id"): c.get("name") for c in self.db.collection("companies").find({})}
@@ -565,6 +567,7 @@ class BillHistoryFrame(tk.Frame):
 
             self._all_bills.append(d)
 
+        self._history_truncated = len(bills) >= self.MAX_BILLS
         # Sort latest bills first
         self._all_bills.sort(key=lambda x: str(x.get("invoice_no", "")), reverse=True)
 
@@ -636,6 +639,8 @@ class BillHistoryFrame(tk.Frame):
         else:
             self.showing_label.config(text=f"Showing {start_idx + 1} to {end_idx} of {total_items} bills")
 
+        if getattr(self, "_history_truncated", False):
+            self.showing_label.config(text=self.showing_label.cget("text") + f"  (latest {self.MAX_BILLS} bills loaded - narrow with search/date for older ones)")
         self.page_label.config(text=f"Page {self.current_page} of {total_pages}")
         self.prev_btn.config(state="normal" if self.current_page > 1 else "disabled")
         self.next_btn.config(state="normal" if self.current_page < total_pages else "disabled")

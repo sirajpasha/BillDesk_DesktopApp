@@ -894,18 +894,24 @@ class BillingFrame(ttk.Frame):
         left_box = tk.Frame(grid_two, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12, width=280)
         left_box.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
-        is_walkin = tk.BooleanVar(value=(self.selected_customer is None))
-        tk.Checkbutton(left_box, text="Counter Payment (Walk-in)", variable=is_walkin, font=("Segoe UI", 9), bg="#ffffff").pack(anchor="w", pady=(0, 8))
+        if self.selected_customer is None:
+            tk.Label(left_box, text="Walk-in counter sale", font=("Segoe UI", 9, "bold"), fg="#475569", bg="#ffffff").pack(anchor="w", pady=(0, 8))
 
         tk.Label(left_box, text="Customer", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
         cust_name_str = self.selected_customer.get("name") if self.selected_customer else "Cash"
         tk.Label(left_box, text=cust_name_str, font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#f1f5f9", padx=8, pady=4).pack(fill="x", pady=(2, 12))
 
-        cur_bal = float(self.selected_customer.get("current_balance", 0.0)) if self.selected_customer else 0.0
+        unpaid_count = 0
+        cur_bal = 0.0
+        if self.selected_customer:
+            fresh = self.db.collection("customers").find_one({"cust_id": self.selected_customer.get("cust_id")}) or self.selected_customer
+            cur_bal = float(fresh.get("current_balance", 0.0) or 0.0)
+            unpaid_count = self.db.collection("bills").count_documents({
+                "customer_id": self.selected_customer.get("cust_id"), "status": {"$in": ["unpaid", "partial"]}, "is_deleted": 0})
         bal_row = tk.Frame(left_box, bg="#ffffff")
         bal_row.pack(fill="x")
         tk.Label(bal_row, text=f"OUTSTANDING\n₹{cur_bal:.2f}", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="left")
-        tk.Label(bal_row, text="UNPAID ITEMS\n0", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="right")
+        tk.Label(bal_row, text=f"UNPAID BILLS\n{unpaid_count}", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="right")
 
         # Right Box (Payment Details)
         right_box = tk.Frame(grid_two, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12, width=280)
@@ -947,14 +953,11 @@ class BillingFrame(ttk.Frame):
         alloc_h.pack(fill="x", pady=(0, 8))
         tk.Label(alloc_h, text="Payment Allocation", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left")
 
-        # Auto FIFO / Manual toggle
-        tk.Label(alloc_h, text="[ Auto FIFO ]", font=("Segoe UI", 8, "bold"), fg="#ffffff", bg="#4f46e5", padx=10, pady=3).pack(side="right")
-        tk.Label(alloc_h, text="Manual", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff", padx=8, pady=3).pack(side="right")
 
         # Info tip
         tip_box = tk.Frame(alloc_box, bg="#eff6ff", padx=10, pady=8)
         tip_box.pack(fill="x")
-        tk.Label(tip_box, text="ⓘ  The amount will be automatically applied to the oldest bills first.", font=("Segoe UI", 8), fg="#1e40af", bg="#eff6ff").pack(anchor="w")
+        tk.Label(tip_box, text="ⓘ  The amount received is applied to this bill. Any balance stays outstanding on the customer account.", font=("Segoe UI", 8), fg="#1e40af", bg="#eff6ff").pack(anchor="w")
 
         # Bottom buttons: Cancel and Post Payment
         bot_btns = tk.Frame(frame, bg="#ffffff")

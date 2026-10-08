@@ -7,8 +7,7 @@ db0 = MongoDatabase(settings); db0.connect(); auth0 = AuthService(db0)
 r0 = tk.Tk(); r0.withdraw()
 from app.ui.login_window import LoginWindow
 lw = LoginWindow(r0, auth0); pump(r0)
-check("GUI-LOGIN-01", "login form pre-fills a username/password", bool(lw.username_entry.get()) or bool(lw.password_entry.get()),
-      f"username prefilled={lw.username_entry.get()!r}, password chars prefilled={len(lw.password_entry.get())}")
+check("GUI-LOGIN-01", "login form is NOT pre-filled with credentials", not lw.username_entry.get() and not lw.password_entry.get(), f"username={lw.username_entry.get()!r}, password chars={len(lw.password_entry.get())}")
 lw.username_entry.delete(0, tk.END); lw.password_entry.delete(0, tk.END); clear_dialogs(); lw._login()
 check("GUI-LOGIN-02", "blank credentials -> warning, no login", last_dialog() and last_dialog()[0]=="showwarning" and lw.current_user is None, last_dialog())
 lw.username_entry.insert(0, "admin"); lw.password_entry.insert(0, "wrongpw"); clear_dialogs(); lw._login()
