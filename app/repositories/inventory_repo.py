@@ -88,3 +88,20 @@ class InventoryRepository:
             "created_by": created_by,
         }
         return self.crate_txns.insert_one(doc, session=session)
+
+    def adjust_crate_balance(self, party_id: str, item_id: str, delta: float, session: Optional[Any] = None) -> None:
+        """Add `delta` (+ = crates outstanding with the customer) to customers.crate_balances[item_id]."""
+        if not delta:
+            return
+        kw = {"session": session} if session else {}
+        cust = self.db.collection("customers").find_one({"cust_id": party_id})
+        if not cust:
+            return
+        balances = [dict(b) for b in (cust.get("crate_balances") or [])]
+        for b in balances:
+            if b.get("item_id") == item_id:
+                b["balance"] = float(b.get("balance", 0.0)) + delta
+                break
+        else:
+            balances.append({"item_id": item_id, "balance": float(delta)})
+        self.db.collection("customers").update_one({"cust_id": party_id}, {"$set": {"crate_balances": balances}}, **kw)

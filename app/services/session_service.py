@@ -14,6 +14,8 @@ class SessionService:
 
     def open_session(self, user_id: str, username: str, opening_cash: float) -> Dict[str, Any]:
         """Open a new cashier drawer session."""
+        if opening_cash < 0:
+            raise ValueError("Opening cash cannot be negative")
         active = self.get_active_session(user_id)
         if active:
             raise ValueError("You already have an open cashier session. Please close it first.")
@@ -43,16 +45,7 @@ class SessionService:
         opening = float(session.get("opening_cash", 0.0))
         start_time = session.get("start_time")
 
-        # Cash sales
-        cash_bills = self.db.collection("bills").find({
-            "created_by": session["username"],
-            "created_at": {"$gte": start_time},
-            "status": {"$ne": "void"},
-            "is_deleted": 0,
-        })
-        cash_sales = sum(float(b.get("total_amount", 0.0)) for b in cash_bills)
-
-        # Cash receipts
+        # Cash actually taken: counter receipts and customer payments in Cash (credit sales are not cash).
         cash_payments = self.db.collection("payments").find({
             "created_by": session["username"],
             "created_at": {"$gte": start_time},
@@ -61,7 +54,7 @@ class SessionService:
         })
         cash_receipts = sum(float(p.get("amount", 0.0)) for p in cash_payments)
 
-        return opening + cash_sales + cash_receipts
+        return opening + cash_receipts
 
     def close_session(self, session_id: str, actual_cash: float, notes: str = "") -> Dict[str, Any]:
         """Close cashier drawer session, calculate variance (actual - expected), and return Z-report."""

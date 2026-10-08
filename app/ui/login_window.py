@@ -124,7 +124,6 @@ class LoginWindow(tk.Toplevel):
             bd=6
         )
         self.username_entry.pack(fill="x")
-        self.username_entry.insert(0, "admin")
         self.username = self.username_entry  # Backwards compatibility
 
         tk.Label(
@@ -147,7 +146,6 @@ class LoginWindow(tk.Toplevel):
             bd=6
         )
         self.password_entry.pack(fill="x")
-        self.password_entry.insert(0, "admin123")
         self.password = self.password_entry  # Backwards compatibility
 
         # 6. Purple Pill Login Button
@@ -190,7 +188,7 @@ class LoginWindow(tk.Toplevel):
         # Focus & Enter Binding
         self.bind("<Return>", lambda _e: self._login())
         self.protocol("WM_DELETE_WINDOW", self._close)
-        self.password_entry.focus_set()
+        self.username_entry.focus_set()
 
     def _login(self):
         u = self.username_entry.get().strip()

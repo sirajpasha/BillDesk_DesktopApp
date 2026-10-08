@@ -31,6 +31,11 @@ class BillCreate(BaseModel):
     crate_item_id: Optional[str] = None
     notes: Optional[str] = None
     bill_type: str = "bill"
+    company_id: Optional[str] = None
+    # Payment taken at the counter while saving the bill. None = legacy behaviour (no payment recorded).
+    amount_received: Optional[float] = None
+    payment_method: str = "Cash"
+    payment_reference: Optional[str] = None
 
 class Bill(BaseModel):
     invoice_no: str

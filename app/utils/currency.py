@@ -3,6 +3,7 @@ Formats currency using the Indian grouping convention (e.g. ₹ 12,34,567.89)
 and converts numerical amounts into words (Crores, Lakhs, Thousands, Rupees, Paise).
 """
 from __future__ import annotations
+from decimal import Decimal, ROUND_HALF_UP
 
 ONES = [
     "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
@@ -28,6 +29,13 @@ def _three_digits(n: int) -> str:
         two = _two_digits(rem)
         res = f"{res} {two}".strip() if res else two
     return res
+
+def money(value: float | int | str | None) -> float:
+    """Round a monetary value to 2 decimals, half-up (416.625 -> 416.63), avoiding binary-float surprises."""
+    if value is None:
+        return 0.0
+    return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
 
 def format_inr(amount: float | int | None, symbol: bool = True) -> str:
     """Format a number into Indian currency notation: 12,34,567.89"""
@@ -59,45 +67,44 @@ def format_inr(amount: float | int | None, symbol: bool = True) -> str:
     sym = "₹ " if symbol else ""
     return f"{sign}{sym}{formatted_int}.{decimal_part}"
 
+def _int_words(n: int) -> str:
+    """Indian-system words for a non-negative integer (any size: '... Crore' recurses)."""
+    if n == 0:
+        return ""
+    parts = []
+    crore, rem = divmod(n, 10000000)
+    lakh, rem = divmod(rem, 100000)
+    thousand, rem = divmod(rem, 1000)
+    if crore:
+        parts.append(f"{_int_words(crore)} Crore")
+    if lakh:
+        parts.append(f"{_two_digits(lakh)} Lakh")
+    if thousand:
+        parts.append(f"{_two_digits(thousand)} Thousand")
+    if rem:
+        parts.append(_three_digits(rem))
+    return " ".join(parts)
+
+
 def amount_in_words(amount: float | int | None) -> str:
     """Convert a numeric amount into words using the Indian numbering system."""
-    if amount is None or amount == 0:
+    if amount is None:
         return "Zero Rupees Only"
-    val = float(amount)
-    is_neg = val < 0
-    val = abs(val)
+    # Work in whole paise so amounts like 99.999 or 0.995 roll over correctly (-> 100 rupees).
+    total_paise = int(round(abs(float(amount)) * 100))
+    if total_paise == 0:
+        return "Zero Rupees Only"
+    is_neg = float(amount) < 0
 
-    integer_part = int(val)
-    paise_part = round((val - integer_part) * 100)
-
-    crore = integer_part // 10000000
-    rem = integer_part % 10000000
-
-    lakh = rem // 100000
-    rem = rem % 100000
-
-    thousand = rem // 1000
-    rem = rem % 1000
-
-    words = []
-    if crore > 0:
-        words.append(f"{_two_digits(crore)} Crore")
-    if lakh > 0:
-        words.append(f"{_two_digits(lakh)} Lakh")
-    if thousand > 0:
-        words.append(f"{_two_digits(thousand)} Thousand")
-    if rem > 0:
-        words.append(_three_digits(rem))
-
-    rupees_str = " ".join(words).strip()
-    res = f"{rupees_str} Rupees" if rupees_str else ""
+    integer_part, paise_part = divmod(total_paise, 100)
+    rupees_words = _int_words(integer_part)
+    res = ""
+    if rupees_words:
+        res = f"{rupees_words} {'Rupee' if integer_part == 1 else 'Rupees'}"
 
     if paise_part > 0:
         paise_str = f"{_two_digits(paise_part)} Paise"
-        if res:
-            res = f"{res} and {paise_str}"
-        else:
-            res = paise_str
+        res = f"{res} and {paise_str}" if res else paise_str
 
     res = f"{res} Only"
     return f"Minus {res}" if is_neg else res

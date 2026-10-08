@@ -21,6 +21,14 @@ class AdminService:
     def create_user(self, username: str, password: str, roles: List[str], email: str = "", phone: str = "") -> Dict[str, Any]:
         if not username or not password:
             raise ValueError("Username and password are required")
+        if len(password) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        if len(password.encode("utf-8")) > 72:
+            raise ValueError("Password is too long (maximum 72 bytes)")
+        known_roles = {r.get("name") for r in self.admin_repo.roles.find({}, limit=0)}
+        unknown = [r for r in roles if r not in known_roles]
+        if unknown:
+            raise ValueError(f"Unknown role(s): {', '.join(unknown)}")
         if self.admin_repo.users.find_one({"username": username, "is_deleted": 0}):
             raise ValueError(f"User '{username}' already exists")
 

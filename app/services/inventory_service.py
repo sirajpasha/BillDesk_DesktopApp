@@ -29,6 +29,8 @@ class InventoryService:
             raise ValueError(f"Item '{item_id}' not found")
         if delta_qty == 0:
             raise ValueError("Adjustment quantity cannot be zero")
+        if not (reason or "").strip():
+            raise ValueError("A reason is required for a stock adjustment")
 
         new_stock = float(item.get("stock", 0.0)) + delta_qty
         if new_stock < 0:
@@ -52,6 +54,14 @@ class InventoryService:
             raise ValueError(f"Item '{item_id}' not found")
         if qty <= 0:
             raise ValueError("Waste quantity must be greater than zero")
+        if rate < 0:
+            raise ValueError("Waste rate cannot be negative")
+        if not (reason or "").strip():
+            raise ValueError("A reason is required to log waste")
+        on_hand = float(item.get("stock") or 0.0)
+        # on_hand == 0 means stock is not tracked for this item; only reject when tracked stock is exceeded
+        if on_hand > 0 and qty > on_hand + 1e-9:
+            raise ValueError(f"Waste quantity {qty:g} exceeds stock on hand {on_hand:g}")
 
         # Deduct stock
         self.item_repo.decrement_stock(item_id, qty)

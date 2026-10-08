@@ -6,6 +6,9 @@ from app.models.billing import BillCreate, BillLine
 from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, FixedPriceRepository
 from app.repositories.inventory_repo import InventoryRepository
+from app.services.payment_service import PaymentService
+from app.config.settings import settings
+from app.utils.currency import money
 
 CASH_CUSTOMER_ID = "CASH"
 
@@ -17,6 +20,7 @@ class BillingService:
         self.cust_repo = CustomerRepository(db)
         self.price_repo = FixedPriceRepository(db)
         self.inv_repo = InventoryRepository(db)
+        self.payment_svc = PaymentService(db)
         self.parked_bills: List[Dict[str, Any]] = []
 
     def next_invoice_number(self) -> str:
@@ -39,6 +43,33 @@ class BillingService:
                 raise ValueError("Item quantity must be greater than zero")
             if item.rate < 0:
                 raise ValueError("Item rate cannot be negative")
+
+        # The service owns the arithmetic: never trust amounts computed by the caller.
+        for item in bill.items:
+            item.amount = money(item.qty * item.rate)
+        computed_total = money(
+            sum(i.amount for i in bill.items) + bill.commission_amt + bill.mandi_fee_amt + bill.other_charges
+        )
+        if abs(computed_total - bill.total_amount) > 0.01:
+            raise ValueError(
+                f"Bill total {bill.total_amount:.2f} does not match its lines and charges ({computed_total:.2f})"
+            )
+        bill.total_amount = computed_total
+        bill.balance_due = computed_total
+
+        stock_warnings = self._stock_shortfalls(bill)
+        if stock_warnings and not settings.allow_negative_stock:
+            w = stock_warnings[0]
+            raise ValueError(f"Insufficient stock for {w['name']}: {w['available']:g} available, {w['required']:g} required")
+
+        received = bill.amount_received
+        if received is not None:
+            if received < 0:
+                raise ValueError("Amount received cannot be negative")
+            if received - bill.total_amount > 0.005:
+                raise ValueError(
+                    f"Amount received ({received:.2f}) exceeds the bill total ({bill.total_amount:.2f})"
+                )
 
         if bill.invoice_no is None:
             bill.invoice_no = self.next_invoice_number()
@@ -63,7 +94,11 @@ class BillingService:
         terms = int(customer.get("payment_terms_days", 30)) if customer else 30
         due_date = invoice_dt + timedelta(days=terms) if customer else None
 
-        doc = bill.model_dump()
+        doc = bill.model_dump(exclude={"amount_received", "payment_method", "payment_reference"})
+        if stock_warnings:
+            doc["stock_warnings"] = stock_warnings    # sold beyond recorded stock; flagged for stock take
+        if received is not None:
+            doc["balance_due"] = round(bill.total_amount, 2)   # payment applied below
         doc.update({
             "invoice_no": bill.invoice_no,
             "created_at": now,
@@ -86,7 +121,59 @@ class BillingService:
         else:
             self._write_bill(doc, customer, bill, None)
 
+        if received is not None:
+            self._apply_counter_payment(doc, bill, received)
         return doc
+
+    def _stock_shortfalls(self, bill: BillCreate) -> List[Dict[str, Any]]:
+        required: Dict[str, float] = {}
+        names: Dict[str, str] = {}
+        for line in bill.items:
+            required[line.item_id] = required.get(line.item_id, 0.0) + abs(line.qty)
+            names[line.item_id] = line.name
+        out = []
+        for item_id, qty in required.items():
+            item = self.item_repo.find_one({"item_id": item_id})
+            if item is None:
+                continue
+            available = float(item.get("stock") or 0.0)
+            if qty > available + 1e-9:
+                out.append({"item_id": item_id, "name": names[item_id], "available": available, "required": qty})
+        return out
+
+    def _apply_counter_payment(self, doc: Dict[str, Any], bill: BillCreate, received: float) -> None:
+        """Record the payment taken while saving the bill and settle the bill/customer balance."""
+        received = round(received, 2)
+        if received <= 0:
+            return
+        method = bill.payment_method or "Cash"
+        if bill.customer_id != CASH_CUSTOMER_ID:
+            # Lowers customer.current_balance, settles this bill, writes payments + ledger rows.
+            self.payment_svc.record_customer_payment(
+                customer_id=bill.customer_id, amount=received, payment_method=method,
+                reference_no=bill.payment_reference, invoice_no=bill.invoice_no,
+                notes="Received at billing", user_id=bill.created_by,
+            )
+        else:
+            # Walk-in sale: no customer ledger, but the receipt is still recorded.
+            due = round(bill.total_amount - received, 2)
+            now = datetime.now(timezone.utc)
+            self.bill_repo.update_one(
+                {"invoice_no": bill.invoice_no},
+                {"$set": {"balance_due": due, "status": "paid" if due <= 0 else "partial"}},
+            )
+            acc = self.payment_svc.acc_repo
+            acc.payments.insert_one({
+                "payment_id": acc.next_payment_id(), "party_id": CASH_CUSTOMER_ID, "party_type": "walk-in",
+                "amount": received, "payment_date": now, "payment_method": method,
+                "reference_no": bill.payment_reference, "is_advance": False, "allocation_status": "full",
+                "allocations": [{"invoice_id": bill.invoice_no, "amount": received}],
+                "reconciliation_status": "unreconciled", "notes": "Received at billing",
+                "is_deleted": 0, "created_by": bill.created_by, "created_at": now,
+            })
+        fresh = self.bill_repo.find_one({"invoice_no": bill.invoice_no}) or {}
+        doc["balance_due"] = fresh.get("balance_due", doc.get("balance_due"))
+        doc["status"] = fresh.get("status", doc.get("status"))
 
     def _write_bill(self, doc: Dict[str, Any], customer: Optional[Dict[str, Any]], bill: BillCreate, session: Any):
         kw = {"session": session} if session else {}
@@ -111,6 +198,7 @@ class BillingService:
                     created_by=bill.created_by,
                     session=session
                 )
+                self.inv_repo.adjust_crate_balance(bill.customer_id, bill.crate_item_id, net_crates, session=session)
 
         for line in bill.items:
             self.db.collection("items").update_one(
@@ -147,13 +235,16 @@ class BillingService:
         if bill.get("status") == "void":
             raise ValueError(f"Invoice {invoice_no} is already voided")
 
-        # 1. Restore Customer Balance
+        # 1. Restore Customer Balance (whole sale is reversed; anything already paid becomes customer credit)
         cust_id = bill.get("customer_id")
         total_amount = float(bill.get("total_amount", 0.0))
         if cust_id and cust_id != CASH_CUSTOMER_ID:
             self.cust_repo.update_balance(cust_id, -total_amount)
 
-        # 2. Restore Stock
+        # 2. Release payments that were allocated to this invoice -> they become unallocated advance/refund credit
+        credit_released = self._release_payments(invoice_no, cust_id)
+
+        # 3. Restore Stock
         for line in bill.get("items", []):
             item_id = line["item_id"]
             qty = float(line["qty"])
@@ -168,10 +259,22 @@ class BillingService:
                 created_by=user_id,
             )
 
-        # 3. Mark Bill Status Void
+        # 4. Reverse returnable crates issued on this bill
+        issued = float(bill.get("crates_issued") or 0.0)
+        returned = float(bill.get("crates_returned") or 0.0)
+        crate_item = bill.get("crate_item_id")
+        if crate_item and cust_id and cust_id != CASH_CUSTOMER_ID and issued != returned:
+            self.inv_repo.adjust_crate_balance(cust_id, crate_item, -(issued - returned))
+            self.inv_repo.record_crate_txn(
+                party_id=cust_id, party_type="customer", item_id=crate_item, item_name="Crate",
+                issued_qty=returned, returned_qty=issued, reference_id=invoice_no,
+                notes=f"Reversal of voided bill {invoice_no}", created_by=user_id,
+            )
+
+        # 5. Mark Bill Status Void
         self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {"status": "void", "balance_due": 0.0}})
 
-        # 4. Record Audit Entry
+        # 6. Record Audit Entry
         self.bill_repo.log_audit(
             invoice_no=invoice_no,
             action="VOID",
@@ -180,7 +283,28 @@ class BillingService:
             old_value=bill.get("status"),
             new_value="void"
         )
-        return {"invoice_no": invoice_no, "status": "void", "reverted_amount": total_amount}
+        return {"invoice_no": invoice_no, "status": "void", "reverted_amount": total_amount, "credit_released": credit_released}
+
+    def _release_payments(self, invoice_no: str, cust_id: Optional[str]) -> float:
+        """Detach payment allocations from a voided invoice. Returns the amount that became unallocated credit."""
+        party = cust_id or CASH_CUSTOMER_ID
+        released = 0.0
+        acc = self.payment_svc.acc_repo
+        for pay in acc.payments.find({"party_id": party}, limit=0):
+            allocs = pay.get("allocations") or []
+            mine = [a for a in allocs if a.get("invoice_id") == invoice_no]
+            if not mine:
+                continue
+            amt = sum(float(a.get("amount", 0.0)) for a in mine)
+            released += amt
+            rest = [a for a in allocs if a.get("invoice_id") != invoice_no]
+            acc.payments.update_one({"payment_id": pay["payment_id"]}, {"$set": {
+                "allocations": rest,
+                "allocation_status": "partial" if rest else "unallocated",
+                "is_advance": True,
+                "notes": f"{pay.get('notes') or ''} | Invoice {invoice_no} voided - Rs {amt:.2f} is now unallocated credit".strip(" |"),
+            }})
+        return round(released, 2)
 
     def park_bill(self, bill_data: Dict[str, Any]) -> int:
         """Park bill in memory queue for fast recall (F6/F7)."""

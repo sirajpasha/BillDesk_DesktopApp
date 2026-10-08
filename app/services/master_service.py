@@ -28,6 +28,9 @@ class MasterService:
         alias = item_data.get("item_alias", "").strip()
         if not item_id or not item_data.get("name", "").strip():
             raise ValueError("Item ID and Name are required")
+        for rate_field in ("standard_rate", "rate", "default_rate"):
+            if item_data.get(rate_field) is not None and float(item_data[rate_field]) < 0:
+                raise ValueError("Item rate cannot be negative")
 
         if is_new:
             if self.item_repo.find_one({"item_id": item_id}):
@@ -61,6 +64,8 @@ class MasterService:
         name = cust_data.get("name", "").strip()
         if not cust_id or not name:
             raise ValueError("Customer ID and Name are required")
+        if cust_data.get("credit_limit") is not None and float(cust_data["credit_limit"]) < 0:
+            raise ValueError("Credit limit cannot be negative")
 
         if is_new:
             if self.cust_repo.find_one({"cust_id": cust_id}):
@@ -69,10 +74,17 @@ class MasterService:
             self.cust_repo.insert_one(doc)
             return doc
         else:
-            self.cust_repo.update_one({"cust_id": cust_id}, {"$set": cust_data})
-            return cust_data
+            # ledger-owned fields are changed only by bills/payments, never by editing the master record
+            safe = {k: v for k, v in cust_data.items() if k not in ("current_balance", "crate_balances")}
+            self.cust_repo.update_one({"cust_id": cust_id}, {"$set": safe})
+            return safe
 
     def delete_customer(self, cust_id: str) -> bool:
+        cust = self.cust_repo.find_one({"cust_id": cust_id, "is_deleted": 0})
+        if cust and abs(float(cust.get("current_balance") or 0.0)) > 0.005:
+            raise ValueError(f"Customer {cust_id} has an outstanding balance of {float(cust['current_balance']):.2f}; settle it before deleting")
+        if self.db.collection("bills").find_one({"customer_id": cust_id, "status": {"$in": ["unpaid", "partial"]}, "is_deleted": 0}):
+            raise ValueError(f"Customer {cust_id} has unpaid bills; settle them before deleting")
         return self.cust_repo.update_one({"cust_id": cust_id}, {"$set": {"is_deleted": 1, "status": "inactive"}})
 
     # ----------------- SUPPLIERS -----------------

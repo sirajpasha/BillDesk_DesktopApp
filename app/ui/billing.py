@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date, datetime
 from app.config.settings import settings
+from app.utils.currency import money
 from app.models.billing import BillCreate, BillLine
 from app.printing.invoice import generate_invoice_pdf
 from app.ui.print_preview import show_print_preview
@@ -375,6 +376,16 @@ class BillingFrame(ttk.Frame):
         if not code:
             return
 
+        # Leaving/re-entering an already-resolved code must not re-resolve the line: that would overwrite
+        # a rate or quantity the cashier has typed since.
+        if row.get("item_id"):
+            cur = self.db.collection("items").find_one({"item_id": row["item_id"]})
+            if cur and code.lower() in (str(cur.get("item_alias", "")).lower(), str(cur.get("item_id", "")).lower()):
+                if focus_next:
+                    row["qty"].focus_set()
+                    row["qty"].select_range(0, tk.END)
+                return
+
         # Query item by item_alias or item_id or name prefix
         escaped_code = re.escape(code)
         item = self.db.collection("items").find_one({
@@ -396,10 +407,10 @@ class BillingFrame(ttk.Frame):
                 "is_deleted": 0
             })
             if not item:
-                # Fallback for test environments
-                item = self.db.collection("items").find_one({"is_deleted": 0})
-                if not item:
-                    return
+                messagebox.showwarning("Item Not Found", f"No item matches code or name '{code}'.", parent=self)
+                row["code"].delete(0, tk.END)
+                row["code"].focus_set()
+                return
 
         row["item_id"] = item["item_id"]
         row["code"].delete(0, tk.END)
@@ -418,7 +429,7 @@ class BillingFrame(ttk.Frame):
 
         # Resolve rate (Fixed pricing for customer takes priority!)
         cust_id = self.selected_customer.get("cust_id") if self.selected_customer else "CASH"
-        default_rate = float(item.get("standard_rate") or 20.0)
+        default_rate = float(item.get("standard_rate") or item.get("rate") or item.get("default_rate") or settings.default_rate)
         resolved_rate, _is_fixed = self.pricing_svc.resolve_rate(cust_id, item["item_id"], default_rate=default_rate)
         row["rate"].delete(0, tk.END)
         row["rate"].insert(0, f"{resolved_rate:.2f}")
@@ -565,7 +576,7 @@ class BillingFrame(ttk.Frame):
         except (ValueError, TypeError):
             rate = 0.0
 
-        amount = qty * rate
+        amount = money(qty * rate) if (qty > 0 and rate >= 0) else 0.0     # invalid rows never count
         row["amount"].config(text=f"₹{amount:.2f}")
         self._update_grand_total()
 
@@ -711,7 +722,8 @@ class BillingFrame(ttk.Frame):
                 rate_str = row["rate"].get().strip()
                 qty = float(qty_str) if qty_str else 0.0
                 rate = float(rate_str) if rate_str else 0.0
-                total += (qty * rate)
+                if qty > 0 and rate >= 0:
+                    total += money(qty * rate)
             except Exception:
                 pass
         self.total_lbl.config(text=f"Total: ₹{total:.2f}")
@@ -829,7 +841,7 @@ class BillingFrame(ttk.Frame):
                 if row.get("item_id"):
                     item_id = row["item_id"]
                     item = self.db.collection("items").find_one({"item_id": item_id})
-                    default_rate = float(item.get("standard_rate", 20.0)) if item else 20.0
+                    default_rate = float(item.get("standard_rate") or item.get("rate") or item.get("default_rate") or settings.default_rate) if item else settings.default_rate
                     r_rate, _ = self.pricing_svc.resolve_rate(cust_id, item_id, default_rate=default_rate)
                     row["rate"].delete(0, tk.END)
                     row["rate"].insert(0, f"{r_rate:.2f}")
@@ -882,18 +894,24 @@ class BillingFrame(ttk.Frame):
         left_box = tk.Frame(grid_two, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12, width=280)
         left_box.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
-        is_walkin = tk.BooleanVar(value=(self.selected_customer is None))
-        tk.Checkbutton(left_box, text="Counter Payment (Walk-in)", variable=is_walkin, font=("Segoe UI", 9), bg="#ffffff").pack(anchor="w", pady=(0, 8))
+        if self.selected_customer is None:
+            tk.Label(left_box, text="Walk-in counter sale", font=("Segoe UI", 9, "bold"), fg="#475569", bg="#ffffff").pack(anchor="w", pady=(0, 8))
 
         tk.Label(left_box, text="Customer", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
         cust_name_str = self.selected_customer.get("name") if self.selected_customer else "Cash"
         tk.Label(left_box, text=cust_name_str, font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#f1f5f9", padx=8, pady=4).pack(fill="x", pady=(2, 12))
 
-        cur_bal = float(self.selected_customer.get("current_balance", 0.0)) if self.selected_customer else 0.0
+        unpaid_count = 0
+        cur_bal = 0.0
+        if self.selected_customer:
+            fresh = self.db.collection("customers").find_one({"cust_id": self.selected_customer.get("cust_id")}) or self.selected_customer
+            cur_bal = float(fresh.get("current_balance", 0.0) or 0.0)
+            unpaid_count = self.db.collection("bills").count_documents({
+                "customer_id": self.selected_customer.get("cust_id"), "status": {"$in": ["unpaid", "partial"]}, "is_deleted": 0})
         bal_row = tk.Frame(left_box, bg="#ffffff")
         bal_row.pack(fill="x")
         tk.Label(bal_row, text=f"OUTSTANDING\n₹{cur_bal:.2f}", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="left")
-        tk.Label(bal_row, text="UNPAID ITEMS\n0", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="right")
+        tk.Label(bal_row, text=f"UNPAID BILLS\n{unpaid_count}", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="right")
 
         # Right Box (Payment Details)
         right_box = tk.Frame(grid_two, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12, width=280)
@@ -935,38 +953,65 @@ class BillingFrame(ttk.Frame):
         alloc_h.pack(fill="x", pady=(0, 8))
         tk.Label(alloc_h, text="Payment Allocation", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left")
 
-        # Auto FIFO / Manual toggle
-        tk.Label(alloc_h, text="[ Auto FIFO ]", font=("Segoe UI", 8, "bold"), fg="#ffffff", bg="#4f46e5", padx=10, pady=3).pack(side="right")
-        tk.Label(alloc_h, text="Manual", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff", padx=8, pady=3).pack(side="right")
 
         # Info tip
         tip_box = tk.Frame(alloc_box, bg="#eff6ff", padx=10, pady=8)
         tip_box.pack(fill="x")
-        tk.Label(tip_box, text="ⓘ  The amount will be automatically applied to the oldest bills first.", font=("Segoe UI", 8), fg="#1e40af", bg="#eff6ff").pack(anchor="w")
+        tk.Label(tip_box, text="ⓘ  The amount received is applied to this bill. Any balance stays outstanding on the customer account.", font=("Segoe UI", 8), fg="#1e40af", bg="#eff6ff").pack(anchor="w")
 
         # Bottom buttons: Cancel and Post Payment
         bot_btns = tk.Frame(frame, bg="#ffffff")
         bot_btns.pack(fill="x", side="bottom")
 
         def _execute_post():
-            try:
-                rec_amount = float(amt_rec_ent.get().strip() or 0.0)
-            except ValueError:
-                rec_amount = total_amount
-
             pay_method = method_cbo.get()
+            raw_amt = amt_rec_ent.get().strip().replace(",", "")
+            try:
+                rec_amount = float(raw_amt) if raw_amt else 0.0
+            except ValueError:
+                messagebox.showerror("Invalid Amount", f"'{amt_rec_ent.get()}' is not a valid amount received.", parent=modal)
+                amt_rec_ent.focus_set()
+                return
+            if rec_amount < 0 or rec_amount != rec_amount:
+                messagebox.showerror("Invalid Amount", "Amount received cannot be negative.", parent=modal)
+                amt_rec_ent.focus_set()
+                return
+            if rec_amount - total_amount > 0.005:
+                messagebox.showerror(
+                    "Invalid Amount",
+                    f"Amount received (₹{rec_amount:.2f}) is more than the bill total (₹{total_amount:.2f}).",
+                    parent=modal,
+                )
+                amt_rec_ent.focus_set()
+                return
+            if pay_method == "Credit/Due":
+                rec_amount = 0.0
+            pay_ref = utr_ent.get().strip()
+            if pay_ref.upper() == "NEW":   # untouched placeholder
+                pay_ref = ""
             # Construct line items
             lines = []
-            for row in self.row_widgets:
+            problems = []
+            for r_idx, row in enumerate(self.row_widgets, 1):
                 code = row["code"].get().strip()
                 if not code:
                     continue
+                label = f"Row {r_idx} ({row['name'].get().strip() or code})"
                 try:
                     qty = float(row["qty"].get().strip())
+                except ValueError:
+                    problems.append(f"{label}: quantity is not a number")
+                    continue
+                try:
                     rate = float(row["rate"].get().strip())
                 except ValueError:
+                    problems.append(f"{label}: rate is not a number")
                     continue
                 if qty <= 0:
+                    problems.append(f"{label}: quantity must be greater than zero")
+                    continue
+                if rate < 0:
+                    problems.append(f"{label}: rate cannot be negative")
                     continue
 
                 lines.append(BillLine(
@@ -975,8 +1020,12 @@ class BillingFrame(ttk.Frame):
                     qty=qty,
                     unit=row["unit"].get() or "kg",
                     rate=rate,
-                    amount=qty * rate
+                    amount=money(qty * rate)
                 ))
+
+            if problems:
+                messagebox.showerror("Fix These Lines", "The bill was not saved:\n\n" + "\n".join(problems), parent=modal)
+                return
 
             if not lines:
                 messagebox.showerror("Error", "No valid items to bill.", parent=modal)
@@ -1001,9 +1050,11 @@ class BillingFrame(ttk.Frame):
                 customer_name=cust_name,
                 company_id=sel_comp_id,
                 items=lines,
-                total_amount=total_amount,
+                total_amount=money(sum(l.amount for l in lines)),
                 balance_due=max(0.0, total_amount - rec_amount),
-                status="paid" if rec_amount >= total_amount else ("partial" if rec_amount > 0 else "unpaid"),
+                amount_received=rec_amount,
+                payment_method=pay_method,
+                payment_reference=pay_ref or None,
                 created_by=self.user.username
             )
 

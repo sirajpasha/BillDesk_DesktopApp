@@ -20,6 +20,35 @@ from app.ui.consolidated_view import ConsolidatedReportFrame
 
 class MainWindow:
     """Authentic BillDesk Native Desktop Main Window matching UI/UX screenshots."""
+
+    # Menu-permission groups (values stored in role_permissions.menus). Admin roles bypass all checks.
+    PERMISSION_GROUPS = {
+        "masters": ("/items", "/customers", "/suppliers"),
+        "finance": ("/finance", "/accounting", "/ledger"),
+        "settings": ("/settings", "/users", "/admin"),
+    }
+    # Pages guarded by a group; every entry point (menu, F-keys, dashboard buttons) goes through show_page.
+    PAGE_GROUPS = {
+        "Item Master": "masters", "Customer Master": "masters", "Supplier Master": "masters",
+        "Fixed Rates": "masters", "Master Data": "masters",
+        "Finance": "finance", "Accounting Dashboard": "finance", "Trial Balance": "finance",
+        "Profit & Loss": "finance", "Balance Sheet": "finance", "BRS": "finance",
+        "Accounts Receivables": "finance", "Accounts Payables": "finance", "Handover & Settlement": "finance",
+        "Administration": "settings", "User Management": "settings", "Company Settings": "settings",
+        "System Audit Logs": "settings", "DB Connection": "settings",
+    }
+
+    def has_access(self, group: str) -> bool:
+        """True when the signed-in user may use a permission group ('masters' | 'finance' | 'settings')."""
+        permissions = self.auth.permissions_for(self.current_user)
+        if "*" in permissions or any(r.lower() in ("admin", "super admin") for r in self.current_user.roles):
+            return True
+        return any(p in permissions for p in self.PERMISSION_GROUPS[group])
+
+    def can_open(self, page: str) -> bool:
+        group = self.PAGE_GROUPS.get(page)
+        return group is None or self.has_access(group)
+
     def __init__(self, root, db, auth, billing, current_user, on_logout=None):
         self.root = root
         self.db = db
@@ -216,9 +245,6 @@ class MainWindow:
 
     def _build_menu_structure(self) -> Dict[str, list]:
         """Construct menu tree matching 03-menu-masters.png and User Guide."""
-        permissions = self.auth.permissions_for(self.current_user)
-        is_admin = "*" in permissions or any(r.lower() in ("admin", "super admin") for r in self.current_user.roles)
-
         menus = {}
 
         # 1. File Menu
@@ -233,7 +259,7 @@ class MainWindow:
         ]
 
         # 2. Masters Menu
-        if is_admin or any(p in permissions for p in ("/items", "/customers", "/suppliers")):
+        if self.has_access("masters"):
             menus["Masters"] = [
                 ("Item Master", "Item Master", "F10"),
                 ("Customer Master", "Customer Master", "F11"),
@@ -251,9 +277,10 @@ class MainWindow:
             ("Balance Sheet", "Balance Sheet", ""),
             ("Dashboard", "Dashboard", "F1"),
         ]
+        menus["Reports"] = [m for m in menus["Reports"] if m[1] == "" or self.can_open(m[1])]
 
         # 4. Accounts Menu
-        if is_admin or any(p in permissions for p in ("/finance", "/accounting", "/ledger")):
+        if self.has_access("finance"):
             menus["Accounts"] = [
                 ("Accounting Dashboard", "Finance", "Ctrl+D"),
                 ("Trial Balance", "Trial Balance", ""),
@@ -266,7 +293,7 @@ class MainWindow:
             ]
 
         # 5. Settings Menu
-        if is_admin or any(p in permissions for p in ("/settings", "/users", "/admin")):
+        if self.has_access("settings"):
             menus["Settings"] = [
                 ("User Management", "User Management", "F6"),
                 ("Company Settings", "Company Settings", "F11"),
@@ -430,6 +457,14 @@ class MainWindow:
                     break
 
         if not target_frame:
+            return
+
+        if not self.can_open(name):
+            messagebox.showwarning(
+                "Access Denied",
+                f"Your role ({', '.join(self.current_user.roles) or 'none'}) does not have access to {name}.",
+                parent=self.root,
+            )
             return
 
         # Hide other frames
