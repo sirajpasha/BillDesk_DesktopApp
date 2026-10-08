@@ -21,6 +21,9 @@ class Settings:
     commission_rate: float = float(os.getenv("COMMISSION_RATE", "0") or 0)
     mandi_fee_rate: float = float(os.getenv("MANDI_FEE_RATE", "0") or 0)
     parked_bills_file: str = os.getenv("PARKED_BILLS_FILE", "")      # default: %APPDATA%\BillDesk\parked_bills.json
+    backup_dir: str = os.getenv("BACKUP_DIR", "")                      # default: %APPDATA%\\BillDesk\\backups
+    backup_enabled: bool = os.getenv("AUTO_BACKUP", "true").strip().lower() in ("1", "true", "yes")
+    backup_max_age_hours: float = float(os.getenv("BACKUP_MAX_AGE_HOURS", "24") or 24)
     allow_negative_stock: bool = os.getenv("ALLOW_NEGATIVE_STOCK", "true").strip().lower() in ("1", "true", "yes")
     app_title: str = os.getenv("APP_TITLE", "BillDesk — Native Mandi POS & ERP")
 

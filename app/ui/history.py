@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os
@@ -660,10 +661,10 @@ class BillHistoryFrame(tk.Frame):
         if row_id:
             self.tree.selection_set(row_id)
             menu = tk.Menu(self, tearoff=0)
-            menu.add_command(label="👁️ Preview Tax Invoice (PDF)", command=self._preview_invoice_selected)
+            menu.add_command(label="👁️ Preview Invoice (PDF)", command=self._preview_invoice_selected)
             menu.add_command(label="🚚 Preview Delivery Challan (DC PDF)", command=self._preview_dc_selected)
             menu.add_separator()
-            menu.add_command(label="📥 Download Tax Invoice (PDF)", command=self._download_invoice_selected)
+            menu.add_command(label="📥 Download Invoice (PDF)", command=self._download_invoice_selected)
             menu.add_command(label="🚚 Download Delivery Challan (DC PDF)", command=self._download_dc_selected)
             menu.add_separator()
             menu.add_command(label="📝 View Bill Details", command=self._view_details)
@@ -697,7 +698,7 @@ class BillHistoryFrame(tk.Frame):
             show_print_preview(
                 self,
                 file_path,
-                title=f"Tax Invoice — {inv_no}",
+                title=f"Invoice — {inv_no}",
                 default_filename=f"Inv- {inv_no}.pdf"
             )
         except Exception as ex:
@@ -754,7 +755,7 @@ class BillHistoryFrame(tk.Frame):
             defaultextension=".pdf",
             filetypes=[("PDF Documents", "*.pdf")],
             initialfile=f"Inv- {inv_no}.pdf",
-            title="Save Tax Invoice PDF"
+            title="Save Invoice PDF"
         )
         if file_path:
             try:
@@ -813,7 +814,7 @@ class BillHistoryFrame(tk.Frame):
             else:
                 subprocess.call(["xdg-open", file_path])
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     def _void_selected(self):
         bill = self._get_selected_bill()
@@ -862,7 +863,7 @@ class BillHistoryFrame(tk.Frame):
         top_header.pack(fill="x")
         tk.Label(
             top_header,
-            text=f"Tax Invoice: {inv_no}",
+            text=f"Invoice: {inv_no}",
             font=("Segoe UI", 12, "bold"),
             fg="#ffffff",
             bg="#4f46e5"

@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import tempfile
@@ -366,7 +367,7 @@ class BillingFrame(ttk.Frame):
                 fraction = max(0.0, min(1.0, row_idx / total_rows))
                 self.t_canvas.yview_moveto(fraction)
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # ---------------- SPREADSHEET ROW LOGIC ----------------
     def _on_code_entered(self, row_idx: int, focus_next: bool = True):
@@ -726,7 +727,7 @@ class BillingFrame(ttk.Frame):
                 if qty > 0 and rate >= 0:
                     total += money(qty * rate)
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
         self.total_lbl.config(text=f"Total: ₹{total:.2f}")
         return total
 
@@ -1117,7 +1118,7 @@ class BillingFrame(ttk.Frame):
             show_print_preview(
                 self,
                 pdf_path,
-                title=f"Tax Invoice — {inv_no}",
+                title=f"Invoice — {inv_no}",
                 default_filename=f"Inv- {inv_no}.pdf"
             )
         except Exception as e:

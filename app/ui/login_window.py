@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import messagebox
 from typing import Optional
@@ -33,7 +34,7 @@ class LoginWindow(tk.Toplevel):
                 self._icon_img = tk.PhotoImage(file=icon_path)
                 self.iconphoto(False, self._icon_img)
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         # 960x640 dialog centered on screen
         w, h = 960, 640
