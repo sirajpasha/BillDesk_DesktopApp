@@ -49,12 +49,14 @@ shot(root, "order_form_after_import")
 # ---- create an order through the form
 of.reset_form(); pump(root, 2)
 of.selected_customer = cust("Cust0001"); of.customer_var.set("Anna Adarsh Hostel")
+settings.commission_rate, settings.mandi_fee_rate = 5.0, 1.0      # charge 5 % commission and 1 % mandi fee for this scenario
 of._parse_and_populate_lines("101 10kg\n102 20kg")           # 10*20 + 20*20 = 600
 today = datetime.now()
 of.date_var.set(today.strftime("%d - %m - %Y")); of.delivery_var.set((today + timedelta(days=1)).strftime("%d - %m - %Y"))
 clear_dialogs(); of._save_order(); pump(root, 3)
 o = raw.orders.find_one(sort=[("created_at", -1)])
-check("GUI-ORD-01", "order saved via form (status pending, total 600)", o and o["status"] == "pending" and o["total_amount"] == 600.0, o and (o["order_id"], o["status"], o["total_amount"]))
+settings.commission_rate, settings.mandi_fee_rate = 0.0, 0.0
+check("GUI-ORD-01", "order saved via form (status pending, total 636 = 600 + 5% commission + 1% mandi)", o and o["status"] == "pending" and o["total_amount"] == 636.0, o and (o["order_id"], o["status"], o["total_amount"]))
 check("GUI-ORD-02", "order stores hidden commission=5% and mandi fee=1% of total (30 / 6)", o and (o["commission_amt"], o["mandi_fee_amt"]) == (30.0, 6.0), o and (o["commission_amt"], o["mandi_fee_amt"]))
 check("GUI-ORD-03", "commission/mandi fee shown on the order form are included in the order total (and carried to the bill)", o and o["total_amount"] == 636.0, f"form displays Comm/Mandi Fee but stored total_amount={o and o['total_amount']} excludes them (expected 636.0); converted bill also ignores them")
 # validation

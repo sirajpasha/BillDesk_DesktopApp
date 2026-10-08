@@ -16,6 +16,10 @@ class Settings:
     default_unit: str = os.getenv("DEFAULT_UNIT", "Kg")
     default_rate: float = float(os.getenv("DEFAULT_RATE", "20.0"))
     default_num_rows: int = int(os.getenv("DEFAULT_NUM_ROWS", "20"))
+    # Percent of the order/bill items total charged as commission / mandi fee. 0 = none (no real order or bill
+    # has ever carried either). Set e.g. COMMISSION_RATE=5 in .env to charge 5 %.
+    commission_rate: float = float(os.getenv("COMMISSION_RATE", "0") or 0)
+    mandi_fee_rate: float = float(os.getenv("MANDI_FEE_RATE", "0") or 0)
     allow_negative_stock: bool = os.getenv("ALLOW_NEGATIVE_STOCK", "true").strip().lower() in ("1", "true", "yes")
     app_title: str = os.getenv("APP_TITLE", "BillDesk — Native Mandi POS & ERP")
 
