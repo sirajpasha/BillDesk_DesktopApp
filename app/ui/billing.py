@@ -154,6 +154,9 @@ class BillingFrame(ttk.Frame):
 
         # ---------------- 3. BOTTOM SUMMARY SECTION ----------------
         # Matches 04-billing-empty.png & 06-billing-filled.png
+        self.hint_lbl = tk.Label(outer, text="Type an item code or name, then press Enter.", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc", anchor="w")
+        self.hint_lbl.pack(fill="x", pady=(0, 6))
+
         summary_bar = tk.Frame(outer, bg="#f8fafc")
         summary_bar.pack(fill="x", pady=(0, 10))
 
@@ -436,6 +439,19 @@ class BillingFrame(ttk.Frame):
         self.wait_window(dlg)
         return chosen["item"]
 
+    def _show_item_hint(self, item: dict, rate: float, is_fixed: bool) -> None:
+        """One line under the grid: what the cashier needs to know about the item just entered."""
+        unit = item.get("unit") or "Kg"
+        try:
+            stock = float(item.get("stock") or 0)
+        except (TypeError, ValueError):
+            stock = 0.0
+        stock_txt = f"Stock {stock:g} {unit}" if stock > 0 else "No stock recorded"
+        who = (self.selected_customer or {}).get("name")
+        rate_txt = f"fixed rate for {who}" if (is_fixed and who) else "item rate"
+        self.hint_lbl.config(text=f"{item.get('name', '')}:  {stock_txt}   |   ₹{rate:.2f} per {unit} ({rate_txt})",
+                             fg="#b45309" if (stock <= 0 and not settings.allow_negative_stock) else "#475569")
+
     def _on_code_entered(self, row_idx: int, focus_next: bool = True):
         if row_idx >= len(self.row_widgets):
             return
@@ -488,6 +504,7 @@ class BillingFrame(ttk.Frame):
         resolved_rate, _is_fixed = self.pricing_svc.resolve_rate(cust_id, item["item_id"], default_rate=default_rate)
         row["rate"].delete(0, tk.END)
         row["rate"].insert(0, f"{resolved_rate:.2f}")
+        self._show_item_hint(item, resolved_rate, _is_fixed)
 
         # Set default Qty to 1 if empty
         if not row["qty"].get().strip():

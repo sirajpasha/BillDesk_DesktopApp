@@ -141,7 +141,7 @@ class MastersView(tk.Frame):
             bd=1,
             width=40
         )
-        s_ent.pack(side="left")
+        s_ent.pack(side="left", ipady=4)
         s_ent.insert(0, "")
         self.item_search_var.trace_add("write", lambda *_: self._filter_items())
 
@@ -203,7 +203,7 @@ class MastersView(tk.Frame):
 
         for itm in filtered:
             rate_val = itm.get("standard_rate") or itm.get("rate") or 0.0
-            rate_str = format_inr(rate_val) if rate_val else "-"
+            rate_str = format_inr(rate_val) if rate_val else "not set"
             stock_val = f"{itm.get('stock', 0.0):g}"
             self.items_tree.insert(
                 "",
@@ -424,7 +424,7 @@ class MastersView(tk.Frame):
             bd=1,
             width=40
         )
-        c_ent.pack(side="left")
+        c_ent.pack(side="left", ipady=4)
         self.cust_search_var.trace_add("write", lambda *_: self._filter_customers())
 
         tk.Label(search_bar, text=" (Search customer master...)", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(side="left", padx=6)
@@ -440,8 +440,8 @@ class MastersView(tk.Frame):
 
         cols = ("company", "dc_company", "name", "phone", "address", "balance", "status")
         self.cust_tree = ttk.Treeview(tbl_frame, columns=cols, show="headings", selectmode="browse")
-        self.cust_tree.heading("company", text="Company Name")
-        self.cust_tree.heading("dc_company", text="DC Company Name")
+        self.cust_tree.heading("company", text="Invoice Company")
+        self.cust_tree.heading("dc_company", text="Bill To (DC)")
         self.cust_tree.heading("name", text="Customer Name")
         self.cust_tree.heading("phone", text="Contact Number")
         self.cust_tree.heading("address", text="Address")
@@ -854,7 +854,7 @@ class MastersView(tk.Frame):
             bd=1,
             width=40
         )
-        sp_ent.pack(side="left")
+        sp_ent.pack(side="left", ipady=4)
         self.supp_search_var.trace_add("write", lambda *_: self._filter_suppliers())
 
         tk.Label(search_bar, text=" (Search supplier master...)", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(side="left", padx=6)

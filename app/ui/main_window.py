@@ -266,7 +266,7 @@ class MainWindow:
         if self.has_access("masters"):
             menus["Masters"] = [
                 ("Item Master", "Item Master", "F10"),
-                ("Customer Master", "Customer Master", "F11"),
+                ("Customer Master", "Customer Master", "F4"),
                 ("Supplier Master", "Supplier Master", "F5"),
                 ("Waste Management", "Waste Management", ""),
             ]
@@ -300,8 +300,8 @@ class MainWindow:
         # 5. Settings Menu
         if self.has_access("settings"):
             menus["Settings"] = [
-                ("User Management", "User Management", "F6"),
-                ("Company Settings", "Company Settings", "F11"),
+                ("User Management", "User Management", ""),
+                ("Company Settings", "Company Settings", ""),
                 ("Database Settings", "DB Connection", ""),
                 ("System Audit Logs", "System Audit Logs", ""),
             ]
