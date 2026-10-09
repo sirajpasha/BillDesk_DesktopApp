@@ -26,11 +26,11 @@ class _Tab:
         tk.Label(bar, text="FROM", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left")
         self.from_ent = tk.Entry(bar, width=12, relief="solid", bd=1)
         self.from_ent.pack(side="left", padx=(6, 10), ipady=4)
-        self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", on_selected=lambda _d: self.load(), label="The From date")
+        self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", button=True, on_selected=lambda _d: self.load(), label="The From date")
         tk.Label(bar, text="TO", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left")
         self.to_ent = tk.Entry(bar, width=12, relief="solid", bd=1)
         self.to_ent.pack(side="left", padx=(6, 10), ipady=4)
-        self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", on_selected=lambda _d: self.load(), label="The To date",
+        self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", button=True, on_selected=lambda _d: self.load(), label="The To date",
                                             not_before=lambda: self.from_picker.value())
         tk.Label(bar, text="ACTION", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left")
         self.action_var = tk.StringVar(value="All")

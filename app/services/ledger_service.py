@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.repositories.accounting_repo import AccountingRepository
 from app.utils.currency import money
 
@@ -206,15 +206,24 @@ class LedgerService:
     def get_journal_entries(self, limit: int = 50) -> List[Dict[str, Any]]:
         return self.acc_repo.journals.find({}, sort=[("date", -1)], limit=limit)
 
+    @staticmethod
+    def _utc(dt: Optional[datetime]) -> Optional[datetime]:
+        """A date typed on screen is local wall-clock time; journals are stored in UTC."""
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.astimezone()
+        return dt.astimezone(timezone.utc)
+
     def get_account_balances(self, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None) -> Dict[str, Dict[str, float]]:
         """{code: {debit, credit}} summed over posted journals (optionally within a date range)."""
         query: Dict[str, Any] = {"state": "posted"}
         if date_from or date_to:
             rng: Dict[str, Any] = {}
             if date_from:
-                rng["$gte"] = date_from
+                rng["$gte"] = self._utc(date_from)
             if date_to:
-                rng["$lte"] = date_to
+                rng["$lte"] = self._utc(date_to)
             query["date"] = rng
         totals: Dict[str, Dict[str, float]] = {}
         for j in self.acc_repo.journals.find(query, limit=0):

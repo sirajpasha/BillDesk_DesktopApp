@@ -1312,11 +1312,22 @@ The two accounts must be different and the amounts must be equal; otherwise the 
 *Screen: Finance*
 
 
-**Accounts → Trial Balance / Profit & Loss / Balance Sheet** each open a report window.
+**Accounts → Trial Balance / Profit & Loss / Balance Sheet** (the last two are also under **Reports**) each open a report window with the **period chosen at the top**.
 
-![Trial balance](user-guide-native/img/90-trial-balance.png)
+1. Pick the days with the calendar (click the date box or the 📅 button), or use a quick button, then press **Show**.
+2. **Save as text…** keeps a copy; **Close** leaves.
 
-![Profit and loss](user-guide-native/img/91-profit-and-loss.png)
+![Trial balance as of a day](user-guide-native/img/90-trial-balance.png)
+
+| Statement | Box | Quick buttons |
+|---|---|---|
+| **Trial balance** | **As of**: the position on that day (blank = everything so far) | Today, End of last month, All entries |
+| **Profit and loss** | **From / To**: the result of that period (blank = all time) | This month, This financial year (from 1 April), All time |
+| **Balance sheet** | **As of**: what you own and owe on that day | Today, End of last month, All entries |
+
+The first lines of the report say which period it is for ("For the period 01/04/2026 to 09/10/2026", "As of 31/03/2026"). The *To* date cannot be before the *From* date.
+
+![Profit and loss for a period](user-guide-native/img/91-profit-and-loss.png)
 
 ![Balance sheet](user-guide-native/img/92-balance-sheet.png)
 
@@ -1411,7 +1422,7 @@ All three reports share the **From / To** boxes.
 
 ![Report calendar](user-guide-native/img/103-report-calendar.png)
 
-* Pick a day or type it; the *To* date cannot be before the *From* date.
+* Pick a day from the calendar (click the box or the 📅 button beside it) or type it; the *To* date cannot be before the *From* date.
 * Leave a box empty for "no limit".
 * The reports always net out returns, and cancelled returns are ignored.
 
@@ -1619,7 +1630,7 @@ In lists and dialogs: **↑ / ↓** move, **Enter** chooses, **Esc** closes. In 
 
 Every date box in BillDesk works the same way:
 
-* Click it (or move to it with the keyboard): a **calendar** drops down. **Click** a day, or use the **arrow keys** (Page Up / Down change month) and **Enter**; **Today** jumps to today.
+* Click it, or its **📅 button**, or move to it with the keyboard: a **calendar** drops down. **Click** a day, or use the **arrow keys** (Page Up / Down change month) and **Enter**; **Today** jumps to today.
 * You can also **type** a date: `13/10/2026`, `13-10-26`, `2026-10-13`. Press **Enter** to accept it.
 * Text turns **red** when the date cannot be used; the form tells you why when you save.
 * Days that are not allowed are **greyed** in the calendar.
@@ -1630,7 +1641,8 @@ Every date box in BillDesk works the same way:
 | Order date | required; not in the future |
 | Delivery date | required; not before the order date |
 | Fixed rate start / end | required; end not before start |
-| Report and statement From / To | optional; *To* not before *From* |
+| Report, statement and audit-log From / To | optional; *To* not before *From* |
+| Profit & Loss From / To; Trial Balance and Balance Sheet As of | optional (blank = all entries); *To* not before *From* |
 | Consolidated report From / To | required; *To* not before *From* |
 | Filters (Bill History, Orders) | optional; part of a date (`09/2026`) is fine |
 
@@ -1829,6 +1841,7 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 - analytics — [1.5](#dashboard)
 - ap — [7.5](#payables)
 - ar — [7.2](#receivables)
+- as of — [7.9](#statements)
 - ask — [1.1](#start-here)
 - assets — [7.9](#statements)
 - at a glance — [1.5](#dashboard)
@@ -1867,7 +1880,7 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 
 **C**
 
-- calendar — [2.3](#bill-date), [4.3](#order-dates), [10.2](#dates-everywhere)
+- calendar — [2.3](#bill-date), [4.3](#order-dates), [7.9](#statements), [10.2](#dates-everywhere)
 - cancel a return — [3.7](#cancel-return)
 - cancel bill — [3.4](#history-void)
 - cancel credit note — [3.7](#cancel-return)
@@ -1954,6 +1967,7 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 - date filter — [3.2](#history-filters)
 - date format — [10.2](#dates-everywhere)
 - date picker — [2.3](#bill-date)
+- date range — [7.9](#statements)
 - dates and the calendar — [10.2](#dates-everywhere)
 - dates in reports — [8.4](#report-dates)
 - day book — [8.1](#daybook)
@@ -2021,6 +2035,7 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 - filter — [3.2](#history-filters)
 - finance — [7.1](#accounting-home)
 - financial statements — [7.9](#statements)
+- financial year — [7.9](#statements)
 - find — [1.1](#start-here)
 - find bill — [3.1](#history)
 - find unpaid bills — [3.2](#history-filters)
@@ -2135,6 +2150,7 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 - mistake — [3.4](#history-void)
 - money in — [8.1](#daybook)
 - money out — [8.1](#daybook)
+- month end — [7.9](#statements)
 - month end statement — [8.5](#consolidated)
 - movements — [6.1](#inventory)
 - multiple bills one invoice — [8.5](#consolidated)
@@ -2195,7 +2211,7 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 - payment — [2.6](#bill-payment)
 - pdf — [2.8](#bill-print), [8.5](#consolidated)
 - pending orders — [4.1](#orders-list)
-- period — [8.4](#report-dates)
+- period — [7.9](#statements), [8.4](#report-dates)
 - permissions — [9.2](#users)
 - phone — [5.2](#customers), [9.3](#company), [10.3](#field-rules)
 - photo — [4.4](#smart-importer)
@@ -2413,6 +2429,10 @@ This guide is written once in `Docs/BillDesk_Native_User_Guide.md` and turned in
 - wrong bill — [3.4](#history-void)
 - wrong date — [2.3](#bill-date)
 - wrong item — [2.4](#bill-items)
+
+**Y**
+
+- year end — [7.9](#statements)
 
 **Z**
 

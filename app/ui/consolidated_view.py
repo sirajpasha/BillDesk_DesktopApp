@@ -376,7 +376,7 @@ class ConsolidatedReportFrame(tk.Frame):
             width=11
         )
         self.from_date_ent.pack(side="left")
-        self.from_picker = attach_date_picker(self.from_date_ent, "%d-%m-%Y", allow_blank=False, allow_future=False, label="The From date")
+        self.from_picker = attach_date_picker(self.from_date_ent, "%d-%m-%Y", button=True, allow_blank=False, allow_future=False, label="The From date")
 
         # C. To Date
         to_box = tk.Frame(filter_inner, bg=theme.BG, bd=1, relief="solid", padx=10, pady=6)
@@ -395,7 +395,7 @@ class ConsolidatedReportFrame(tk.Frame):
             width=11
         )
         self.to_date_ent.pack(side="left")
-        self.to_picker = attach_date_picker(self.to_date_ent, "%d-%m-%Y", allow_blank=False, label="The To date",
+        self.to_picker = attach_date_picker(self.to_date_ent, "%d-%m-%Y", button=True, allow_blank=False, label="The To date",
                                             not_before=lambda: self.from_picker.value())
 
         # D. Actions: Generate & PDF buttons

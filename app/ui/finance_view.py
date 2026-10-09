@@ -3,6 +3,7 @@ import tkinter as tk
 from app.utils import validation as V
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
+from app.ui.financial_report_window import FinancialReportWindow
 from app.services.payment_service import PaymentService
 from app.services.ledger_service import LedgerService
 from app.services.banking_service import BankingService
@@ -629,10 +630,21 @@ class FinanceView(tk.Frame):
     def _fmt(v: float) -> str:
         return format_inr(v, symbol=False)
 
-    def trial_balance_text(self) -> str:
-        tb = self.ledger_svc.get_trial_balance()
+    @staticmethod
+    def _period_line(date_from=None, date_to=None, as_of_word: str = "") -> str:
+        f = date_from.strftime("%d/%m/%Y") if date_from else ""
+        t = date_to.strftime("%d/%m/%Y") if date_to else ""
+        if as_of_word:
+            return f"As of {t}" if t else "All entries to date"
+        if f and t:
+            return f"For the period {f} to {t}"
+        return f"From {f} to date" if f else (f"Up to {t}" if t else "All entries to date")
+
+    def trial_balance_text(self, date_to=None) -> str:
+        """Every account's net debit / credit position up to a day (blank = all entries)."""
+        tb = self.ledger_svc.get_trial_balance(date_to=date_to)
         w = 70
-        out = ["TRIAL BALANCE", "=" * w, f"{'Code':<6}{'Account':<36}{'Debit':>14}{'Credit':>14}", "-" * w]
+        out = ["TRIAL BALANCE", self._period_line(date_to=date_to, as_of_word="as of"), "=" * w, f"{'Code':<6}{'Account':<36}{'Debit':>14}{'Credit':>14}", "-" * w]
         for r in tb["rows"]:
             out.append(f"{r['account_code']:<6}{r['account_name'][:35]:<36}"
                        f"{self._fmt(r['debit']) if r['debit'] else '':>14}{self._fmt(r['credit']) if r['credit'] else '':>14}")
@@ -642,14 +654,15 @@ class FinanceView(tk.Frame):
                 "", "Debits equal credits: " + ("YES - ledger is balanced" if tb["is_balanced"] else "NO - LEDGER IS OUT OF BALANCE")]
         return "\n".join(out)
 
-    def profit_and_loss_text(self) -> str:
-        pl = self.ledger_svc.get_profit_and_loss()
+    def profit_and_loss_text(self, date_from=None, date_to=None) -> str:
+        """Profit and loss of a period (blank = all entries)."""
+        pl = self.ledger_svc.get_profit_and_loss(date_from, date_to)
         w = 60
 
         def row(label, val, bold=False):
             return f"{('' if not bold else '')}{label:<40}{self._fmt(val):>18}"
 
-        out = ["PROFIT & LOSS STATEMENT", "=" * w,
+        out = ["PROFIT & LOSS STATEMENT", self._period_line(date_from, date_to), "=" * w,
                row("Sales revenue", pl["total_sales"]),
                row("Commission & fee income", pl["fee_income"])]
         if pl["other_income"]:
@@ -664,10 +677,11 @@ class FinanceView(tk.Frame):
                 "=" * w, row("NET PROFIT / (LOSS)", pl["net_profit"])]
         return "\n".join(out)
 
-    def balance_sheet_text(self) -> str:
-        bs = self.ledger_svc.get_balance_sheet()
+    def balance_sheet_text(self, as_of=None) -> str:
+        """What you own and owe on a day (blank = now)."""
+        bs = self.ledger_svc.get_balance_sheet(as_of)
         w = 60
-        out = ["BALANCE SHEET", "=" * w, "ASSETS"]
+        out = ["BALANCE SHEET", self._period_line(date_to=as_of, as_of_word="as of"), "=" * w, "ASSETS"]
         out += [f"  {r['account_name']:<44}{self._fmt(r['amount']):>14}" for r in bs["assets"]] or ["  (none)"]
         out += [f"{'Total assets':<46}{self._fmt(bs['total_assets']):>14}", "", "LIABILITIES"]
         out += [f"  {r['account_name']:<44}{self._fmt(r['amount']):>14}" for r in bs["liabilities"]] or ["  (none)"]
@@ -678,28 +692,23 @@ class FinanceView(tk.Frame):
                 "Assets = Liabilities + Equity: " + ("YES - balance sheet balances" if bs["is_balanced"] else "NO - DOES NOT BALANCE")]
         return "\n".join(out)
 
-    def _show_report(self, title: str, text: str):
+    def _remember_report(self, title: str, text: str):
         self.last_report = (title, text)
-        dlg = tk.Toplevel(self)
-        dlg.title(title)
-        dlg.geometry("640x560")
-        dlg.transient(self.winfo_toplevel())
-        dlg.configure(bg=theme.SURFACE)
-        box = tk.Text(dlg, font=("Consolas", 10), bg=theme.SURFACE, fg=theme.TEXT, relief="flat", padx=16, pady=14, wrap="none")
-        box.insert("1.0", text)
-        box.config(state="disabled")
-        box.pack(fill="both", expand=True)
-        tk.Button(dlg, text="Close", command=dlg.destroy, relief="flat", bg=theme.PRIMARY, fg=theme.SURFACE,
-                  font=theme.F_BOLD, padx=16, pady=5).pack(side="bottom", pady=8)
+
+    def _show_report(self, title: str, mode: str, render):
+        """Open a statement window with its period / as-of date boxes (and calendars)."""
+        win = FinancialReportWindow(self, title, mode, render, on_render=self._remember_report)
+        self.report_window = win
+        return win
 
     def _view_trial_balance(self):
-        self._show_report("Trial Balance", self.trial_balance_text())
+        return self._show_report("Trial Balance", "as_of", lambda _lo, hi: self.trial_balance_text(hi))
 
     def _view_pl(self):
-        self._show_report("Profit & Loss", self.profit_and_loss_text())
+        return self._show_report("Profit & Loss", "range", lambda lo, hi: self.profit_and_loss_text(lo, hi))
 
     def _view_balance_sheet(self):
-        self._show_report("Balance Sheet", self.balance_sheet_text())
+        return self._show_report("Balance Sheet", "as_of", lambda _lo, hi: self.balance_sheet_text(hi))
 
     def _post_journal_dialog(self):
         dlg = tk.Toplevel(self)

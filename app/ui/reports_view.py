@@ -44,12 +44,12 @@ class ReportsFrame(tk.Frame):
         self.from_var = tk.StringVar(value=today.replace(day=1).strftime("%d/%m/%Y"))
         self.from_ent = tk.Entry(bar, textvariable=self.from_var, width=12, relief="solid", bd=1)
         self.from_ent.pack(side="left", padx=(6, 12), ipady=4)
-        self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The From date")
+        self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", button=True, on_selected=lambda _d: self.refresh(), label="The From date")
         tk.Label(bar, text="TO", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left")
         self.to_var = tk.StringVar(value=today.strftime("%d/%m/%Y"))
         self.to_ent = tk.Entry(bar, textvariable=self.to_var, width=12, relief="solid", bd=1)
         self.to_ent.pack(side="left", padx=(6, 12), ipady=4)
-        self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The To date",
+        self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", button=True, on_selected=lambda _d: self.refresh(), label="The To date",
                                             not_before=lambda: self.from_picker.value())
         tk.Button(bar, text="Show", bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=16, pady=5, cursor="hand2", command=self.refresh).pack(side="left")
         tk.Button(bar, text="Export CSV", bg=theme.SURFACE, relief="solid", bd=1, padx=12, pady=3, cursor="hand2", command=self.export_csv).pack(side="right")

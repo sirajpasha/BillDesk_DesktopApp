@@ -3308,6 +3308,13 @@
    "chapter_title": "Money and accounts",
    "screen": "Finance",
    "keywords": [
+    "period",
+    "date range",
+    "as of",
+    "financial year",
+    "month end",
+    "year end",
+    "calendar",
     "trial balance",
     "profit and loss",
     "P&L",
@@ -3321,23 +3328,66 @@
     "journal",
     "integrity"
    ],
-   "summary": "Accounts → Trial Balance / Profit & Loss / Balance Sheet each open a report window.",
-   "steps": [],
-   "headings": [],
-   "text": "Accounts → Trial Balance / Profit & Loss / Balance Sheet each open a report window.\nTrial balance\nProfit and loss\nBalance sheet\nTrial balance: every account's debits and credits; the totals must be equal.\nProfit and loss: sales (net of returns), cost of goods sold, waste and expenses, giving the profit.\nBalance sheet: what you own, owe and the owner's capital.",
+   "summary": "Accounts → Trial Balance / Profit & Loss / Balance Sheet (the last two are also under Reports) each open a report window with the period chosen at the top.",
+   "steps": [
+    "Pick the days with the calendar (click the date box or the 📅 button), or use a quick button, then press **Show**.",
+    "**Save as text…** keeps a copy; **Close** leaves."
+   ],
+   "headings": [
+    "Trial balance",
+    "Profit and loss",
+    "Balance sheet"
+   ],
+   "text": "Accounts → Trial Balance / Profit & Loss / Balance Sheet (the last two are also under Reports) each open a report window with the period chosen at the top.\nPick the days with the calendar (click the date box or the 📅 button), or use a quick button, then press Show.\nSave as text… keeps a copy; Close leaves.\nTrial balance as of a day\nStatement | Box | Quick buttons\nTrial balance | As of: the position on that day (blank = everything so far) | Today, End of last month, All entries\nProfit and loss | From / To: the result of that period (blank = all time) | This month, This financial year (from 1 April), All time\nBalance sheet | As of: what you own and owe on that day | Today, End of last month, All entries\nThe first lines of the report say which period it is for (\"For the period 01/04/2026 to 09/10/2026\", \"As of 31/03/2026\"). The To date cannot be before the From date.\nProfit and loss for a period\nBalance sheet\nTrial balance: every account's debits and credits; the totals must be equal.\nProfit and loss: sales (net of returns), cost of goods sold, waste and expenses, giving the profit.\nBalance sheet: what you own, owe and the owner's capital.",
    "blocks": [
     {
      "t": "p",
-     "text": "**Accounts → Trial Balance / Profit & Loss / Balance Sheet** each open a report window."
+     "text": "**Accounts → Trial Balance / Profit & Loss / Balance Sheet** (the last two are also under **Reports**) each open a report window with the **period chosen at the top**."
+    },
+    {
+     "t": "ol",
+     "items": [
+      "Pick the days with the calendar (click the date box or the 📅 button), or use a quick button, then press **Show**.",
+      "**Save as text…** keeps a copy; **Close** leaves."
+     ]
     },
     {
      "t": "image",
-     "alt": "Trial balance",
+     "alt": "Trial balance as of a day",
      "src": "90-trial-balance.png"
     },
     {
+     "t": "table",
+     "rows": [
+      [
+       "Statement",
+       "Box",
+       "Quick buttons"
+      ],
+      [
+       "**Trial balance**",
+       "**As of**: the position on that day (blank = everything so far)",
+       "Today, End of last month, All entries"
+      ],
+      [
+       "**Profit and loss**",
+       "**From / To**: the result of that period (blank = all time)",
+       "This month, This financial year (from 1 April), All time"
+      ],
+      [
+       "**Balance sheet**",
+       "**As of**: what you own and owe on that day",
+       "Today, End of last month, All entries"
+      ]
+     ]
+    },
+    {
+     "t": "p",
+     "text": "The first lines of the report say which period it is for (\"For the period 01/04/2026 to 09/10/2026\", \"As of 31/03/2026\"). The *To* date cannot be before the *From* date."
+    },
+    {
      "t": "image",
-     "alt": "Profit and loss",
+     "alt": "Profit and loss for a period",
      "src": "91-profit-and-loss.png"
     },
     {
@@ -3531,7 +3581,7 @@
    "summary": "All three reports share the From / To boxes.",
    "steps": [],
    "headings": [],
-   "text": "All three reports share the From / To boxes.\nReport calendar\nPick a day or type it; the To date cannot be before the From date.\nLeave a box empty for \"no limit\".\nThe reports always net out returns, and cancelled returns are ignored.",
+   "text": "All three reports share the From / To boxes.\nReport calendar\nPick a day from the calendar (click the box or the 📅 button beside it) or type it; the To date cannot be before the From date.\nLeave a box empty for \"no limit\".\nThe reports always net out returns, and cancelled returns are ignored.",
    "blocks": [
     {
      "t": "p",
@@ -3545,7 +3595,7 @@
     {
      "t": "ul",
      "items": [
-      "Pick a day or type it; the *To* date cannot be before the *From* date.",
+      "Pick a day from the calendar (click the box or the 📅 button beside it) or type it; the *To* date cannot be before the *From* date.",
       "Leave a box empty for \"no limit\".",
       "The reports always net out returns, and cancelled returns are ignored."
      ]
@@ -4126,11 +4176,12 @@
     "Order date",
     "Delivery date",
     "Fixed rate start / end",
-    "Report and statement From / To",
+    "Report, statement and audit-log From / To",
+    "Profit & Loss From / To; Trial Balance and Balance Sheet As of",
     "Consolidated report From / To",
     "Filters (Bill History, Orders)"
    ],
-   "text": "Every date box in BillDesk works the same way:\nClick it (or move to it with the keyboard): a calendar drops down. Click a day, or use the arrow keys (Page Up / Down change month) and Enter; Today jumps to today.\nYou can also type a date: 13/10/2026, 13-10-26, 2026-10-13. Press Enter to accept it.\nText turns red when the date cannot be used; the form tells you why when you save.\nDays that are not allowed are greyed in the calendar.\nWhere | Rule\nBill date | required; not in the future\nOrder date | required; not in the future\nDelivery date | required; not before the order date\nFixed rate start / end | required; end not before start\nReport and statement From / To | optional; To not before From\nConsolidated report From / To | required; To not before From\nFilters (Bill History, Orders) | optional; part of a date (09/2026) is fine",
+   "text": "Every date box in BillDesk works the same way:\nClick it, or its 📅 button, or move to it with the keyboard: a calendar drops down. Click a day, or use the arrow keys (Page Up / Down change month) and Enter; Today jumps to today.\nYou can also type a date: 13/10/2026, 13-10-26, 2026-10-13. Press Enter to accept it.\nText turns red when the date cannot be used; the form tells you why when you save.\nDays that are not allowed are greyed in the calendar.\nWhere | Rule\nBill date | required; not in the future\nOrder date | required; not in the future\nDelivery date | required; not before the order date\nFixed rate start / end | required; end not before start\nReport, statement and audit-log From / To | optional; To not before From\nProfit & Loss From / To; Trial Balance and Balance Sheet As of | optional (blank = all entries); To not before From\nConsolidated report From / To | required; To not before From\nFilters (Bill History, Orders) | optional; part of a date (09/2026) is fine",
    "blocks": [
     {
      "t": "p",
@@ -4139,7 +4190,7 @@
     {
      "t": "ul",
      "items": [
-      "Click it (or move to it with the keyboard): a **calendar** drops down. **Click** a day, or use the **arrow keys** (Page Up / Down change month) and **Enter**; **Today** jumps to today.",
+      "Click it, or its **📅 button**, or move to it with the keyboard: a **calendar** drops down. **Click** a day, or use the **arrow keys** (Page Up / Down change month) and **Enter**; **Today** jumps to today.",
       "You can also **type** a date: `13/10/2026`, `13-10-26`, `2026-10-13`. Press **Enter** to accept it.",
       "Text turns **red** when the date cannot be used; the form tells you why when you save.",
       "Days that are not allowed are **greyed** in the calendar."
@@ -4169,8 +4220,12 @@
        "required; end not before start"
       ],
       [
-       "Report and statement From / To",
+       "Report, statement and audit-log From / To",
        "optional; *To* not before *From*"
+      ],
+      [
+       "Profit & Loss From / To; Trial Balance and Balance Sheet As of",
+       "optional (blank = all entries); *To* not before *From*"
       ],
       [
        "Consolidated report From / To",

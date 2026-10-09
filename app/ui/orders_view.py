@@ -109,7 +109,7 @@ class OrdersView(tk.Frame):
         self.order_date_var = tk.StringVar(value="")
         d_ent = tk.Entry(filter_bar, textvariable=self.order_date_var, font=theme.F_BODY, relief="solid", bd=1, width=12)
         d_ent.pack(side="left", ipady=4)
-        attach_date_picker(d_ent, "%d/%m/%Y", label="The order date filter", partial_ok=True)
+        attach_date_picker(d_ent, "%d/%m/%Y", button=True, label="The order date filter", partial_ok=True)
         self.order_date_var.trace_add("write", lambda *_: self._filter_orders())
 
         # Table
@@ -473,7 +473,7 @@ class OrdersView(tk.Frame):
         self.matrix_date_var = tk.StringVar(value="")          # blank = every pending order
         d_ent = tk.Entry(ctrl_card, textvariable=self.matrix_date_var, font=theme.F_BODY, relief="solid", bd=1, width=14)
         d_ent.pack(side="left", padx=(0, 4), ipady=4)
-        self.matrix_date_picker = attach_date_picker(d_ent, "%d/%m/%Y", on_selected=lambda _d: self.load_matrix(), label="The delivery date")
+        self.matrix_date_picker = attach_date_picker(d_ent, "%d/%m/%Y", button=True, on_selected=lambda _d: self.load_matrix(), label="The delivery date")
         tk.Button(ctrl_card, text="All", font=theme.F_SMALL, relief="solid", bd=1, padx=8, pady=2, cursor="hand2",
                   command=lambda: (self.matrix_date_var.set(""), self.load_matrix())).pack(side="left", padx=(0, 16))
 
