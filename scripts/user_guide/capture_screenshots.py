@@ -59,8 +59,11 @@ def save_widget(widget, name, pad=0):
 
 
 def save_app(name):
-    shot(root, name)
-    os.replace(os.path.join(SCRATCH, "shots", name + ".png"), os.path.join(OUT, name + ".png"))
+    """The application window as it is on screen. (The harness's shot() lifts the window first, which would hide an open calendar.)"""
+    root.update_idletasks()
+    pump(root, 10)
+    x, y, w, h = root.winfo_rootx(), root.winfo_rooty(), root.winfo_width(), root.winfo_height()
+    ImageGrab.grab(bbox=(x, y, x + w, y + h)).save(os.path.join(OUT, name + ".png"))
 
 
 def setv(w, v):
@@ -554,8 +557,9 @@ step("journal dialog", lambda: (win.show_page("Finance"), fv.notebook.select(fv.
 
 
 def statements():
-    for fn, name in ((fv._view_trial_balance, "90-trial-balance"), (fv._view_pl, "91-profit-and-loss"), (fv._view_balance_sheet, "92-balance-sheet")):
-        dialog(fv, fn, name)
+    for fn, name, fill in ((fv._view_trial_balance, "90-trial-balance", lambda d: d._today()), (fv._view_pl, "91-profit-and-loss", lambda d: d._this_year()),
+                           (fv._view_balance_sheet, "92-balance-sheet", lambda d: d._today())):
+        dialog(fv, fn, name, fill)
 win.show_page("Finance")
 pump(root, 8)
 step("financial statements", statements)
@@ -572,8 +576,8 @@ for n, img in (("Daybook", "100-daybook"), ("Item-wise Sales", "101-item-wise-sa
 
 def report_calendar():
     rv.show_report("Daybook")
-    rv.to_ent.event_generate("<Button-1>", x=5, y=5)
-    pump(root, 8)
+    rv.to_picker.open()
+    pump(root, 10)
 page("Daybook", "103-report-calendar", extra=report_calendar)
 if rv.to_picker.popup:
     rv.to_picker.popup.close()

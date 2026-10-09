@@ -181,6 +181,31 @@ class DatePickerController:
         entry.bind("<KeyRelease>", lambda _e: self.flag(), add="+")
         entry.bind("<Unmap>", lambda _e: self._close_popup(), add="+")      # the screen was switched: do not leave the calendar floating
 
+    def add_button(self) -> Optional[tk.Widget]:
+        """A small 📅 button right after the box, so it is obvious a calendar exists (the box also opens it on click)."""
+        parent = self.entry.master
+        try:
+            bg = parent.cget("bg")
+        except tk.TclError:
+            bg = BG
+        btn = tk.Button(parent, text="📅", relief="flat", bd=0, bg=bg, activebackground=bg, cursor="hand2", padx=3, pady=0,
+                        command=lambda: (self.entry.focus_set(), self.open()))
+        manager = self.entry.winfo_manager()
+        if manager == "pack":
+            info = self.entry.pack_info()
+            pad = info.get("padx", 0)
+            left, right = pad if isinstance(pad, (tuple, list)) else (pad, pad)
+            self.entry.pack_configure(padx=(left, 0))                 # the button sits against the box; the old right-hand gap moves after the button
+            btn.pack(side=info.get("side", "left"), after=self.entry, padx=(2, right))
+        elif manager == "grid":
+            info = self.entry.grid_info()
+            btn.grid(row=info["row"], column=int(info["column"]) + 1, padx=(0, 6))
+        else:
+            btn.destroy()
+            return None
+        self.button = btn
+        return btn
+
     def _close_popup(self) -> None:
         if self.popup is not None and self.popup.winfo_exists():
             self.popup.close()
@@ -270,7 +295,10 @@ class DatePickerController:
 
 def attach_date_picker(entry: tk.Entry, fmt: str = "%d/%m/%Y", on_selected: Optional[Callable[[date], None]] = None, *, allow_future: bool = True,
                        allow_blank: bool = True, not_before: Optional[Callable[[], Optional[date]]] = None, label: str = "Date",
-                       partial_ok: bool = False) -> DatePickerController:
+                       partial_ok: bool = False, button: bool = False) -> DatePickerController:
     ctrl = DatePickerController(entry, fmt, on_selected, allow_future, allow_blank, not_before, label, partial_ok)
+    ctrl.button = None
+    if button:
+        ctrl.add_button()
     entry._date_picker = ctrl            # keep a reference (and let tests reach it)
     return ctrl

@@ -1151,13 +1151,13 @@ class MastersView(tk.Frame):
         sdate_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         sdate_ent.pack(fill="x", pady=(2, 6))
         sdate_ent.insert(0, now.strftime("%d/%m/%Y"))
-        s_picker = attach_date_picker(sdate_ent, "%d/%m/%Y", allow_blank=False, label="The start date")
+        s_picker = attach_date_picker(sdate_ent, "%d/%m/%Y", button=True, allow_blank=False, label="The start date")
 
         tk.Label(body, text="End Date *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
         edate_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         edate_ent.pack(fill="x", pady=(2, 10))
         edate_ent.insert(0, (now + timedelta(days=30)).strftime("%d/%m/%Y"))
-        e_picker = attach_date_picker(edate_ent, "%d/%m/%Y", allow_blank=False, label="The end date", not_before=lambda: s_picker.value())
+        e_picker = attach_date_picker(edate_ent, "%d/%m/%Y", button=True, allow_blank=False, label="The end date", not_before=lambda: s_picker.value())
 
         def on_save():
             try:

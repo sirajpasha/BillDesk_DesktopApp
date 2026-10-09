@@ -895,13 +895,24 @@ The two accounts must be different and the amounts must be equal; otherwise the 
 ---
 
 ### Trial balance, profit and loss, balance sheet
-<!-- id: statements | screen: Finance | keywords: trial balance, profit and loss, P&L, balance sheet, financial statements, net profit, assets, liabilities | context: Trial Balance; Profit & Loss; Balance Sheet | related: journal, integrity -->
+<!-- id: statements | screen: Finance | keywords: period, date range, as of, financial year, month end, year end, calendar, trial balance, profit and loss, P&L, balance sheet, financial statements, net profit, assets, liabilities | context: Trial Balance; Profit & Loss; Balance Sheet | related: journal, integrity -->
 
-**Accounts → Trial Balance / Profit & Loss / Balance Sheet** each open a report window.
+**Accounts → Trial Balance / Profit & Loss / Balance Sheet** (the last two are also under **Reports**) each open a report window with the **period chosen at the top**.
 
-![Trial balance](user-guide-native/img/90-trial-balance.png)
+1. Pick the days with the calendar (click the date box or the 📅 button), or use a quick button, then press **Show**.
+2. **Save as text…** keeps a copy; **Close** leaves.
 
-![Profit and loss](user-guide-native/img/91-profit-and-loss.png)
+![Trial balance as of a day](user-guide-native/img/90-trial-balance.png)
+
+| Statement | Box | Quick buttons |
+|---|---|---|
+| **Trial balance** | **As of**: the position on that day (blank = everything so far) | Today, End of last month, All entries |
+| **Profit and loss** | **From / To**: the result of that period (blank = all time) | This month, This financial year (from 1 April), All time |
+| **Balance sheet** | **As of**: what you own and owe on that day | Today, End of last month, All entries |
+
+The first lines of the report say which period it is for ("For the period 01/04/2026 to 09/10/2026", "As of 31/03/2026"). The *To* date cannot be before the *From* date.
+
+![Profit and loss for a period](user-guide-native/img/91-profit-and-loss.png)
 
 ![Balance sheet](user-guide-native/img/92-balance-sheet.png)
 
@@ -961,7 +972,7 @@ All three reports share the **From / To** boxes.
 
 ![Report calendar](user-guide-native/img/103-report-calendar.png)
 
-* Pick a day or type it; the *To* date cannot be before the *From* date.
+* Pick a day from the calendar (click the box or the 📅 button beside it) or type it; the *To* date cannot be before the *From* date.
 * Leave a box empty for "no limit".
 * The reports always net out returns, and cancelled returns are ignored.
 
@@ -1113,7 +1124,7 @@ In lists and dialogs: **↑ / ↓** move, **Enter** chooses, **Esc** closes. In 
 
 Every date box in BillDesk works the same way:
 
-* Click it (or move to it with the keyboard): a **calendar** drops down. **Click** a day, or use the **arrow keys** (Page Up / Down change month) and **Enter**; **Today** jumps to today.
+* Click it, or its **📅 button**, or move to it with the keyboard: a **calendar** drops down. **Click** a day, or use the **arrow keys** (Page Up / Down change month) and **Enter**; **Today** jumps to today.
 * You can also **type** a date: `13/10/2026`, `13-10-26`, `2026-10-13`. Press **Enter** to accept it.
 * Text turns **red** when the date cannot be used; the form tells you why when you save.
 * Days that are not allowed are **greyed** in the calendar.
@@ -1124,7 +1135,8 @@ Every date box in BillDesk works the same way:
 | Order date | required; not in the future |
 | Delivery date | required; not before the order date |
 | Fixed rate start / end | required; end not before start |
-| Report and statement From / To | optional; *To* not before *From* |
+| Report, statement and audit-log From / To | optional; *To* not before *From* |
+| Profit & Loss From / To; Trial Balance and Balance Sheet As of | optional (blank = all entries); *To* not before *From* |
 | Consolidated report From / To | required; *To* not before *From* |
 | Filters (Bill History, Orders) | optional; part of a date (`09/2026`) is fine |
 
