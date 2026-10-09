@@ -175,7 +175,7 @@ cells = [
         "metadata": {},
         "source": [
             "## 4. Double-Entry General Ledger Invariants\n",
-            "Every commercial transaction strictly posts equal Debits and Credits ($\sum \\text{Debits} == \\sum \\text{Credits}$). If unbalanced, transactions are rejected at the service layer."
+            "Every commercial transaction strictly posts equal Debits and Credits ($\\sum \\text{Debits} == \\sum \\text{Credits}$). If unbalanced, transactions are rejected at the service layer."
         ]
     },
     {

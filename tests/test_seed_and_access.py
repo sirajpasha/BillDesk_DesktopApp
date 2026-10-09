@@ -1,10 +1,8 @@
 """Regression tests for D-03 (seeded DB must be usable) and D-04 (role permissions enforced)."""
-from pathlib import Path
 from tkinter import messagebox
 
 import pytest
 
-from app.models.common import CurrentUser
 from app.repositories.master_repo import CustomerRepository, ItemRepository
 from app.services.auth_service import AuthService
 from app.services.billing_service import BillingService

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from app.repositories.accounting_repo import AccountingRepository
 from app.utils.currency import money
 

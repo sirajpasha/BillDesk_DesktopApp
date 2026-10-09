@@ -7,6 +7,7 @@ from app.services.master_service import MasterService
 from app.utils.currency import format_inr, format_balance
 from app.utils.formatters import format_date
 from app.ui.components.calendar_popup import attach_date_picker
+from app.ui import theme
 
 class MastersView(tk.Frame):
     """
@@ -19,35 +20,35 @@ class MastersView(tk.Frame):
     - 19-add-item.png (Add New Item Modal)
     """
     def __init__(self, parent, db, **kwargs):
-        super().__init__(parent, bg="#f8fafc", **kwargs)
+        super().__init__(parent, bg=theme.BG, **kwargs)
         self.db = db
         self.master_svc = MasterService(db)
 
         # Style notebook
         style = ttk.Style()
-        style.configure("Masters.TNotebook", background="#f8fafc")
-        style.configure("Masters.TNotebook.Tab", font=("Segoe UI", 9, "bold"), padding=[16, 6])
+        style.configure("Masters.TNotebook", background=theme.BG)
+        style.configure("Masters.TNotebook.Tab", font=theme.F_BOLD, padding=[16, 6])
 
         self.notebook = ttk.Notebook(self, style="Masters.TNotebook")
         self.notebook.pack(fill="both", expand=True, padx=20, pady=(12, 16))
 
         # Tab 1: Item Master (Matches 10-items.png)
-        self.items_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.items_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.items_tab, text="Item Master")
         self._build_items_tab()
 
         # Tab 2: Customer Master (Matches 09-customers.png)
-        self.customers_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.customers_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.customers_tab, text="Customer Master")
         self._build_customers_tab()
 
         # Tab 3: Supplier Master (Matches 11-suppliers.png)
-        self.suppliers_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.suppliers_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.suppliers_tab, text="Supplier Master")
         self._build_suppliers_tab()
 
         # Tab 4: Fixed Pricing
-        self.pricing_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.pricing_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.pricing_tab, text="Fixed Pricing")
         self._build_pricing_tab()
 
@@ -64,23 +65,23 @@ class MastersView(tk.Frame):
     # =========================================================================
     def _build_items_tab(self):
         # Header strip
-        top_bar = tk.Frame(self.items_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.items_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Item Master", font=("Segoe UI", 18, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-        tk.Label(title_box, text="Manage your product catalog with pricing, categories, and inventory details", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Item Master", font=("Segoe UI", 18, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
+        tk.Label(title_box, text="Manage your product catalog with pricing, categories, and inventory details", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
 
-        btn_box = tk.Frame(top_bar, bg="#f8fafc")
+        btn_box = tk.Frame(top_bar, bg=theme.BG)
         btn_box.pack(side="right")
 
         tk.Button(
             btn_box,
             text="📦 Manual Stock",
-            font=("Segoe UI", 9, "bold"),
-            bg="#ffffff",
-            fg="#334155",
+            font=theme.F_BOLD,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_700,
             relief="solid",
             bd=1,
             padx=12,
@@ -92,9 +93,9 @@ class MastersView(tk.Frame):
         tk.Button(
             btn_box,
             text="⚙ Fixed Pricing",
-            font=("Segoe UI", 9, "bold"),
-            bg="#ffffff",
-            fg="#334155",
+            font=theme.F_BOLD,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_700,
             relief="solid",
             bd=1,
             padx=12,
@@ -106,10 +107,10 @@ class MastersView(tk.Frame):
         tk.Button(
             btn_box,
             text="+ Add Item",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
             relief="flat",
             bd=0,
             padx=16,
@@ -119,26 +120,26 @@ class MastersView(tk.Frame):
         ).pack(side="left", padx=4)
 
         # 3 KPI Cards: Total Items (Purple), Active Items (Green), Categories (Orange)
-        kpi_row = tk.Frame(self.items_tab, bg="#f8fafc")
+        kpi_row = tk.Frame(self.items_tab, bg=theme.BG)
         kpi_row.pack(fill="x", padx=12, pady=(0, 12))
 
         self.kpi_item_total, _ = self._make_card(kpi_row, "0", "Total Items", "#5046e5")
-        self.kpi_item_active, _ = self._make_card(kpi_row, "0", "Active Items", "#059669")
-        self.kpi_item_cats, _ = self._make_card(kpi_row, "0", "Categories", "#d97706")
+        self.kpi_item_active, _ = self._make_card(kpi_row, "0", "Active Items", theme.SUCCESS)
+        self.kpi_item_cats, _ = self._make_card(kpi_row, "0", "Categories", theme.WARNING)
 
         # Table Container
-        card = tk.Frame(self.items_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.items_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         # Search Bar
-        search_bar = tk.Frame(card, bg="#ffffff", padx=16, pady=10)
+        search_bar = tk.Frame(card, bg=theme.SURFACE, padx=16, pady=10)
         search_bar.pack(fill="x")
 
         self.item_search_var = tk.StringVar()
         s_ent = tk.Entry(
             search_bar,
             textvariable=self.item_search_var,
-            font=("Segoe UI", 9),
+            font=theme.F_BODY,
             relief="solid",
             bd=1,
             width=40
@@ -147,15 +148,15 @@ class MastersView(tk.Frame):
         s_ent.insert(0, "")
         self.item_search_var.trace_add("write", lambda *_: self._filter_items())
 
-        tk.Label(search_bar, text=" (Search: Item name, alias, category...)", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(side="left", padx=6)
+        tk.Label(search_bar, text=" (Search: Item name, alias, category...)", font=theme.F_SMALL, fg=theme.TEXT_FAINT, bg=theme.SURFACE).pack(side="left", padx=6)
 
-        sub_strip = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
+        sub_strip = tk.Frame(card, bg=theme.BG, padx=16, pady=6)
         sub_strip.pack(fill="x")
-        self.item_count_label = tk.Label(sub_strip, text="Showing 0 items", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc")
+        self.item_count_label = tk.Label(sub_strip, text="Showing 0 items", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG)
         self.item_count_label.pack(side="left")
 
         # Table
-        tbl_frame = tk.Frame(card, bg="#ffffff", padx=12, pady=6)
+        tbl_frame = tk.Frame(card, bg=theme.SURFACE, padx=12, pady=6)
         tbl_frame.pack(fill="both", expand=True)
 
         cols = ("alias", "name", "category", "unit", "rate", "stock", "status")
@@ -183,11 +184,11 @@ class MastersView(tk.Frame):
         self.items_tree.bind("<Double-1>", lambda _e: self._on_edit_item())
 
         # Action bottom strip
-        act_bar = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
+        act_bar = tk.Frame(card, bg=theme.BG, padx=16, pady=6)
         act_bar.pack(fill="x", side="bottom")
-        tk.Button(act_bar, text="✏ Edit Selected", font=("Segoe UI", 8, "bold"), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_item).pack(side="left", padx=4)
-        tk.Button(act_bar, text="🗑 Delete Item", font=("Segoe UI", 8), bg="#fee2e2", fg="#991b1b", relief="solid", bd=1, padx=10, pady=3, command=self._delete_item).pack(side="left", padx=4)
-        tk.Button(act_bar, text="🔄 Refresh", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self.load_items).pack(side="right", padx=4)
+        tk.Button(act_bar, text="✏ Edit Selected", font=theme.F_LABEL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_item).pack(side="left", padx=4)
+        tk.Button(act_bar, text="🗑 Delete Item", font=theme.F_SMALL, bg="#fee2e2", fg="#991b1b", relief="solid", bd=1, padx=10, pady=3, command=self._delete_item).pack(side="left", padx=4)
+        tk.Button(act_bar, text="🔄 Refresh", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self.load_items).pack(side="right", padx=4)
 
     def _filter_items(self):
         q = self.item_search_var.get().strip().lower()
@@ -254,53 +255,53 @@ class MastersView(tk.Frame):
         dlg.geometry("460x520")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
         # Header with purple gradient feel
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=20, pady=16)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=20, pady=16)
         hdr.pack(fill="x")
-        tk.Label(hdr, text=title, font=("Segoe UI", 14, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
-        tk.Label(hdr, text="Manage product catalog with pricing and inventory details", font=("Segoe UI", 8), fg="#c7d2fe", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text=title, font=("Segoe UI", 14, "bold"), fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
+        tk.Label(hdr, text="Manage product catalog with pricing and inventory details", font=theme.F_SMALL, fg="#c7d2fe", bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=20, pady=14)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=20, pady=14)
         body.pack(fill="both", expand=True)
 
         item = item_data or {}
 
         # Section 1: Basic Information
-        tk.Label(body, text="📦 Basic Information", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w", pady=(0, 6))
+        tk.Label(body, text="📦 Basic Information", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(anchor="w", pady=(0, 6))
 
-        tk.Label(body, text="Alias (Fast Code) *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        alias_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Alias (Fast Code) *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        alias_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         alias_ent.pack(fill="x", pady=(2, 8))
         alias_ent.insert(0, str(item.get("item_alias", item.get("item_id", ""))))
 
-        tk.Label(body, text="Item Name *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        name_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Item Name *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        name_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         name_ent.pack(fill="x", pady=(2, 12))
         name_ent.insert(0, str(item.get("name", "")))
 
         # Section 2: Classification
-        tk.Label(body, text="🏷 Classification", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w", pady=(0, 6))
+        tk.Label(body, text="🏷 Classification", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(anchor="w", pady=(0, 6))
 
-        tk.Label(body, text="Category", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+        tk.Label(body, text="Category", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
         cat_cb = ttk.Combobox(body, values=["Vegetables", "Fruit", "Greens", "Herbs", "Exotic", "Other"], state="readonly")
         cat_cb.pack(fill="x", pady=(2, 8))
         cat_cb.set(item.get("category", "Vegetables"))
 
-        tk.Label(body, text="Unit of Measure", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+        tk.Label(body, text="Unit of Measure", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
         unit_cb = ttk.Combobox(body, values=["kg", "bunch", "box", "no", "crate"], state="readonly")
         unit_cb.pack(fill="x", pady=(2, 12))
         unit_cb.set(item.get("unit", "kg"))
 
         # Section 3: Pricing & Stock
-        tk.Label(body, text="Standard Rate (₹)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        rate_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Standard Rate (₹)", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        rate_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         rate_ent.pack(fill="x", pady=(2, 8))
         rate_ent.insert(0, str(item.get("standard_rate", item.get("rate", 0.0))))
 
-        tk.Label(body, text="Initial Stock Quantity", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        stock_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Initial Stock Quantity", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        stock_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         stock_ent.pack(fill="x", pady=(2, 14))
         stock_ent.insert(0, str(item.get("stock", 0.0)))
 
@@ -333,15 +334,15 @@ class MastersView(tk.Frame):
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
         # Footer Buttons
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=20, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=20, pady=10)
         ftr.pack(fill="x", side="bottom")
 
         tk.Button(
             ftr,
             text="Save Item",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -353,9 +354,9 @@ class MastersView(tk.Frame):
         tk.Button(
             ftr,
             text="Cancel",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#475569",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=14,
@@ -378,21 +379,21 @@ class MastersView(tk.Frame):
     # =========================================================================
     def _build_customers_tab(self):
         # Header strip
-        top_bar = tk.Frame(self.customers_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.customers_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Customer Master", font=("Segoe UI", 18, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-        tk.Label(title_box, text="Manage your customer database with comprehensive contact and billing information", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Customer Master", font=("Segoe UI", 18, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
+        tk.Label(title_box, text="Manage your customer database with comprehensive contact and billing information", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
 
         tk.Button(
             top_bar,
             text="+ Add Customer",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
             relief="flat",
             bd=0,
             padx=16,
@@ -402,26 +403,26 @@ class MastersView(tk.Frame):
         ).pack(side="right")
 
         # 3 KPI Cards: Total Customers (Purple), Active Customers (Green), Inactive (Orange)
-        kpi_row = tk.Frame(self.customers_tab, bg="#f8fafc")
+        kpi_row = tk.Frame(self.customers_tab, bg=theme.BG)
         kpi_row.pack(fill="x", padx=12, pady=(0, 12))
 
         self.kpi_cust_total, _ = self._make_card(kpi_row, "0", "Total Customers", "#5046e5")
-        self.kpi_cust_active, _ = self._make_card(kpi_row, "0", "Active Customers", "#059669")
-        self.kpi_cust_inactive, _ = self._make_card(kpi_row, "0", "Inactive", "#d97706")
+        self.kpi_cust_active, _ = self._make_card(kpi_row, "0", "Active Customers", theme.SUCCESS)
+        self.kpi_cust_inactive, _ = self._make_card(kpi_row, "0", "Inactive", theme.WARNING)
 
         # Table Container
-        card = tk.Frame(self.customers_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.customers_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         # Search Bar
-        search_bar = tk.Frame(card, bg="#ffffff", padx=16, pady=10)
+        search_bar = tk.Frame(card, bg=theme.SURFACE, padx=16, pady=10)
         search_bar.pack(fill="x")
 
         self.cust_search_var = tk.StringVar()
         c_ent = tk.Entry(
             search_bar,
             textvariable=self.cust_search_var,
-            font=("Segoe UI", 9),
+            font=theme.F_BODY,
             relief="solid",
             bd=1,
             width=40
@@ -429,15 +430,15 @@ class MastersView(tk.Frame):
         c_ent.pack(side="left", ipady=4)
         self.cust_search_var.trace_add("write", lambda *_: self._filter_customers())
 
-        tk.Label(search_bar, text=" (Search customer master...)", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(side="left", padx=6)
+        tk.Label(search_bar, text=" (Search customer master...)", font=theme.F_SMALL, fg=theme.TEXT_FAINT, bg=theme.SURFACE).pack(side="left", padx=6)
 
-        sub_strip = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
+        sub_strip = tk.Frame(card, bg=theme.BG, padx=16, pady=6)
         sub_strip.pack(fill="x")
-        self.cust_count_label = tk.Label(sub_strip, text="Total: 0 customers", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc")
+        self.cust_count_label = tk.Label(sub_strip, text="Total: 0 customers", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG)
         self.cust_count_label.pack(side="left")
 
         # Table
-        tbl_frame = tk.Frame(card, bg="#ffffff", padx=12, pady=6)
+        tbl_frame = tk.Frame(card, bg=theme.SURFACE, padx=12, pady=6)
         tbl_frame.pack(fill="both", expand=True)
 
         cols = ("company", "dc_company", "name", "phone", "address", "balance", "status")
@@ -465,11 +466,11 @@ class MastersView(tk.Frame):
         self.cust_tree.bind("<Double-1>", lambda _e: self._on_edit_customer())
 
         # Action bottom strip
-        act_bar = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
+        act_bar = tk.Frame(card, bg=theme.BG, padx=16, pady=6)
         act_bar.pack(fill="x", side="bottom")
-        tk.Button(act_bar, text="✏ Edit Customer", font=("Segoe UI", 8, "bold"), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_customer).pack(side="left", padx=4)
-        tk.Button(act_bar, text="📒 Statement", font=("Segoe UI", 8, "bold"), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._on_customer_statement).pack(side="left", padx=4)
-        tk.Button(act_bar, text="🔄 Refresh", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self.load_customers).pack(side="right", padx=4)
+        tk.Button(act_bar, text="✏ Edit Customer", font=theme.F_LABEL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_customer).pack(side="left", padx=4)
+        tk.Button(act_bar, text="📒 Statement", font=theme.F_LABEL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self._on_customer_statement).pack(side="left", padx=4)
+        tk.Button(act_bar, text="🔄 Refresh", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self.load_customers).pack(side="right", padx=4)
 
     def _filter_customers(self):
         q = self.cust_search_var.get().strip().lower()
@@ -550,21 +551,21 @@ class MastersView(tk.Frame):
         dlg.geometry("740x670")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
         # Header with purple gradient feel
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=20, pady=16)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=20, pady=16)
         hdr.pack(fill="x")
-        tk.Label(hdr, text=title, font=("Segoe UI", 14, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
-        tk.Label(hdr, text="Manage customer database with comprehensive contact and billing information", font=("Segoe UI", 8), fg="#c7d2fe", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text=title, font=("Segoe UI", 14, "bold"), fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
+        tk.Label(hdr, text="Manage customer database with comprehensive contact and billing information", font=theme.F_SMALL, fg="#c7d2fe", bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=20, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=20, pady=12)
         body.pack(fill="both", expand=True)
 
         cust = cust_data or {}
 
         # Company Selection Row (Billing Company & DC Company)
-        comp_row = tk.Frame(body, bg="#ffffff")
+        comp_row = tk.Frame(body, bg=theme.SURFACE)
         comp_row.pack(fill="x", pady=(0, 8))
 
         all_companies = self.master_svc.get_all_companies() or []
@@ -573,10 +574,10 @@ class MastersView(tk.Frame):
             company_options = [f"Company0001: {settings.default_company_name}"]
 
         # Left: Billing Company
-        col_bcomp = tk.Frame(comp_row, bg="#ffffff")
+        col_bcomp = tk.Frame(comp_row, bg=theme.SURFACE)
         col_bcomp.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        tk.Label(col_bcomp, text="Billing Company *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        bcomp_cbo = ttk.Combobox(col_bcomp, values=company_options, state="readonly", font=("Segoe UI", 9))
+        tk.Label(col_bcomp, text="Billing Company *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        bcomp_cbo = ttk.Combobox(col_bcomp, values=company_options, state="readonly", font=theme.F_BODY)
         bcomp_cbo.pack(fill="x", pady=(2, 4))
         curr_bcomp_id = cust.get("company_id", "Company0001")
         bcomp_idx = 0
@@ -587,11 +588,11 @@ class MastersView(tk.Frame):
         bcomp_cbo.current(bcomp_idx)
 
         # Right: DC Company
-        col_dcomp = tk.Frame(comp_row, bg="#ffffff")
+        col_dcomp = tk.Frame(comp_row, bg=theme.SURFACE)
         col_dcomp.pack(side="left", fill="x", expand=True, padx=(10, 0))
-        tk.Label(col_dcomp, text="DC Company (Challan Header)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+        tk.Label(col_dcomp, text="DC Company (Challan Header)", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
         dc_options = ["None (Same as Billing Company)"] + company_options
-        dcomp_cbo = ttk.Combobox(col_dcomp, values=dc_options, state="readonly", font=("Segoe UI", 9))
+        dcomp_cbo = ttk.Combobox(col_dcomp, values=dc_options, state="readonly", font=theme.F_BODY)
         dcomp_cbo.pack(fill="x", pady=(2, 4))
         curr_dcomp_id = cust.get("dc_company_id", "")
         dcomp_idx = 0
@@ -602,47 +603,47 @@ class MastersView(tk.Frame):
         dcomp_cbo.current(dcomp_idx)
 
         # 2 Columns Frame
-        two_col = tk.Frame(body, bg="#ffffff")
+        two_col = tk.Frame(body, bg=theme.SURFACE)
         two_col.pack(fill="x", pady=(0, 10))
 
         # Left Column: Ship To
-        col_left = tk.Frame(two_col, bg="#ffffff")
+        col_left = tk.Frame(two_col, bg=theme.SURFACE)
         col_left.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
-        tk.Label(col_left, text="🚚 Ship To", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w", pady=(0, 4))
+        tk.Label(col_left, text="🚚 Ship To", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(anchor="w", pady=(0, 4))
 
-        tk.Label(col_left, text="Customer Name *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        name_ent = tk.Entry(col_left, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_left, text="Customer Name *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        name_ent = tk.Entry(col_left, font=theme.F_BODY, relief="solid", bd=1)
         name_ent.pack(fill="x", pady=(2, 6))
         name_ent.insert(0, str(cust.get("name", "")))
 
-        tk.Label(col_left, text="Contact Person", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        person_ent = tk.Entry(col_left, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_left, text="Contact Person", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        person_ent = tk.Entry(col_left, font=theme.F_BODY, relief="solid", bd=1)
         person_ent.pack(fill="x", pady=(2, 6))
         person_ent.insert(0, str(cust.get("contact_person") or cust.get("contact_person_name", "")))
 
-        tk.Label(col_left, text="Address", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        addr_ent = tk.Entry(col_left, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_left, text="Address", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        addr_ent = tk.Entry(col_left, font=theme.F_BODY, relief="solid", bd=1)
         addr_ent.pack(fill="x", pady=(2, 6))
         addr_ent.insert(0, str(cust.get("address", "")))
 
-        tk.Label(col_left, text="Phone / WhatsApp", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        phone_ent = tk.Entry(col_left, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_left, text="Phone / WhatsApp", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        phone_ent = tk.Entry(col_left, font=theme.F_BODY, relief="solid", bd=1)
         phone_ent.pack(fill="x", pady=(2, 6))
         phone_ent.insert(0, str(cust.get("phone") or cust.get("contact_person_phone", "")))
 
-        tk.Label(col_left, text="Email", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        email_ent = tk.Entry(col_left, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_left, text="Email", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        email_ent = tk.Entry(col_left, font=theme.F_BODY, relief="solid", bd=1)
         email_ent.pack(fill="x", pady=(2, 6))
         email_ent.insert(0, str(cust.get("email") or cust.get("contact_person_email", "")))
 
         # Right Column: Bill To with "Same as Ship To" button
-        col_right = tk.Frame(two_col, bg="#ffffff")
+        col_right = tk.Frame(two_col, bg=theme.SURFACE)
         col_right.pack(side="left", fill="both", expand=True, padx=(10, 0))
 
-        bill_hdr = tk.Frame(col_right, bg="#ffffff")
+        bill_hdr = tk.Frame(col_right, bg=theme.SURFACE)
         bill_hdr.pack(fill="x", pady=(0, 4))
-        tk.Label(bill_hdr, text="📄 Bill To", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left")
+        tk.Label(bill_hdr, text="📄 Bill To", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left")
 
         def copy_ship_to_bill():
             bill_name_ent.delete(0, "end")
@@ -658,8 +659,8 @@ class MastersView(tk.Frame):
             bill_hdr,
             text="📄 Same as Ship To",
             font=("Segoe UI", 7, "bold"),
-            bg="#f1f5f9",
-            fg="#475569",
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=6,
@@ -668,8 +669,8 @@ class MastersView(tk.Frame):
             command=copy_ship_to_bill
         ).pack(side="right")
 
-        tk.Label(col_right, text="DC Company Name (bill_to_name) *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        bill_name_ent = tk.Entry(col_right, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_right, text="DC Company Name (bill_to_name) *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        bill_name_ent = tk.Entry(col_right, font=theme.F_BODY, relief="solid", bd=1)
         bill_name_ent.pack(fill="x", pady=(2, 6))
         bill_name_ent.insert(0, str(cust.get("bill_to_name") or cust.get("name", "")))
 
@@ -683,48 +684,48 @@ class MastersView(tk.Frame):
 
         dcomp_cbo.bind("<<ComboboxSelected>>", _on_dc_comp_selected)
 
-        tk.Label(col_right, text="Bill To Phone", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        bill_phone_ent = tk.Entry(col_right, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_right, text="Bill To Phone", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        bill_phone_ent = tk.Entry(col_right, font=theme.F_BODY, relief="solid", bd=1)
         bill_phone_ent.pack(fill="x", pady=(2, 6))
         bill_phone_ent.insert(0, str(cust.get("bill_to_phone") or cust.get("phone") or cust.get("contact_person_phone", "")))
 
-        tk.Label(col_right, text="Bill To Address", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        bill_addr_ent = tk.Entry(col_right, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_right, text="Bill To Address", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        bill_addr_ent = tk.Entry(col_right, font=theme.F_BODY, relief="solid", bd=1)
         bill_addr_ent.pack(fill="x", pady=(2, 6))
         bill_addr_ent.insert(0, str(cust.get("bill_to_address") or cust.get("address", "")))
 
-        tk.Label(col_right, text="Bill To Email", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        bill_email_ent = tk.Entry(col_right, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_right, text="Bill To Email", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        bill_email_ent = tk.Entry(col_right, font=theme.F_BODY, relief="solid", bd=1)
         bill_email_ent.pack(fill="x", pady=(2, 6))
         bill_email_ent.insert(0, str(cust.get("bill_to_email") or cust.get("email", "")))
 
         # Section 3: Additional Information
-        tk.Label(body, text="Additional Information", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w", pady=(6, 4))
+        tk.Label(body, text="Additional Information", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(anchor="w", pady=(6, 4))
 
-        extra_row = tk.Frame(body, bg="#ffffff")
+        extra_row = tk.Frame(body, bg=theme.SURFACE)
         extra_row.pack(fill="x")
 
         # Credit Limit
-        col_c1 = tk.Frame(extra_row, bg="#ffffff")
+        col_c1 = tk.Frame(extra_row, bg=theme.SURFACE)
         col_c1.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        tk.Label(col_c1, text="Credit Limit (₹)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        credit_ent = tk.Entry(col_c1, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_c1, text="Credit Limit (₹)", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        credit_ent = tk.Entry(col_c1, font=theme.F_BODY, relief="solid", bd=1)
         credit_ent.pack(fill="x", pady=(2, 6))
         credit_ent.insert(0, str(cust.get("credit_limit", 0.0)))
 
         # GST Number
-        col_c2 = tk.Frame(extra_row, bg="#ffffff")
+        col_c2 = tk.Frame(extra_row, bg=theme.SURFACE)
         col_c2.pack(side="left", fill="x", expand=True, padx=6)
-        tk.Label(col_c2, text="GSTIN / Tax ID", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        gst_ent = tk.Entry(col_c2, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_c2, text="GSTIN / Tax ID", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        gst_ent = tk.Entry(col_c2, font=theme.F_BODY, relief="solid", bd=1)
         gst_ent.pack(fill="x", pady=(2, 6))
         gst_ent.insert(0, str(cust.get("gst_number", "")))
 
         # Opening Balance
-        col_c3 = tk.Frame(extra_row, bg="#ffffff")
+        col_c3 = tk.Frame(extra_row, bg=theme.SURFACE)
         col_c3.pack(side="left", fill="x", expand=True, padx=(6, 0))
-        tk.Label(col_c3, text="Opening Balance (₹)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        bal_ent = tk.Entry(col_c3, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(col_c3, text="Opening Balance (₹)", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        bal_ent = tk.Entry(col_c3, font=theme.F_BODY, relief="solid", bd=1)
         bal_ent.pack(fill="x", pady=(2, 6))
         bal_ent.insert(0, str(cust.get("current_balance", 0.0)))
 
@@ -774,15 +775,15 @@ class MastersView(tk.Frame):
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
         # Footer Buttons
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=20, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=20, pady=10)
         ftr.pack(fill="x", side="bottom")
 
         tk.Button(
             ftr,
             text="Save Customer",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -794,9 +795,9 @@ class MastersView(tk.Frame):
         tk.Button(
             ftr,
             text="Cancel",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#475569",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=14,
@@ -809,20 +810,20 @@ class MastersView(tk.Frame):
     # =========================================================================
     def _build_suppliers_tab(self):
         # Header strip
-        top_bar = tk.Frame(self.suppliers_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.suppliers_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Supplier Master", font=("Segoe UI", 18, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-        tk.Label(title_box, text="Manage your vendor database with contact information and business details", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Supplier Master", font=("Segoe UI", 18, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
+        tk.Label(title_box, text="Manage your vendor database with contact information and business details", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
 
         tk.Button(
             top_bar,
             text="+ Add Supplier",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -832,26 +833,26 @@ class MastersView(tk.Frame):
         ).pack(side="right")
 
         # 3 KPI Cards: Total Suppliers (Purple), Active Suppliers (Green), GST Registered (Orange)
-        kpi_row = tk.Frame(self.suppliers_tab, bg="#f8fafc")
+        kpi_row = tk.Frame(self.suppliers_tab, bg=theme.BG)
         kpi_row.pack(fill="x", padx=12, pady=(0, 12))
 
         self.kpi_supp_total, _ = self._make_card(kpi_row, "0", "Total Suppliers", "#5046e5")
-        self.kpi_supp_active, _ = self._make_card(kpi_row, "0", "Active Suppliers", "#059669")
-        self.kpi_supp_gst, _ = self._make_card(kpi_row, "0", "GST Registered", "#d97706")
+        self.kpi_supp_active, _ = self._make_card(kpi_row, "0", "Active Suppliers", theme.SUCCESS)
+        self.kpi_supp_gst, _ = self._make_card(kpi_row, "0", "GST Registered", theme.WARNING)
 
         # Table Container
-        card = tk.Frame(self.suppliers_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.suppliers_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         # Search Bar
-        search_bar = tk.Frame(card, bg="#ffffff", padx=16, pady=10)
+        search_bar = tk.Frame(card, bg=theme.SURFACE, padx=16, pady=10)
         search_bar.pack(fill="x")
 
         self.supp_search_var = tk.StringVar()
         sp_ent = tk.Entry(
             search_bar,
             textvariable=self.supp_search_var,
-            font=("Segoe UI", 9),
+            font=theme.F_BODY,
             relief="solid",
             bd=1,
             width=40
@@ -859,15 +860,15 @@ class MastersView(tk.Frame):
         sp_ent.pack(side="left", ipady=4)
         self.supp_search_var.trace_add("write", lambda *_: self._filter_suppliers())
 
-        tk.Label(search_bar, text=" (Search supplier master...)", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(side="left", padx=6)
+        tk.Label(search_bar, text=" (Search supplier master...)", font=theme.F_SMALL, fg=theme.TEXT_FAINT, bg=theme.SURFACE).pack(side="left", padx=6)
 
-        sub_strip = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
+        sub_strip = tk.Frame(card, bg=theme.BG, padx=16, pady=6)
         sub_strip.pack(fill="x")
-        self.supp_count_label = tk.Label(sub_strip, text="Total: 0 suppliers", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc")
+        self.supp_count_label = tk.Label(sub_strip, text="Total: 0 suppliers", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG)
         self.supp_count_label.pack(side="left")
 
         # Table
-        tbl_frame = tk.Frame(card, bg="#ffffff", padx=12, pady=6)
+        tbl_frame = tk.Frame(card, bg=theme.SURFACE, padx=12, pady=6)
         tbl_frame.pack(fill="both", expand=True)
 
         cols = ("supplier_id", "company", "contact", "address", "gst", "status")
@@ -893,10 +894,10 @@ class MastersView(tk.Frame):
         self.supp_tree.bind("<Double-1>", lambda _e: self._on_edit_supplier())
 
         # Action bottom strip
-        act_bar = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
+        act_bar = tk.Frame(card, bg=theme.BG, padx=16, pady=6)
         act_bar.pack(fill="x", side="bottom")
-        tk.Button(act_bar, text="✏ Edit Supplier", font=("Segoe UI", 8, "bold"), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_supplier).pack(side="left", padx=4)
-        tk.Button(act_bar, text="🔄 Refresh", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self.load_suppliers).pack(side="right", padx=4)
+        tk.Button(act_bar, text="✏ Edit Supplier", font=theme.F_LABEL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_supplier).pack(side="left", padx=4)
+        tk.Button(act_bar, text="🔄 Refresh", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=3, command=self.load_suppliers).pack(side="right", padx=4)
 
     def _filter_suppliers(self):
         q = self.supp_search_var.get().strip().lower()
@@ -954,42 +955,42 @@ class MastersView(tk.Frame):
         dlg.geometry("480x520")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=20, pady=16)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=20, pady=16)
         hdr.pack(fill="x")
-        tk.Label(hdr, text=title, font=("Segoe UI", 14, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
-        tk.Label(hdr, text="Manage vendor database with contact information and tax details", font=("Segoe UI", 8), fg="#c7d2fe", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text=title, font=("Segoe UI", 14, "bold"), fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
+        tk.Label(hdr, text="Manage vendor database with contact information and tax details", font=theme.F_SMALL, fg="#c7d2fe", bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=20, pady=14)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=20, pady=14)
         body.pack(fill="both", expand=True)
 
         supp = supp_data or {}
 
-        tk.Label(body, text="Supplier ID *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        sid_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Supplier ID *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        sid_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         sid_ent.pack(fill="x", pady=(2, 8))
         sid_ent.insert(0, str(supp.get("supplier_id", "")))
         if not is_new:
             sid_ent.config(state="disabled")
 
-        tk.Label(body, text="Company / Vendor Name *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        name_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Company / Vendor Name *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        name_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         name_ent.pack(fill="x", pady=(2, 8))
         name_ent.insert(0, str(supp.get("name", "")))
 
-        tk.Label(body, text="Contact Phone", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        phone_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Contact Phone", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        phone_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         phone_ent.pack(fill="x", pady=(2, 8))
         phone_ent.insert(0, str(supp.get("phone", "")))
 
-        tk.Label(body, text="Address / Market Location", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        addr_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Address / Market Location", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        addr_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         addr_ent.pack(fill="x", pady=(2, 8))
         addr_ent.insert(0, str(supp.get("address", "")))
 
-        tk.Label(body, text="GSTIN (Tax ID)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        gst_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="GSTIN (Tax ID)", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        gst_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         gst_ent.pack(fill="x", pady=(2, 8))
         gst_ent.insert(0, str(supp.get("gst_number", "")))
 
@@ -1014,15 +1015,15 @@ class MastersView(tk.Frame):
             except Exception as ex:
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=20, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=20, pady=10)
         ftr.pack(fill="x", side="bottom")
 
         tk.Button(
             ftr,
             text="Save Supplier",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -1034,9 +1035,9 @@ class MastersView(tk.Frame):
         tk.Button(
             ftr,
             text="Cancel",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#475569",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=14,
@@ -1048,20 +1049,20 @@ class MastersView(tk.Frame):
     # 4. FIXED PRICING TAB (Matches 16-fixed-rates.png)
     # =========================================================================
     def _build_pricing_tab(self):
-        top_bar = tk.Frame(self.pricing_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.pricing_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Customer Fixed Pricing", font=("Segoe UI", 18, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-        tk.Label(title_box, text="Manage customer-specific negotiated contract produce rates and validity", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Customer Fixed Pricing", font=("Segoe UI", 18, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
+        tk.Label(title_box, text="Manage customer-specific negotiated contract produce rates and validity", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
 
         tk.Button(
             top_bar,
             text="+ Add Contract Price",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -1070,10 +1071,10 @@ class MastersView(tk.Frame):
             command=self._add_fixed_price_dialog
         ).pack(side="right")
 
-        card = tk.Frame(self.pricing_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.pricing_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
-        tbl_frame = tk.Frame(card, bg="#ffffff", padx=12, pady=10)
+        tbl_frame = tk.Frame(card, bg=theme.SURFACE, padx=12, pady=10)
         tbl_frame.pack(fill="both", expand=True)
 
         cols = ("customer_id", "item_id", "rate", "start_date", "end_date", "is_active")
@@ -1124,36 +1125,36 @@ class MastersView(tk.Frame):
         dlg.geometry("420x360")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=16, pady=12)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=16, pady=12)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Add Fixed Contract Price", font=("Segoe UI", 12, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text="Add Fixed Contract Price", font=theme.F_H12B, fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         body.pack(fill="both", expand=True)
 
-        tk.Label(body, text="Customer ID *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        cust_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Customer ID *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        cust_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         cust_ent.pack(fill="x", pady=(2, 6))
 
-        tk.Label(body, text="Item ID *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        item_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Item ID *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        item_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         item_ent.pack(fill="x", pady=(2, 6))
 
-        tk.Label(body, text="Contract Rate (₹) *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        rate_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Contract Rate (₹) *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        rate_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         rate_ent.pack(fill="x", pady=(2, 6))
 
         now = datetime.now()
-        tk.Label(body, text="Start Date *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        sdate_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="Start Date *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        sdate_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         sdate_ent.pack(fill="x", pady=(2, 6))
         sdate_ent.insert(0, now.strftime("%d/%m/%Y"))
         s_picker = attach_date_picker(sdate_ent, "%d/%m/%Y", allow_blank=False, label="The start date")
 
-        tk.Label(body, text="End Date *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-        edate_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
+        tk.Label(body, text="End Date *", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
+        edate_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1)
         edate_ent.pack(fill="x", pady=(2, 10))
         edate_ent.insert(0, (now + timedelta(days=30)).strftime("%d/%m/%Y"))
         e_picker = attach_date_picker(edate_ent, "%d/%m/%Y", allow_blank=False, label="The end date", not_before=lambda: s_picker.value())
@@ -1175,10 +1176,10 @@ class MastersView(tk.Frame):
             except Exception as ex:
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=16, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=10)
         ftr.pack(fill="x", side="bottom")
-        tk.Button(ftr, text="Save Price", font=("Segoe UI", 9, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=14, pady=5, command=on_save).pack(side="right", padx=(6, 0))
-        tk.Button(ftr, text="Cancel", font=("Segoe UI", 9), bg="#f1f5f9", fg="#475569", relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
+        tk.Button(ftr, text="Save Price", font=theme.F_BOLD, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=14, pady=5, command=on_save).pack(side="right", padx=(6, 0))
+        tk.Button(ftr, text="Cancel", font=theme.F_BODY, bg=theme.HEADING_BG, fg=theme.SLATE_600, relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
 
     # =========================================================================
     # Helpers
@@ -1191,7 +1192,7 @@ class MastersView(tk.Frame):
             card,
             text=initial_val,
             font=("Segoe UI", 24, "bold"),
-            fg="#ffffff",
+            fg=theme.SURFACE,
             bg=bg_color,
             anchor="w"
         )
@@ -1200,8 +1201,8 @@ class MastersView(tk.Frame):
         sub_label = tk.Label(
             card,
             text=label_text,
-            font=("Segoe UI", 9),
-            fg="#e0e7ff" if bg_color == "#5046e5" else "#dcfce7" if bg_color == "#059669" else "#fef3c7",
+            font=theme.F_BODY,
+            fg="#e0e7ff" if bg_color == "#5046e5" else "#dcfce7" if bg_color == theme.SUCCESS else "#fef3c7",
             bg=bg_color,
             anchor="w"
         )

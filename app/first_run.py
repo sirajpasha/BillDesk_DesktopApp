@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 import bcrypt
 
 from app import paths
-from app.repositories.base import BaseRepository
 
 log = logging.getLogger(__name__)
 

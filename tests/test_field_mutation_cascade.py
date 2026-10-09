@@ -387,7 +387,7 @@ def test_procurement_grn_and_tds_purchase_bill_cascade(fake_db):
     proc_svc = ProcurementService(fake_db)
 
     # 1. Test GRN
-    po = fake_db.collection("purchase_orders").insert_one({
+    fake_db.collection("purchase_orders").insert_one({
         "po_id": "PO-1001",
         "supplier_id": "SUP001",
         "supplier_name": "Fresh Farm Suppliers",
@@ -471,7 +471,6 @@ def test_cash_session_and_drawer_variance(fake_db):
 
 def test_main_window_all_views_initialization(fake_db, tk_root):
     """UI Integration Test: MainWindow mounts all 10 ERP modules cleanly without error."""
-    import tkinter as tk
     from app.services.auth_service import AuthService
     from app.ui.main_window import MainWindow
     from app.models.common import CurrentUser

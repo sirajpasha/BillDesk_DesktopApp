@@ -1,10 +1,9 @@
 from __future__ import annotations
-import logging
 import os
 import re
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.config.settings import settings
@@ -19,11 +18,12 @@ from app.services.master_service import MasterService
 from app.services.pricing_service import PricingService
 from app.printing.invoice import generate_dc_pdf
 from app.ui.print_preview import show_print_preview
-from app.utils.currency import format_inr
 from app.utils.formatters import format_date
+from app.ui import theme
+from app.ui.components.line_grid import LineGridMixin
 
 
-class OrderFormView(tk.Frame):
+class OrderFormView(LineGridMixin, tk.Frame):
     """
     Create New Customer Order / Edit Order View.
     Shares identical UI/UX, column structure, spreadsheet keyboard traversal,
@@ -34,7 +34,7 @@ class OrderFormView(tk.Frame):
     ITEM_UNITS = ["Kg", "Nos", "Bunch", "Pkt", "Box", "Bag", "Dz", "Gm", "Crate"]
 
     def __init__(self, parent, db, current_user, on_navigate=None, **kwargs):
-        super().__init__(parent, bg="#ffffff", **kwargs)
+        super().__init__(parent, bg=theme.SURFACE, **kwargs)
         self.db = db
         self.current_user = current_user
         self.on_navigate = on_navigate
@@ -79,29 +79,29 @@ class OrderFormView(tk.Frame):
         self.rowconfigure(2, weight=1)
 
         # ---------------- 1. TITLE BAR ----------------
-        title_bar = tk.Frame(self, bg="#ffffff", padx=20, pady=10)
+        title_bar = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=10)
         title_bar.grid(row=0, column=0, sticky="ew")
 
         self.title_label = tk.Label(
             title_bar,
             text="New Order",
             font=("Segoe UI", 16, "bold"),
-            fg="#0f172a",
-            bg="#ffffff"
+            fg=theme.TEXT,
+            bg=theme.SURFACE
         )
         self.title_label.pack(side="left")
 
-        btn_box = tk.Frame(title_bar, bg="#ffffff")
+        btn_box = tk.Frame(title_bar, bg=theme.SURFACE)
         btn_box.pack(side="right")
 
         self.smart_btn = tk.Button(
             btn_box,
             text="⇧ Smart (F8)",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             bg="#1976d2",
-            fg="#ffffff",
+            fg=theme.SURFACE,
             activebackground="#1565c0",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -114,11 +114,11 @@ class OrderFormView(tk.Frame):
         self.close_btn = tk.Button(
             btn_box,
             text="Close (Esc)",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             bg="#546e7a",
-            fg="#ffffff",
+            fg=theme.SURFACE,
             activebackground="#455a64",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -129,14 +129,14 @@ class OrderFormView(tk.Frame):
         self.close_btn.pack(side="left")
 
         # Subtle divider
-        tk.Frame(self, bg="#e2e8f0", height=1).grid(row=0, column=0, sticky="sew")
+        tk.Frame(self, bg=theme.BORDER, height=1).grid(row=0, column=0, sticky="sew")
 
         # ---------------- 2. METADATA CONTROLS ROW ----------------
-        meta_bar = tk.Frame(self, bg="#ffffff", padx=20, pady=10)
+        meta_bar = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=10)
         meta_bar.grid(row=1, column=0, sticky="ew")
 
         # Company
-        tk.Label(meta_bar, text="Company:", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left", padx=(0, 6))
+        tk.Label(meta_bar, text="Company:", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
         comp_names = [c.get("name", settings.default_company_name) for c in self.companies]
         self.company_cbo = ttk.Combobox(meta_bar, values=comp_names, width=22, state="readonly")
         if comp_names:
@@ -144,14 +144,14 @@ class OrderFormView(tk.Frame):
         self.company_cbo.pack(side="left", padx=(0, 20))
 
         # Customer (F5)
-        tk.Label(meta_bar, text="Customer (F5):", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left", padx=(0, 6))
-        cust_box = tk.Frame(meta_bar, bg="#cbd5e1", padx=1, pady=1)
+        tk.Label(meta_bar, text="Customer (F5):", font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
+        cust_box = tk.Frame(meta_bar, bg=theme.BORDER_DARK, padx=1, pady=1)
         cust_box.pack(side="left", padx=(0, 20))
         self.customer_var = tk.StringVar(value="Select Customer (F5)")
         self.customer_ent = tk.Entry(
             cust_box,
             textvariable=self.customer_var,
-            font=("Segoe UI", 9),
+            font=theme.F_BODY,
             width=26,
             relief="flat",
             bd=0
@@ -163,43 +163,43 @@ class OrderFormView(tk.Frame):
         self.customer_ent.bind("<Key>", lambda _e: self._open_customer_search())
 
         # Date
-        tk.Label(meta_bar, text="Date:", font=("Segoe UI", 9), fg="#64748b", bg="#ffffff").pack(side="left", padx=(0, 4))
-        date_box = tk.Frame(meta_bar, bg="#cbd5e1", padx=1, pady=1)
+        tk.Label(meta_bar, text="Date:", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left", padx=(0, 4))
+        date_box = tk.Frame(meta_bar, bg=theme.BORDER_DARK, padx=1, pady=1)
         date_box.pack(side="left", padx=(0, 6))
         self.date_var = tk.StringVar(value=date.today().strftime("%d - %m - %Y"))
-        self.date_ent = tk.Entry(date_box, textvariable=self.date_var, font=("Segoe UI", 9), width=14, relief="flat", bd=0, justify="center")
+        self.date_ent = tk.Entry(date_box, textvariable=self.date_var, font=theme.F_BODY, width=14, relief="flat", bd=0, justify="center")
         self.date_ent.pack(side="left", ipady=3, padx=3)
         self.date_picker = attach_date_picker(self.date_ent, "%d - %m - %Y", on_selected=lambda _d: self.after(60, lambda: self.delivery_ent.focus_set()),
                                               allow_future=False, allow_blank=False, label="The order date")
-        cal1 = tk.Label(date_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2")
+        cal1 = tk.Label(date_box, text="📅", bg=theme.SURFACE, fg=theme.TEXT_MUTED, font=theme.F_BODY, cursor="hand2")
         cal1.pack(side="left", padx=(0, 4))
         cal1.bind("<Button-1>", lambda _e: (self.date_ent.focus_set(), self.date_picker.open()))
 
         # Status Combobox (visible in edit mode)
-        self.status_container = tk.Frame(meta_bar, bg="#ffffff")
-        tk.Label(self.status_container, text="Status:", font=("Segoe UI", 9), fg="#64748b", bg="#ffffff").pack(side="left", padx=(10, 4))
+        self.status_container = tk.Frame(meta_bar, bg=theme.SURFACE)
+        tk.Label(self.status_container, text="Status:", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left", padx=(10, 4))
         self.status_cbo = ttk.Combobox(self.status_container, values=["Pending", "Confirmed", "Delivered", "Billed", "Cancelled"], width=12, state="readonly")
         self.status_cbo.current(0)
         self.status_cbo.pack(side="left", padx=(0, 10))
 
         # Delivery Date
-        self.delivery_container = tk.Frame(meta_bar, bg="#ffffff")
+        self.delivery_container = tk.Frame(meta_bar, bg=theme.SURFACE)
         self.delivery_container.pack(side="right")
-        tk.Label(self.delivery_container, text="Delivery:", font=("Segoe UI", 9), fg="#64748b", bg="#ffffff").pack(side="left", padx=(0, 4))
-        deliv_box = tk.Frame(self.delivery_container, bg="#cbd5e1", padx=1, pady=1)
+        tk.Label(self.delivery_container, text="Delivery:", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left", padx=(0, 4))
+        deliv_box = tk.Frame(self.delivery_container, bg=theme.BORDER_DARK, padx=1, pady=1)
         deliv_box.pack(side="left")
         tomorrow = date.today() + timedelta(days=1)
         self.delivery_var = tk.StringVar(value=tomorrow.strftime("%d - %m - %Y"))
-        self.delivery_ent = tk.Entry(deliv_box, textvariable=self.delivery_var, font=("Segoe UI", 9), width=14, relief="flat", bd=0, justify="center")
+        self.delivery_ent = tk.Entry(deliv_box, textvariable=self.delivery_var, font=theme.F_BODY, width=14, relief="flat", bd=0, justify="center")
         self.delivery_ent.pack(side="left", ipady=3, padx=3)
         self.delivery_picker = attach_date_picker(self.delivery_ent, "%d - %m - %Y", on_selected=lambda _d: self.after(60, self.focus_first_empty_row),
                                                   allow_blank=False, not_before=lambda: self.date_picker.value(), label="The delivery date")
-        cal2 = tk.Label(deliv_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2")
+        cal2 = tk.Label(deliv_box, text="📅", bg=theme.SURFACE, fg=theme.TEXT_MUTED, font=theme.F_BODY, cursor="hand2")
         cal2.pack(side="left", padx=(0, 4))
         cal2.bind("<Button-1>", lambda _e: (self.delivery_ent.focus_set(), self.delivery_picker.open()))
 
         # ---------------- 3. ITEM SECTION (EXACT LOOK & FEEL AS BILLING FORM) ----------------
-        grid_container = tk.Frame(self, bg="#ffffff", highlightbackground="#cbd5e1", highlightthickness=1)
+        grid_container = tk.Frame(self, bg=theme.SURFACE, highlightbackground=theme.BORDER_DARK, highlightthickness=1)
         grid_container.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 8))
 
         # Column definitions matching New Bill form:
@@ -224,8 +224,8 @@ class OrderFormView(tk.Frame):
             lbl = tk.Label(
                 grid_header,
                 text=title,
-                font=("Segoe UI", 9, "bold"),
-                fg="#1e293b",
+                font=theme.F_BOLD,
+                fg=theme.TEXT_STRONG,
                 bg="#eef2f6",
                 anchor=anchor,
                 padx=6,
@@ -234,9 +234,9 @@ class OrderFormView(tk.Frame):
             lbl.grid(row=0, column=col_idx, sticky="nsew")
 
         # Scrollable table rows canvas
-        self.t_canvas = tk.Canvas(grid_container, bg="#ffffff", highlightthickness=0)
+        self.t_canvas = tk.Canvas(grid_container, bg=theme.SURFACE, highlightthickness=0)
         self.t_scroll = ttk.Scrollbar(grid_container, orient="vertical", command=self.t_canvas.yview)
-        self.rows_frame = tk.Frame(self.t_canvas, bg="#ffffff")
+        self.rows_frame = tk.Frame(self.t_canvas, bg=theme.SURFACE)
 
         self.rows_frame.bind("<Configure>", lambda e: self.t_canvas.configure(scrollregion=self.t_canvas.bbox("all")))
         self.t_win = self.t_canvas.create_window((0, 0), window=self.rows_frame, anchor="nw")
@@ -256,15 +256,15 @@ class OrderFormView(tk.Frame):
             self.row_widgets.append(row_data)
 
         # ---------------- 4. TOTAL ITEMS SUMMARY & FINANCIALS ----------------
-        summary_bar = tk.Frame(self, bg="#ffffff", padx=20, pady=4)
+        summary_bar = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=4)
         summary_bar.grid(row=3, column=0, sticky="ew")
 
         self.total_items_lbl = tk.Label(
             summary_bar,
             text="Total Items: 0",
-            font=("Segoe UI", 12, "bold"),
+            font=theme.F_H12B,
             fg="#1b5e20",
-            bg="#ffffff"
+            bg=theme.SURFACE
         )
         self.total_items_lbl.pack(side="left", padx=(0, 20))
 
@@ -272,54 +272,54 @@ class OrderFormView(tk.Frame):
             summary_bar,
             text="Total Amount: ₹0.00",
             font=("Segoe UI", 14, "bold"),
-            fg="#0f172a",
-            bg="#ffffff"
+            fg=theme.TEXT,
+            bg=theme.SURFACE
         )
         self.total_amount_lbl.pack(side="right", padx=10)
 
         # ---------------- 5. OPERATIONS BAR (CRATES OUT / IN / Comm / Mandi Fee) ----------------
-        ops_bar = tk.Frame(self, bg="#f8fafc", highlightbackground="#e2e8f0", highlightthickness=1, padx=20, pady=8)
+        ops_bar = tk.Frame(self, bg=theme.BG, highlightbackground=theme.BORDER, highlightthickness=1, padx=20, pady=8)
         ops_bar.grid(row=4, column=0, sticky="ew")
 
-        left_ops = tk.Frame(ops_bar, bg="#f8fafc")
+        left_ops = tk.Frame(ops_bar, bg=theme.BG)
         left_ops.pack(side="left")
 
-        tk.Label(left_ops, text="CRATES OUT:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
-        c_out_box = tk.Frame(left_ops, bg="#cbd5e1", padx=1, pady=1)
+        tk.Label(left_ops, text="CRATES OUT:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left", padx=(0, 4))
+        c_out_box = tk.Frame(left_ops, bg=theme.BORDER_DARK, padx=1, pady=1)
         c_out_box.pack(side="left", padx=(0, 16))
         self.crates_out_var = tk.StringVar(value="")
-        self.crates_out_ent = tk.Entry(c_out_box, textvariable=self.crates_out_var, font=("Segoe UI", 9), width=8, relief="flat", bd=0, justify="center")
+        self.crates_out_ent = tk.Entry(c_out_box, textvariable=self.crates_out_var, font=theme.F_BODY, width=8, relief="flat", bd=0, justify="center")
         self.crates_out_ent.pack(fill="both", ipady=2, padx=2)
 
-        tk.Label(left_ops, text="CRATES IN:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
-        c_in_box = tk.Frame(left_ops, bg="#cbd5e1", padx=1, pady=1)
+        tk.Label(left_ops, text="CRATES IN:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left", padx=(0, 4))
+        c_in_box = tk.Frame(left_ops, bg=theme.BORDER_DARK, padx=1, pady=1)
         c_in_box.pack(side="left", padx=(0, 16))
         self.crates_in_var = tk.StringVar(value="")
-        self.crates_in_ent = tk.Entry(c_in_box, textvariable=self.crates_in_var, font=("Segoe UI", 9), width=8, relief="flat", bd=0, justify="center")
+        self.crates_in_ent = tk.Entry(c_in_box, textvariable=self.crates_in_var, font=theme.F_BODY, width=8, relief="flat", bd=0, justify="center")
         self.crates_in_ent.pack(fill="both", ipady=2, padx=2)
 
-        right_ops = tk.Frame(ops_bar, bg="#f8fafc")
+        right_ops = tk.Frame(ops_bar, bg=theme.BG)
         right_ops.pack(side="right")
 
-        self.comm_lbl = tk.Label(right_ops, text="Comm: ₹ 0.00", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc")
+        self.comm_lbl = tk.Label(right_ops, text="Comm: ₹ 0.00", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG)
         self.comm_lbl.pack(side="left", padx=(0, 16))
 
-        self.mandi_fee_lbl = tk.Label(right_ops, text="Mandi Fee: ₹ 0.00", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc")
+        self.mandi_fee_lbl = tk.Label(right_ops, text="Mandi Fee: ₹ 0.00", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG)
         self.mandi_fee_lbl.pack(side="left")
 
         # ---------------- 6. FUNCTION KEYS TOOLBAR ----------------
-        fn_bar = tk.Frame(self, bg="#ffffff", padx=20, pady=8)
+        fn_bar = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=8)
         fn_bar.grid(row=5, column=0, sticky="ew")
 
         def _make_key_btn(parent, key_txt, action_txt, cmd):
-            box = tk.Frame(parent, bg="#ffffff", cursor="hand2")
+            box = tk.Frame(parent, bg=theme.SURFACE, cursor="hand2")
             box.pack(side="left", padx=(0, 14))
             badge = tk.Label(
                 box,
                 text=key_txt,
-                font=("Segoe UI", 8, "bold"),
-                bg="#334155",
-                fg="#ffffff",
+                font=theme.F_LABEL,
+                bg=theme.SLATE_700,
+                fg=theme.SURFACE,
                 padx=6,
                 pady=2
             )
@@ -327,9 +327,9 @@ class OrderFormView(tk.Frame):
             lbl = tk.Label(
                 box,
                 text=f" {action_txt}",
-                font=("Segoe UI", 9),
-                fg="#1e293b",
-                bg="#ffffff"
+                font=theme.F_BODY,
+                fg=theme.TEXT_STRONG,
+                bg=theme.SURFACE
             )
             lbl.pack(side="left")
             for w in (box, badge, lbl):
@@ -342,40 +342,39 @@ class OrderFormView(tk.Frame):
         self.save_print_fn_box = _make_key_btn(fn_bar, "F10", "Save & Print", self._on_f10_save_print)
         _make_key_btn(fn_bar, "Esc", "Close", self._on_close)
 
-    def _on_mousewheel(self, event):
-        if hasattr(self, "t_canvas") and event.delta:
-            self.t_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    def _row_code_and_name(self, row: dict):
+        return row["code_var"].get(), row["item_var"].get()
 
     def _create_row_widget(self, row_idx: int) -> dict:
-        row_f = tk.Frame(self.rows_frame, bg="#ffffff", height=32)
+        row_f = tk.Frame(self.rows_frame, bg=theme.SURFACE, height=32)
         row_f.pack(fill="x", expand=True, pady=1)
 
         for col_idx, weight, minsize, title, anchor in self.cols_def:
             row_f.grid_columnconfigure(col_idx, weight=weight, minsize=minsize)
 
         # 0. S.No
-        sno_lbl = tk.Label(row_f, text=str(row_idx + 1), font=("Segoe UI", 9), fg="#64748b", bg="#ffffff", anchor="center")
+        sno_lbl = tk.Label(row_f, text=str(row_idx + 1), font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE, anchor="center")
         sno_lbl.grid(row=0, column=0, sticky="nsew", padx=1, pady=2)
 
         # 1. Item Code
-        c_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        c_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         c_box.grid(row=0, column=1, sticky="nsew", padx=2, pady=2)
         code_var = tk.StringVar(value="")
-        code_ent = tk.Entry(c_box, textvariable=code_var, font=("Segoe UI", 9), width=5, relief="flat", bd=0)
+        code_ent = tk.Entry(c_box, textvariable=code_var, font=theme.F_BODY, width=5, relief="flat", bd=0)
         code_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # 2. Item Description
-        d_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        d_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         d_box.grid(row=0, column=2, sticky="nsew", padx=2, pady=2)
         item_var = tk.StringVar(value="")
-        name_ent = tk.Entry(d_box, textvariable=item_var, font=("Segoe UI", 9), width=10, relief="flat", bd=0)
+        name_ent = tk.Entry(d_box, textvariable=item_var, font=theme.F_BODY, width=10, relief="flat", bd=0)
         name_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # 3. Qty
-        q_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        q_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         q_box.grid(row=0, column=3, sticky="nsew", padx=2, pady=2)
         qty_var = tk.StringVar(value="")
-        qty_ent = tk.Entry(q_box, textvariable=qty_var, font=("Segoe UI", 9), width=5, relief="flat", bd=0, justify="right")
+        qty_ent = tk.Entry(q_box, textvariable=qty_var, font=theme.F_BODY, width=5, relief="flat", bd=0, justify="right")
         qty_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # 4. Unit
@@ -388,25 +387,25 @@ class OrderFormView(tk.Frame):
         unit_cbo.set("Kg")
 
         # 5. Rate
-        r_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        r_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         r_box.grid(row=0, column=5, sticky="nsew", padx=2, pady=2)
         rate_var = tk.StringVar(value="")
-        rate_ent = tk.Entry(r_box, textvariable=rate_var, font=("Segoe UI", 9), width=5, relief="flat", bd=0, justify="right")
+        rate_ent = tk.Entry(r_box, textvariable=rate_var, font=theme.F_BODY, width=5, relief="flat", bd=0, justify="right")
         rate_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # 6. Amount
-        amt_lbl = tk.Label(row_f, text="₹0.00", font=("Segoe UI", 9, "bold"), fg="#0f172a", bg="#ffffff", anchor="e", padx=4)
+        amt_lbl = tk.Label(row_f, text="₹0.00", font=theme.F_BOLD, fg=theme.TEXT, bg=theme.SURFACE, anchor="e", padx=4)
         amt_lbl.grid(row=0, column=6, sticky="nsew", padx=2, pady=2)
 
         # 7. Red Delete Button [✕]
         del_btn = tk.Button(
             row_f,
             text="✕",
-            font=("Segoe UI", 8, "bold"),
-            fg="#ffffff",
+            font=theme.F_LABEL,
+            fg=theme.SURFACE,
             bg="#ef4444",
-            activebackground="#dc2626",
-            activeforeground="#ffffff",
+            activebackground=theme.DANGER,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             cursor="hand2",
@@ -457,26 +456,6 @@ class OrderFormView(tk.Frame):
             "del_btn": del_btn,
             "item_id": None,
         }
-
-    def _add_row(self) -> int:
-        new_idx = len(self.row_widgets)
-        row_data = self._create_row_widget(new_idx)
-        self.row_widgets.append(row_data)
-        self.rows_frame.update_idletasks()
-        self.t_canvas.configure(scrollregion=self.t_canvas.bbox("all"))
-        return new_idx
-
-    def _scroll_to_row(self, row_idx: int):
-        try:
-            if row_idx < 0 or row_idx >= len(self.row_widgets):
-                return
-            self.rows_frame.update_idletasks()
-            total_rows = len(self.row_widgets)
-            if total_rows > 0:
-                fraction = max(0.0, min(1.0, row_idx / total_rows))
-                self.t_canvas.yview_moveto(fraction)
-        except Exception:
-            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # ---------------- KEYBOARD-DRIVEN SPREADSHEET ROW LOGIC ----------------
     def _on_code_entered(self, row_idx: int, focus_next: bool = True):
@@ -578,15 +557,6 @@ class OrderFormView(tk.Frame):
         amount = qty * rate
         row["amount"].config(text=f"₹{amount:.2f}")
         self._recalculate()
-
-    def _is_row_empty(self, row_idx: int) -> bool:
-        if row_idx < 0 or row_idx >= len(self.row_widgets):
-            return True
-        row = self.row_widgets[row_idx]
-        code = row["code_var"].get().strip()
-        name = row["item_var"].get().strip()
-        item_id = row.get("item_id")
-        return not code and not name and not item_id
 
     def _compact_row_gap(self, row_idx: int) -> int:
         """
@@ -771,7 +741,7 @@ class OrderFormView(tk.Frame):
         dlg.title("Smart Order Importer (F8)")
         dlg.geometry("560x440")
         dlg.resizable(False, False)
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
         dlg.transient(self.winfo_toplevel())
         dlg.grab_set()
 
@@ -780,27 +750,27 @@ class OrderFormView(tk.Frame):
         tk.Label(
             header,
             text="Smart Order Text Importer",
-            font=("Segoe UI", 12, "bold"),
-            fg="#ffffff",
+            font=theme.F_H12B,
+            fg=theme.SURFACE,
             bg="#1976d2"
         ).pack(side="left")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         body.pack(fill="both", expand=True)
 
         tk.Label(
             body,
             text="Paste raw WhatsApp / message text below (e.g. 'Apple 25kg', '102 50kg'):",
-            font=("Segoe UI", 9),
-            fg="#475569",
-            bg="#ffffff"
+            font=theme.F_BODY,
+            fg=theme.SLATE_600,
+            bg=theme.SURFACE
         ).pack(anchor="w", pady=(0, 6))
 
         text_area = tk.Text(
             body,
             font=("Consolas", 10),
-            bg="#f8fafc",
-            fg="#0f172a",
+            bg=theme.BG,
+            fg=theme.TEXT,
             relief="solid",
             bd=1,
             height=10
@@ -808,7 +778,7 @@ class OrderFormView(tk.Frame):
         text_area.pack(fill="both", expand=True, pady=(0, 12))
         text_area.focus_set()
 
-        btn_row = tk.Frame(body, bg="#ffffff")
+        btn_row = tk.Frame(body, bg=theme.SURFACE)
         btn_row.pack(fill="x")
 
         def _import_file():
@@ -828,9 +798,9 @@ class OrderFormView(tk.Frame):
         tk.Button(
             btn_row,
             text="📂 Load File...",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#334155",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_700,
             relief="solid",
             bd=1,
             padx=12,
@@ -856,9 +826,9 @@ class OrderFormView(tk.Frame):
         tk.Button(
             btn_row,
             text="Parse & Populate",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             bg="#1976d2",
-            fg="#ffffff",
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=18,
@@ -870,9 +840,9 @@ class OrderFormView(tk.Frame):
         tk.Button(
             btn_row,
             text="Cancel",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#64748b",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.TEXT_MUTED,
             relief="solid",
             bd=1,
             padx=12,
@@ -1024,11 +994,11 @@ class OrderFormView(tk.Frame):
             self._popup_window.attributes("-topmost", True)
             self._popup_listbox = tk.Listbox(
                 self._popup_window,
-                font=("Segoe UI", 9),
-                bg="#ffffff",
-                fg="#0f172a",
+                font=theme.F_BODY,
+                bg=theme.SURFACE,
+                fg=theme.TEXT,
                 selectbackground="#eef2ff",
-                selectforeground="#4338ca",
+                selectforeground=theme.PRIMARY_DARK,
                 bd=1,
                 relief="solid",
                 highlightthickness=0
@@ -1105,12 +1075,12 @@ class OrderFormView(tk.Frame):
     def _on_cust_focus_in(self):
         if self.customer_var.get() == "Select Customer (F5)":
             self.customer_var.set("")
-            self.customer_ent.config(fg="#0f172a")
+            self.customer_ent.config(fg=theme.TEXT)
 
     def _on_cust_focus_out(self):
         if not self.customer_var.get().strip():
             self.customer_var.set("Select Customer (F5)")
-            self.customer_ent.config(fg="#94a3b8")
+            self.customer_ent.config(fg=theme.TEXT_FAINT)
 
     def _open_customer_search(self):
         """Same dialog as New Bill (F5): type to filter, Up / Down, Enter. Orders need a customer from the master, so no walk-in option."""
@@ -1120,7 +1090,7 @@ class OrderFormView(tk.Frame):
         if matched:
             self.selected_customer = matched
             self.customer_var.set(matched.get("name", ""))
-            self.customer_ent.config(fg="#0f172a")
+            self.customer_ent.config(fg=theme.TEXT)
             for r_idx, row in enumerate(self.row_widgets):                   # fixed rates for the lines already entered
                 item_id = row.get("item_id")
                 if item_id:
@@ -1128,14 +1098,6 @@ class OrderFormView(tk.Frame):
                     row["rate_var"].set(f"{res_rate:.2f}")
                     self._recalculate_row(r_idx)
         self.after(60, lambda: (self.date_ent.focus_set(), self.date_ent.select_range(0, tk.END)))      # customer -> order date -> delivery date -> items
-
-    def focus_first_empty_row(self) -> int:
-        idx = next((i for i in range(len(self.row_widgets)) if self._is_row_empty(i)), None)
-        if idx is None:
-            idx = self._add_row()
-        self._scroll_to_row(idx)
-        self.row_widgets[idx]["code"].focus_set()
-        return idx
 
     # ---------------- SAVE & VALIDATION (F2 / F10) ----------------
     @staticmethod
@@ -1209,9 +1171,6 @@ class OrderFormView(tk.Frame):
             messagebox.showwarning("Items Required", "Please enter at least one line item with a quantity.", parent=self)
             self.row_widgets[0]["code"].focus_set()
             return
-
-        deliv_str = self.delivery_var.get().strip()
-        order_date_str = self.date_var.get().strip()
 
         problem = self.date_picker.error()
         if problem:
@@ -1326,7 +1285,7 @@ class OrderFormView(tk.Frame):
 
         self.title_label.config(text="New Order")
         self.customer_var.set("Select Customer (F5)")
-        self.customer_ent.config(fg="#94a3b8")
+        self.customer_ent.config(fg=theme.TEXT_FAINT)
         self.date_var.set(date.today().strftime("%d - %m - %Y"))
         tomorrow = date.today() + timedelta(days=1)
         self.delivery_var.set(tomorrow.strftime("%d - %m - %Y"))
@@ -1361,7 +1320,7 @@ class OrderFormView(tk.Frame):
 
         cust_name = order.get("customer_name", "")
         self.customer_var.set(cust_name)
-        self.customer_ent.config(fg="#0f172a")
+        self.customer_ent.config(fg=theme.TEXT)
         cust_id = order.get("customer_id")
         if cust_id:
             self.selected_customer = self.db.collection("customers").find_one({"cust_id": cust_id, "is_deleted": 0})

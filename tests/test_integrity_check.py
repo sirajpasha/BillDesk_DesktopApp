@@ -10,7 +10,6 @@ from app.models.common import CurrentUser
 from app.services.billing_service import BillingService
 from app.services.inventory_service import InventoryService
 from app.services.integrity_service import IntegrityService
-from app.services.ledger_service import LedgerService
 from app.services.payment_service import PaymentService
 from app.services.procurement_service import ProcurementService
 from app.ui.integrity_view import IntegrityView

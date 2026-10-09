@@ -4,14 +4,14 @@ from app import paths
 import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from datetime import datetime, date
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from app.utils.currency import format_inr
-from app.utils.formatters import format_date
 from app.printing.consolidated import generate_consolidated_report_pdf
 from app.ui.print_preview import show_print_preview
 from app.ui.components.calendar_popup import attach_date_picker
+from app.ui import theme
 
 
 def _normalize_date_to_iso(date_str: str) -> str:
@@ -42,7 +42,7 @@ class CustomerSearchModal(tk.Toplevel):
         self.title("Select Bill To Entity")
         self.geometry("640x480")
         self.minsize(500, 350)
-        self.configure(bg="#f8fafc")
+        self.configure(bg=theme.BG)
         self.transient(parent)
         self.grab_set()
 
@@ -63,37 +63,37 @@ class CustomerSearchModal(tk.Toplevel):
         self.geometry(f"{w}x{h}+{x}+{y}")
 
         # Header
-        top = tk.Frame(self, bg="#ffffff", padx=16, pady=12, bd=1, relief="solid")
+        top = tk.Frame(self, bg=theme.SURFACE, padx=16, pady=12, bd=1, relief="solid")
         top.pack(fill="x")
         tk.Label(
             top,
             text="🔍 Select Bill To Customer",
-            font=("Segoe UI", 12, "bold"),
-            fg="#0f172a",
-            bg="#ffffff"
+            font=theme.F_H12B,
+            fg=theme.TEXT,
+            bg=theme.SURFACE
         ).pack(side="left")
 
         # Search box
-        search_bar = tk.Frame(self, bg="#f8fafc", padx=16, pady=10)
+        search_bar = tk.Frame(self, bg=theme.BG, padx=16, pady=10)
         search_bar.pack(fill="x")
 
-        tk.Label(search_bar, text="Search Entity:", font=("Segoe UI", 9, "bold"), fg="#475569", bg="#f8fafc").pack(anchor="w", pady=(0, 4))
+        tk.Label(search_bar, text="Search Entity:", font=theme.F_BOLD, fg=theme.SLATE_600, bg=theme.BG).pack(anchor="w", pady=(0, 4))
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", self._on_filter)
         self.search_entry = tk.Entry(
             search_bar,
             textvariable=self.search_var,
-            font=("Segoe UI", 10),
+            font=theme.F_TEXT10,
             relief="solid",
             bd=1,
             highlightthickness=1,
-            highlightcolor="#4f46e5"
+            highlightcolor=theme.PRIMARY
         )
         self.search_entry.pack(fill="x", ipady=4)
         self.search_entry.focus_set()
 
         # Treeview
-        tree_frame = tk.Frame(self, bg="#ffffff", padx=16, pady=6)
+        tree_frame = tk.Frame(self, bg=theme.SURFACE, padx=16, pady=6)
         tree_frame.pack(fill="both", expand=True)
 
         cols = ("name", "phone", "address")
@@ -116,15 +116,15 @@ class CustomerSearchModal(tk.Toplevel):
         self.bind("<Escape>", lambda _e: self.destroy())
 
         # Buttons
-        btn_bar = tk.Frame(self, bg="#f8fafc", padx=16, pady=10)
+        btn_bar = tk.Frame(self, bg=theme.BG, padx=16, pady=10)
         btn_bar.pack(fill="x")
 
         tk.Button(
             btn_bar,
             text="Cancel",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#334155",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_700,
             relief="solid",
             bd=1,
             padx=12,
@@ -135,9 +135,9 @@ class CustomerSearchModal(tk.Toplevel):
         tk.Button(
             btn_bar,
             text="Select Entity",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -161,8 +161,8 @@ class CustomerSearchModal(tk.Toplevel):
                 values=(ent.get("name", ""), ent.get("bill_to_phone", ""), addr),
                 tags=(tag,)
             )
-        self.tree.tag_configure("even", background="#ffffff")
-        self.tree.tag_configure("odd", background="#f8fafc")
+        self.tree.tag_configure("even", background=theme.SURFACE)
+        self.tree.tag_configure("odd", background=theme.BG)
         if self.filtered:
             self.tree.selection_set("0")
 
@@ -197,7 +197,7 @@ class ConsolidatedReportFrame(tk.Frame):
     - 7-page PDF output artifact (SV Vegetables & Fruits Consolidated Bills)
     """
     def __init__(self, parent, db, billing_service, current_user=None, on_navigate=None, **kwargs):
-        super().__init__(parent, bg="#f8fafc", **kwargs)
+        super().__init__(parent, bg=theme.BG, **kwargs)
         self.db = db
         self.billing = billing_service
         self.current_user = current_user
@@ -211,12 +211,12 @@ class ConsolidatedReportFrame(tk.Frame):
 
     def _build_ui(self):
         # 1. Top accent strip
-        tk.Frame(self, bg="#4f46e5", height=4).pack(fill="x")
+        tk.Frame(self, bg=theme.PRIMARY, height=4).pack(fill="x")
 
         # 2. Main Scrollable Container (Canvas + Scrollbar)
-        self.canvas = tk.Canvas(self, bg="#f8fafc", highlightthickness=0)
+        self.canvas = tk.Canvas(self, bg=theme.BG, highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = tk.Frame(self.canvas, bg="#f8fafc")
+        self.scrollable_frame = tk.Frame(self.canvas, bg=theme.BG)
 
         self.scrollable_frame.bind(
             "<Configure>",
@@ -240,43 +240,43 @@ class ConsolidatedReportFrame(tk.Frame):
         self._bind_mousewheel(self.scrollable_frame)
 
         # ---------------- CONTENT CONTAINER ----------------
-        content = tk.Frame(self.scrollable_frame, bg="#f8fafc", padx=28, pady=16)
+        content = tk.Frame(self.scrollable_frame, bg=theme.BG, padx=28, pady=16)
         content.pack(fill="both", expand=True)
 
         # 3. Header Title & Subtitle
-        header_bar = tk.Frame(content, bg="#f8fafc")
+        header_bar = tk.Frame(content, bg=theme.BG)
         header_bar.pack(fill="x", pady=(0, 14))
 
         tk.Label(
             header_bar,
             text="Bills Consolidated report",
             font=("Segoe UI", 20, "bold"),
-            fg="#0f172a",
-            bg="#f8fafc"
+            fg=theme.TEXT,
+            bg=theme.BG
         ).pack(anchor="w")
 
         tk.Label(
             header_bar,
             text="Item-wise consolidation for Bill To entities across multiple shipping locations",
-            font=("Segoe UI", 9),
-            fg="#64748b",
-            bg="#f8fafc"
+            font=theme.F_BODY,
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG
         ).pack(anchor="w", pady=(2, 0))
 
         # 4. KPI Cards Row (Indigo + Emerald Green, matching Screenshot 1)
-        kpi_row = tk.Frame(content, bg="#f8fafc")
+        kpi_row = tk.Frame(content, bg=theme.BG)
         kpi_row.pack(fill="x", pady=(0, 16))
 
         # Left KPI Card (Indigo #4f46e5)
-        self.kpi_locs_card = tk.Frame(kpi_row, bg="#4f46e5", padx=20, pady=14, bd=0)
+        self.kpi_locs_card = tk.Frame(kpi_row, bg=theme.PRIMARY, padx=20, pady=14, bd=0)
         self.kpi_locs_card.pack(side="left", fill="both", expand=True, padx=(0, 12))
 
         self.kpi_locs_val = tk.Label(
             self.kpi_locs_card,
             text="0",
             font=("Segoe UI", 26, "bold"),
-            fg="#ffffff",
-            bg="#4f46e5",
+            fg=theme.SURFACE,
+            bg=theme.PRIMARY,
             anchor="w"
         )
         self.kpi_locs_val.pack(anchor="w")
@@ -284,9 +284,9 @@ class ConsolidatedReportFrame(tk.Frame):
         tk.Label(
             self.kpi_locs_card,
             text="Total Ship To Locations",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             fg="#e0e7ff",
-            bg="#4f46e5",
+            bg=theme.PRIMARY,
             anchor="w"
         ).pack(anchor="w", pady=(2, 0))
 
@@ -298,7 +298,7 @@ class ConsolidatedReportFrame(tk.Frame):
             self.kpi_amt_card,
             text="₹0.00",
             font=("Segoe UI", 26, "bold"),
-            fg="#ffffff",
+            fg=theme.SURFACE,
             bg="#10b981",
             anchor="w"
         )
@@ -307,37 +307,37 @@ class ConsolidatedReportFrame(tk.Frame):
         tk.Label(
             self.kpi_amt_card,
             text="Grand Total Amount",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             fg="#d1fae5",
             bg="#10b981",
             anchor="w"
         ).pack(anchor="w", pady=(2, 0))
 
         # 5. Filter Toolbar Container (White card with subtle border #e2e8f0)
-        filter_card = tk.Frame(content, bg="#ffffff", bd=1, relief="solid", highlightthickness=0)
+        filter_card = tk.Frame(content, bg=theme.SURFACE, bd=1, relief="solid", highlightthickness=0)
         filter_card.pack(fill="x", pady=(0, 20))
 
-        filter_inner = tk.Frame(filter_card, bg="#ffffff", padx=16, pady=14)
+        filter_inner = tk.Frame(filter_card, bg=theme.SURFACE, padx=16, pady=14)
         filter_inner.pack(fill="x")
 
         # A. Bill To Input / Selector
-        bill_to_box = tk.Frame(filter_inner, bg="#f8fafc", bd=1, relief="solid", padx=10, pady=6)
+        bill_to_box = tk.Frame(filter_inner, bg=theme.BG, bd=1, relief="solid", padx=10, pady=6)
         bill_to_box.pack(side="left", padx=(0, 14))
 
         tk.Label(
             bill_to_box,
             text="Bill To:",
-            font=("Segoe UI", 8, "bold"),
-            fg="#64748b",
-            bg="#f8fafc"
+            font=theme.F_LABEL,
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG
         ).pack(side="left", padx=(0, 6))
 
         self.bill_to_lbl = tk.Label(
             bill_to_box,
             text="Select Billing Entity...",
-            font=("Segoe UI", 9, "bold"),
-            fg="#1e293b",
-            bg="#f8fafc",
+            font=theme.F_BOLD,
+            fg=theme.TEXT_STRONG,
+            bg=theme.BG,
             width=32,
             anchor="w",
             cursor="hand2"
@@ -349,9 +349,9 @@ class ConsolidatedReportFrame(tk.Frame):
         search_btn = tk.Button(
             bill_to_box,
             text="🔍",
-            font=("Segoe UI", 8),
-            bg="#f8fafc",
-            fg="#475569",
+            font=theme.F_SMALL,
+            bg=theme.BG,
+            fg=theme.SLATE_600,
             relief="flat",
             bd=0,
             cursor="hand2",
@@ -360,17 +360,17 @@ class ConsolidatedReportFrame(tk.Frame):
         search_btn.pack(side="right")
 
         # B. From Date
-        from_box = tk.Frame(filter_inner, bg="#f8fafc", bd=1, relief="solid", padx=10, pady=6)
+        from_box = tk.Frame(filter_inner, bg=theme.BG, bd=1, relief="solid", padx=10, pady=6)
         from_box.pack(side="left", padx=(0, 10))
 
-        tk.Label(from_box, text="📅 From:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
+        tk.Label(from_box, text="📅 From:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left", padx=(0, 4))
         self.from_date_var = tk.StringVar(value=datetime.now().replace(day=1).strftime("%d-%m-%Y"))
         self.from_date_ent = tk.Entry(
             from_box,
             textvariable=self.from_date_var,
-            font=("Segoe UI", 9, "bold"),
-            fg="#1e293b",
-            bg="#f8fafc",
+            font=theme.F_BOLD,
+            fg=theme.TEXT_STRONG,
+            bg=theme.BG,
             relief="flat",
             bd=0,
             width=11
@@ -379,17 +379,17 @@ class ConsolidatedReportFrame(tk.Frame):
         self.from_picker = attach_date_picker(self.from_date_ent, "%d-%m-%Y", allow_blank=False, allow_future=False, label="The From date")
 
         # C. To Date
-        to_box = tk.Frame(filter_inner, bg="#f8fafc", bd=1, relief="solid", padx=10, pady=6)
+        to_box = tk.Frame(filter_inner, bg=theme.BG, bd=1, relief="solid", padx=10, pady=6)
         to_box.pack(side="left", padx=(0, 14))
 
-        tk.Label(to_box, text="📅 To:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
+        tk.Label(to_box, text="📅 To:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left", padx=(0, 4))
         self.to_date_var = tk.StringVar(value=datetime.now().strftime("%d-%m-%Y"))
         self.to_date_ent = tk.Entry(
             to_box,
             textvariable=self.to_date_var,
-            font=("Segoe UI", 9, "bold"),
-            fg="#1e293b",
-            bg="#f8fafc",
+            font=theme.F_BOLD,
+            fg=theme.TEXT_STRONG,
+            bg=theme.BG,
             relief="flat",
             bd=0,
             width=11
@@ -399,17 +399,17 @@ class ConsolidatedReportFrame(tk.Frame):
                                             not_before=lambda: self.from_picker.value())
 
         # D. Actions: Generate & PDF buttons
-        actions_bar = tk.Frame(filter_inner, bg="#ffffff")
+        actions_bar = tk.Frame(filter_inner, bg=theme.SURFACE)
         actions_bar.pack(side="right")
 
         self.generate_btn = tk.Button(
             actions_bar,
             text="Generate",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
-            activeforeground="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=18,
@@ -422,11 +422,11 @@ class ConsolidatedReportFrame(tk.Frame):
         self.preview_btn = tk.Button(
             actions_bar,
             text="👁️ Print Preview",
-            font=("Segoe UI", 9, "bold"),
-            bg="#059669",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.SUCCESS,
+            fg=theme.SURFACE,
             activebackground="#047857",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -440,10 +440,10 @@ class ConsolidatedReportFrame(tk.Frame):
         self.pdf_btn = tk.Button(
             actions_bar,
             text="💾 Save PDF",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
-            fg="#334155",
-            activebackground="#f1f5f9",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_700,
+            activebackground=theme.HEADING_BG,
             relief="solid",
             bd=1,
             padx=12,
@@ -455,7 +455,7 @@ class ConsolidatedReportFrame(tk.Frame):
         self.pdf_btn.pack(side="left")
 
         # 6. Report Container Area (Dynamic content)
-        self.report_container = tk.Frame(content, bg="#f8fafc")
+        self.report_container = tk.Frame(content, bg=theme.BG)
         self.report_container.pack(fill="both", expand=True)
 
         self._show_empty_placeholder()
@@ -472,31 +472,31 @@ class ConsolidatedReportFrame(tk.Frame):
         for w in self.report_container.winfo_children():
             w.destroy()
 
-        ph = tk.Frame(self.report_container, bg="#ffffff", bd=1, relief="solid", padx=40, pady=60)
+        ph = tk.Frame(self.report_container, bg=theme.SURFACE, bd=1, relief="solid", padx=40, pady=60)
         ph.pack(fill="both", expand=True)
 
         tk.Label(
             ph,
             text="📊",
             font=("Segoe UI", 48),
-            bg="#ffffff",
-            fg="#94a3b8"
+            bg=theme.SURFACE,
+            fg=theme.TEXT_FAINT
         ).pack(pady=(0, 12))
 
         tk.Label(
             ph,
             text="NO REPORT GENERATED YET",
-            font=("Segoe UI", 12, "bold"),
-            fg="#475569",
-            bg="#ffffff"
+            font=theme.F_H12B,
+            fg=theme.SLATE_600,
+            bg=theme.SURFACE
         ).pack()
 
         tk.Label(
             ph,
             text="Select a billing entity and date range, then click 'Generate' to view the consolidated report.",
-            font=("Segoe UI", 9),
-            fg="#94a3b8",
-            bg="#ffffff"
+            font=theme.F_BODY,
+            fg=theme.TEXT_FAINT,
+            bg=theme.SURFACE
         ).pack(pady=(4, 0))
 
     def _load_default_entities(self):
@@ -568,24 +568,24 @@ class ConsolidatedReportFrame(tk.Frame):
         self.kpi_amt_val.config(text=format_inr(total_amt))
 
         # ---------------- 1. BILL SUMMARY CARD ----------------
-        summary_card = tk.Frame(self.report_container, bg="#ffffff", bd=1, relief="solid")
+        summary_card = tk.Frame(self.report_container, bg=theme.SURFACE, bd=1, relief="solid")
         summary_card.pack(fill="x", pady=(0, 20))
 
-        sum_header = tk.Frame(summary_card, bg="#f8fafc", padx=16, pady=12, bd=0)
+        sum_header = tk.Frame(summary_card, bg=theme.BG, padx=16, pady=12, bd=0)
         sum_header.pack(fill="x")
         tk.Label(
             sum_header,
             text="📅  BILL SUMMARY",
-            font=("Segoe UI", 9, "bold"),
-            fg="#475569",
-            bg="#f8fafc"
+            font=theme.F_BOLD,
+            fg=theme.SLATE_600,
+            bg=theme.BG
         ).pack(side="left")
 
         sum_count = len(report.get("bill_summary", []))
         tk.Label(
             sum_header,
             text=f"{sum_count} Invoices",
-            font=("Segoe UI", 8, "bold"),
+            font=theme.F_LABEL,
             fg="#6366f1",
             bg="#e0e7ff",
             padx=8,
@@ -593,7 +593,7 @@ class ConsolidatedReportFrame(tk.Frame):
         ).pack(side="right")
 
         # Treeview for summary
-        tree_frame = tk.Frame(summary_card, bg="#ffffff", padx=1, pady=1)
+        tree_frame = tk.Frame(summary_card, bg=theme.SURFACE, padx=1, pady=1)
         tree_frame.pack(fill="x")
 
         s_cols = ("date", "invoice_no", "ship_to", "amount")
@@ -619,8 +619,8 @@ class ConsolidatedReportFrame(tk.Frame):
                 tags=(tag,)
             )
 
-        s_tree.tag_configure("even", background="#ffffff")
-        s_tree.tag_configure("odd", background="#f8fafc")
+        s_tree.tag_configure("even", background=theme.SURFACE)
+        s_tree.tag_configure("odd", background=theme.BG)
         s_tree.pack(fill="x")
 
         # ---------------- 2. ITEMIZED SHIP-TO SECTIONS ----------------
@@ -629,51 +629,51 @@ class ConsolidatedReportFrame(tk.Frame):
             st_total = float(ship_to.get("total_amount", 0.0))
             items = ship_to.get("items", [])
 
-            loc_card = tk.Frame(self.report_container, bg="#ffffff", bd=1, relief="solid")
+            loc_card = tk.Frame(self.report_container, bg=theme.SURFACE, bd=1, relief="solid")
             loc_card.pack(fill="x", pady=(0, 20))
 
             # Header with Location Name and Section Total
-            loc_hdr = tk.Frame(loc_card, bg="#f8fafc", padx=16, pady=12, bd=0)
+            loc_hdr = tk.Frame(loc_card, bg=theme.BG, padx=16, pady=12, bd=0)
             loc_hdr.pack(fill="x")
 
             # Left side
-            l_box = tk.Frame(loc_hdr, bg="#f8fafc")
+            l_box = tk.Frame(loc_hdr, bg=theme.BG)
             l_box.pack(side="left")
             tk.Label(
                 l_box,
                 text="SHIP TO LOCATION",
-                font=("Segoe UI", 8, "bold"),
-                fg="#94a3b8",
-                bg="#f8fafc"
+                font=theme.F_LABEL,
+                fg=theme.TEXT_FAINT,
+                bg=theme.BG
             ).pack(anchor="w")
             tk.Label(
                 l_box,
                 text=st_name,
                 font=("Segoe UI", 13, "bold"),
-                fg="#1e293b",
-                bg="#f8fafc"
+                fg=theme.TEXT_STRONG,
+                bg=theme.BG
             ).pack(anchor="w")
 
             # Right side
-            r_box = tk.Frame(loc_hdr, bg="#f8fafc")
+            r_box = tk.Frame(loc_hdr, bg=theme.BG)
             r_box.pack(side="right")
             tk.Label(
                 r_box,
                 text="SECTION TOTAL",
-                font=("Segoe UI", 8, "bold"),
-                fg="#94a3b8",
-                bg="#f8fafc"
+                font=theme.F_LABEL,
+                fg=theme.TEXT_FAINT,
+                bg=theme.BG
             ).pack(anchor="e")
             tk.Label(
                 r_box,
                 text=format_inr(st_total),
                 font=("Segoe UI", 15, "bold"),
-                fg="#0f172a",
-                bg="#f8fafc"
+                fg=theme.TEXT,
+                bg=theme.BG
             ).pack(anchor="e")
 
             # Items Treeview
-            it_frame = tk.Frame(loc_card, bg="#ffffff")
+            it_frame = tk.Frame(loc_card, bg=theme.SURFACE)
             it_frame.pack(fill="x")
 
             it_cols = ("desc", "qty", "unit", "rate", "amount")
@@ -705,38 +705,38 @@ class ConsolidatedReportFrame(tk.Frame):
                     tags=(tag,)
                 )
 
-            it_tree.tag_configure("even", background="#ffffff")
-            it_tree.tag_configure("odd", background="#f8fafc")
+            it_tree.tag_configure("even", background=theme.SURFACE)
+            it_tree.tag_configure("odd", background=theme.BG)
             it_tree.pack(fill="x")
 
         # ---------------- 3. GRAND TOTAL CONSOLIDATION CARD ----------------
-        grand_card = tk.Frame(self.report_container, bg="#ffffff", bd=1, relief="solid")
+        grand_card = tk.Frame(self.report_container, bg=theme.SURFACE, bd=1, relief="solid")
         grand_card.pack(fill="x", pady=(0, 24))
 
         # Bottom accent strip (Emerald Green)
         tk.Frame(grand_card, bg="#10b981", height=4).pack(fill="x", side="bottom")
 
-        gt_hdr = tk.Frame(grand_card, bg="#f8fafc", padx=16, pady=12, bd=0)
+        gt_hdr = tk.Frame(grand_card, bg=theme.BG, padx=16, pady=12, bd=0)
         gt_hdr.pack(fill="x")
 
         tk.Label(
             gt_hdr,
             text="GRAND TOTAL CONSOLIDATION",
-            font=("Segoe UI", 10, "bold"),
-            fg="#475569",
-            bg="#f8fafc"
+            font=theme.F_TEXT10B,
+            fg=theme.SLATE_600,
+            bg=theme.BG
         ).pack(anchor="w")
 
         tk.Label(
             gt_hdr,
             text=report.get("bill_to", ""),
-            font=("Segoe UI", 8),
-            fg="#94a3b8",
-            bg="#f8fafc"
+            font=theme.F_SMALL,
+            fg=theme.TEXT_FAINT,
+            bg=theme.BG
         ).pack(anchor="w")
 
         gt_items = report.get("grand_total_consolidation", [])
-        gt_frame = tk.Frame(grand_card, bg="#ffffff")
+        gt_frame = tk.Frame(grand_card, bg=theme.SURFACE)
         gt_frame.pack(fill="x")
 
         gt_cols = ("item", "total_qty", "unit", "rate", "amount")
@@ -768,8 +768,8 @@ class ConsolidatedReportFrame(tk.Frame):
                 tags=(tag,)
             )
 
-        gt_tree.tag_configure("even", background="#ffffff")
-        gt_tree.tag_configure("odd", background="#f8fafc")
+        gt_tree.tag_configure("even", background=theme.SURFACE)
+        gt_tree.tag_configure("odd", background=theme.BG)
         gt_tree.pack(fill="x")
 
         # Footer Net Total Bar (#ecfdf5)
@@ -779,7 +779,7 @@ class ConsolidatedReportFrame(tk.Frame):
         tk.Label(
             foot,
             text="NET TOTAL",
-            font=("Segoe UI", 10, "bold"),
+            font=theme.F_TEXT10B,
             fg="#065f46",
             bg="#ecfdf5"
         ).pack(side="left")
@@ -788,7 +788,7 @@ class ConsolidatedReportFrame(tk.Frame):
             foot,
             text=format_inr(total_amt),
             font=("Segoe UI", 20, "bold"),
-            fg="#059669",
+            fg=theme.SUCCESS,
             bg="#ecfdf5"
         ).pack(side="right")
 
@@ -835,7 +835,6 @@ class ConsolidatedReportFrame(tk.Frame):
 
         out_dir = str(paths.output_dir())
         os.makedirs(out_dir, exist_ok=True)
-        default_path = os.path.join(out_dir, default_name)
 
         save_path = filedialog.asksaveasfilename(
             parent=self,

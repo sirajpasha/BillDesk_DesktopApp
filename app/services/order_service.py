@@ -4,13 +4,12 @@ import math
 from app.utils import validation as V
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
-import uuid
 from app.repositories.order_repo import OrderRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, SupplierRepository
 from app.repositories.billing_repo import BillRepository
 from app.repositories.procurement_repo import ProcurementRepository
 from app.repositories.inventory_repo import InventoryRepository
-from app.models.order import OrderCreate, OrderItem
+from app.models.order import OrderCreate
 from app.models.billing import BillCreate, BillItem
 from app.config.settings import settings
 from app.database.connection import transactional

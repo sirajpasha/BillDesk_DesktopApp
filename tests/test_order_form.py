@@ -1,5 +1,4 @@
 import pytest
-import tkinter as tk
 from datetime import datetime, date, timedelta, timezone
 
 from app.models.auth import User

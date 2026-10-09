@@ -324,7 +324,7 @@ def test_journal_form_catches_an_unbalanced_entry_before_posting(db, tk_root, sh
         v._post_journal_dialog()
         dlg = _dialog(v)
         e = [w for w in _walk(dlg) if isinstance(w, tk.Entry)]
-        ref, dr_acc, dr_amt, cr_acc, cr_amt = e[0], e[1], e[2], e[3], e[4]
+        ref, dr_acc, dr_amt, _cr_acc, cr_amt = e[0], e[1], e[2], e[3], e[4]
         ref.insert(0, "ADJ-1")
         dr_amt.insert(0, "100")
         cr_amt.insert(0, "90")
@@ -359,7 +359,7 @@ def test_new_user_form_chooses_the_role_from_a_list_and_checks_the_username(db, 
 
 # ------------------------------------------------------------------ bills and orders: checked before anything is written
 def _bill(db, **kw):
-    from app.models.billing import BillCreate, BillLine
+    from app.models.billing import BillLine
     qty, rate = kw.pop("qty", 2.0), kw.pop("rate", 10.0)
     base = dict(invoice_date=datetime.now().strftime("%Y-%m-%d"), customer_id="C1", customer_name="Metro", created_by="t",
                 items=[BillLine(item_id="I1", name="Tomato", qty=qty, unit="kg", rate=rate, amount=qty * rate)], total_amount=qty * rate, balance_due=qty * rate)

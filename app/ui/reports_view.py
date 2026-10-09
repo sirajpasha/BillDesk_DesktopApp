@@ -6,12 +6,13 @@ import logging
 import tkinter as tk
 from datetime import datetime
 from tkinter import ttk, messagebox, filedialog
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from app.services.report_service import ReportService
 from app.utils.currency import format_inr, format_balance
 from app.utils.formatters import format_date
 from app.ui.components.calendar_popup import attach_date_picker
+from app.ui import theme
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ REPORTS = ("Daybook", "Item-wise Sales", "Customer-wise Sales")
 
 class ReportsFrame(tk.Frame):
     def __init__(self, parent, db, current_user=None, **kwargs):
-        super().__init__(parent, bg="#f8fafc", **kwargs)
+        super().__init__(parent, bg=theme.BG, **kwargs)
         self.db = db
         self.svc = ReportService(db)
         self.current_user = current_user
@@ -28,35 +29,35 @@ class ReportsFrame(tk.Frame):
         self._cols: List[tuple] = []
         self._totals_text = ""
 
-        tk.Label(self, text="Reports", font=("Segoe UI", 22, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w", padx=28, pady=(20, 8))
+        tk.Label(self, text="Reports", font=("Segoe UI", 22, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w", padx=28, pady=(20, 8))
 
-        bar = tk.Frame(self, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        bar = tk.Frame(self, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=14, pady=10)
         bar.pack(fill="x", padx=28, pady=(0, 12))
-        tk.Label(bar, text="REPORT", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left")
+        tk.Label(bar, text="REPORT", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left")
         self.report_var = tk.StringVar(value=REPORTS[0])
         self.report_cb = ttk.Combobox(bar, textvariable=self.report_var, values=REPORTS, state="readonly", width=20)
         self.report_cb.pack(side="left", padx=(6, 18))
         self.report_cb.bind("<<ComboboxSelected>>", lambda _e: self.refresh())
 
         today = datetime.now()
-        tk.Label(bar, text="FROM", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left")
+        tk.Label(bar, text="FROM", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left")
         self.from_var = tk.StringVar(value=today.replace(day=1).strftime("%d/%m/%Y"))
         self.from_ent = tk.Entry(bar, textvariable=self.from_var, width=12, relief="solid", bd=1)
         self.from_ent.pack(side="left", padx=(6, 12), ipady=4)
         self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The From date")
-        tk.Label(bar, text="TO", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left")
+        tk.Label(bar, text="TO", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(side="left")
         self.to_var = tk.StringVar(value=today.strftime("%d/%m/%Y"))
         self.to_ent = tk.Entry(bar, textvariable=self.to_var, width=12, relief="solid", bd=1)
         self.to_ent.pack(side="left", padx=(6, 12), ipady=4)
         self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The To date",
                                             not_before=lambda: self.from_picker.value())
-        tk.Button(bar, text="Show", bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=16, pady=5, cursor="hand2", command=self.refresh).pack(side="left")
-        tk.Button(bar, text="Export CSV", bg="#ffffff", relief="solid", bd=1, padx=12, pady=3, cursor="hand2", command=self.export_csv).pack(side="right")
+        tk.Button(bar, text="Show", bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=16, pady=5, cursor="hand2", command=self.refresh).pack(side="left")
+        tk.Button(bar, text="Export CSV", bg=theme.SURFACE, relief="solid", bd=1, padx=12, pady=3, cursor="hand2", command=self.export_csv).pack(side="right")
         for label, days in (("This month", 0), ("Today", -1)):
-            tk.Button(bar, text=label, bg="#f1f5f9", relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
+            tk.Button(bar, text=label, bg=theme.HEADING_BG, relief="flat", bd=0, padx=10, pady=4, cursor="hand2",
                       command=lambda d=days: self._preset(d)).pack(side="right", padx=(0, 6))
 
-        card = tk.Frame(self, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1)
+        card = tk.Frame(self, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1)
         card.pack(fill="both", expand=True, padx=28, pady=(0, 8))
         self.tree = ttk.Treeview(card, show="headings", selectmode="browse")
         vsb = ttk.Scrollbar(card, orient="vertical", command=self.tree.yview)
@@ -64,7 +65,7 @@ class ReportsFrame(tk.Frame):
         vsb.pack(side="right", fill="y")
         self.tree.pack(side="left", fill="both", expand=True, padx=4, pady=4)
 
-        self.summary = tk.Label(self, text="", font=("Segoe UI", 10, "bold"), fg="#0f172a", bg="#f8fafc", anchor="w")
+        self.summary = tk.Label(self, text="", font=theme.F_TEXT10B, fg=theme.TEXT, bg=theme.BG, anchor="w")
         self.summary.pack(fill="x", padx=28, pady=(0, 14))
 
     # ------------------------------------------------------------------ actions

@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 import uuid
-from app.models.billing import BillCreate, BillLine, BillItem
+from app.models.billing import BillCreate, BillItem
 from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, FixedPriceRepository
 from app.repositories.inventory_repo import InventoryRepository

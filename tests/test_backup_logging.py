@@ -5,7 +5,7 @@ import logging.handlers
 import sys
 import threading
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from tkinter import messagebox
 
 import pytest

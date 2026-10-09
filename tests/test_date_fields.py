@@ -11,7 +11,6 @@ from app.models.common import CurrentUser
 from app.services.billing_service import BillingService
 from app.services.order_service import OrderService
 from app.ui.components.calendar_popup import CalendarPopup, attach_date_picker
-from tests.conftest import MockMongoDatabase
 
 USER = CurrentUser(user_id="U", username="admin", roles=["Admin"])
 UI = Path(__file__).resolve().parent.parent / "app" / "ui"

@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 from PIL import Image, ImageTk, ImageOps
 
 from app.services.ocr_service import SmartOcrService
+from app.ui import theme
 
 log = logging.getLogger(__name__)
 
@@ -39,45 +40,45 @@ class SmartImportDialog(tk.Toplevel):
         self._results: "queue.Queue" = queue.Queue()
         self.title("Smart Importer (F8)")
         self.geometry("1040x620")
-        self.configure(bg="#ffffff")
+        self.configure(bg=theme.SURFACE)
         self.transient(parent.winfo_toplevel())
 
-        head = tk.Frame(self, bg="#f8fafc", padx=20, pady=12)
+        head = tk.Frame(self, bg=theme.BG, padx=20, pady=12)
         head.pack(fill="x")
-        tk.Label(head, text="Smart Importer (F8)", font=("Segoe UI", 14, "bold"), fg="#1d4ed8", bg="#f8fafc").pack(side="left")
-        tk.Button(head, text="✕", font=("Segoe UI", 11), relief="solid", bd=1, bg="#ffffff", width=3, command=self.destroy).pack(side="right")
+        tk.Label(head, text="Smart Importer (F8)", font=("Segoe UI", 14, "bold"), fg="#1d4ed8", bg=theme.BG).pack(side="left")
+        tk.Button(head, text="✕", font=theme.F_TEXT11, relief="solid", bd=1, bg=theme.SURFACE, width=3, command=self.destroy).pack(side="right")
 
-        body = tk.Frame(self, bg="#ffffff", padx=20, pady=14)
+        body = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=14)
         body.pack(fill="both", expand=True)
         body.columnconfigure(0, weight=5, uniform="c")
         body.columnconfigure(1, weight=6, uniform="c")
         body.rowconfigure(0, weight=1)
 
-        left = tk.Frame(body, bg="#f1f5f9", highlightbackground="#e2e8f0", highlightthickness=1)
+        left = tk.Frame(body, bg=theme.HEADING_BG, highlightbackground=theme.BORDER, highlightthickness=1)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
-        self.image_lbl = tk.Label(left, bg="#f1f5f9", fg="#64748b", font=("Segoe UI", 10), justify="center",
+        self.image_lbl = tk.Label(left, bg=theme.HEADING_BG, fg=theme.TEXT_MUTED, font=theme.F_TEXT10, justify="center",
                                   text="Upload a photo or scan of the order\n(English or Tamil, printed or written)")
         self.image_lbl.pack(fill="both", expand=True, padx=10, pady=10)
 
-        right = tk.Frame(body, bg="#ffffff")
+        right = tk.Frame(body, bg=theme.SURFACE)
         right.grid(row=0, column=1, sticky="nsew")
-        self.banner_lbl = tk.Label(right, text="Waiting for an image", font=("Segoe UI", 12, "bold"), fg="#0f172a", bg="#ffffff", anchor="w")
+        self.banner_lbl = tk.Label(right, text="Waiting for an image", font=theme.F_H12B, fg=theme.TEXT, bg=theme.SURFACE, anchor="w")
         self.banner_lbl.pack(fill="x")
-        self.msg_lbl = tk.Label(right, text="", font=("Segoe UI", 9), fg="#92400e", bg="#fef3c7", anchor="w", justify="left", wraplength=470, padx=10, pady=6)
+        self.msg_lbl = tk.Label(right, text="", font=theme.F_BODY, fg="#92400e", bg="#fef3c7", anchor="w", justify="left", wraplength=470, padx=10, pady=6)
         self.msg_lbl.pack(fill="x", pady=(8, 8))
         self.msg_lbl.pack_forget()
 
-        meta = self._meta = tk.Frame(right, bg="#f8fafc", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        meta = self._meta = tk.Frame(right, bg=theme.BG, highlightbackground=theme.BORDER, highlightthickness=1, padx=14, pady=10)
         meta.pack(fill="x", pady=(0, 10))
-        tk.Label(meta, text="CUSTOMER:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").grid(row=0, column=0, sticky="w")
-        tk.Label(meta, text="DATE:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").grid(row=0, column=1, sticky="w", padx=(30, 0))
-        self.customer_lbl = tk.Label(meta, text="-", font=("Segoe UI", 11, "bold"), bg="#f8fafc", anchor="w")
+        tk.Label(meta, text="CUSTOMER:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).grid(row=0, column=0, sticky="w")
+        tk.Label(meta, text="DATE:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).grid(row=0, column=1, sticky="w", padx=(30, 0))
+        self.customer_lbl = tk.Label(meta, text="-", font=theme.F_H11B, bg=theme.BG, anchor="w")
         self.customer_lbl.grid(row=1, column=0, sticky="w")
-        self.date_lbl = tk.Label(meta, text="-", font=("Segoe UI", 11, "bold"), bg="#f8fafc", anchor="w")
+        self.date_lbl = tk.Label(meta, text="-", font=theme.F_H11B, bg=theme.BG, anchor="w")
         self.date_lbl.grid(row=1, column=1, sticky="w", padx=(30, 0))
 
         cols = ("item", "qty", "unit", "read")
-        frame = tk.Frame(right, bg="#ffffff")
+        frame = tk.Frame(right, bg=theme.SURFACE)
         frame.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(frame, columns=cols, show="headings", selectmode="browse", height=9)
         for key, text, width, anchor in (("item", "Item (English)", 190, "w"), ("qty", "Qty", 60, "e"), ("unit", "Unit", 70, "w"), ("read", "Read as", 150, "w")):
@@ -89,16 +90,16 @@ class SmartImportDialog(tk.Toplevel):
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.tag_configure("unmatched", foreground="#b91c1c", background="#fef2f2")
         self.tree.bind("<Double-1>", lambda _e: self.edit_selected())
-        tk.Label(right, text="Double-click a row to correct the item, quantity or unit.", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(anchor="w", pady=(4, 0))
+        tk.Label(right, text="Double-click a row to correct the item, quantity or unit.", font=theme.F_SMALL, fg=theme.TEXT_FAINT, bg=theme.SURFACE).pack(anchor="w", pady=(4, 0))
 
-        foot = tk.Frame(self, bg="#ffffff", padx=20, pady=12)
+        foot = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=12)
         foot.pack(fill="x")
         if on_text_mode:
-            tk.Button(foot, text="Paste text instead", relief="flat", bg="#ffffff", fg="#1d4ed8", cursor="hand2", command=self._text_mode).pack(side="left")
-        self.import_btn = tk.Button(foot, text="Import to Grid", font=("Segoe UI", 10, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", padx=20, pady=7,
+            tk.Button(foot, text="Paste text instead", relief="flat", bg=theme.SURFACE, fg="#1d4ed8", cursor="hand2", command=self._text_mode).pack(side="left")
+        self.import_btn = tk.Button(foot, text="Import to Grid", font=theme.F_TEXT10B, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", padx=20, pady=7,
                                     cursor="hand2", command=self.import_rows, state="disabled")
         self.import_btn.pack(side="right")
-        self.upload_btn = tk.Button(foot, text="Upload Image…", font=("Segoe UI", 10), bg="#ffffff", relief="solid", bd=1, padx=16, pady=6,
+        self.upload_btn = tk.Button(foot, text="Upload Image…", font=theme.F_TEXT10, bg=theme.SURFACE, relief="solid", bd=1, padx=16, pady=6,
                                     cursor="hand2", command=self.choose_image)
         self.upload_btn.pack(side="right", padx=(0, 10))
         self.bind("<Escape>", lambda _e: self.destroy())
@@ -119,7 +120,7 @@ class SmartImportDialog(tk.Toplevel):
             messagebox.showerror("Image", f"This file could not be opened as a picture:\n{exc}", parent=self)
             return
         self._show_preview(img)
-        self.banner_lbl.config(text="Reading the image…", fg="#0f172a")
+        self.banner_lbl.config(text="Reading the image…", fg=theme.TEXT)
         self._set_message("")
         self.import_btn.config(state="disabled")
         self.config(cursor="watch")
@@ -199,17 +200,17 @@ class SmartImportDialog(tk.Toplevel):
         dlg = tk.Toplevel(self)
         dlg.title("Correct line")
         dlg.transient(self)
-        dlg.configure(bg="#ffffff", padx=18, pady=14)
+        dlg.configure(bg=theme.SURFACE, padx=18, pady=14)
         names = sorted({str(it.get("name", "")) for it in self.items_cache if it.get("name")}, key=str.lower)
-        tk.Label(dlg, text=f"Read as: {row['read'] or '-'}", fg="#64748b", bg="#ffffff").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
-        tk.Label(dlg, text="Item", bg="#ffffff").grid(row=1, column=0, sticky="w")
+        tk.Label(dlg, text=f"Read as: {row['read'] or '-'}", fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        tk.Label(dlg, text="Item", bg=theme.SURFACE).grid(row=1, column=0, sticky="w")
         item_var = tk.StringVar(value=row["name"])
         item_cb = ttk.Combobox(dlg, textvariable=item_var, values=names, width=34)
         item_cb.grid(row=1, column=1, pady=3)
-        tk.Label(dlg, text="Quantity", bg="#ffffff").grid(row=2, column=0, sticky="w")
+        tk.Label(dlg, text="Quantity", bg=theme.SURFACE).grid(row=2, column=0, sticky="w")
         qty_var = tk.StringVar(value=f"{row['qty']:g}")
         tk.Entry(dlg, textvariable=qty_var, width=12, relief="solid", bd=1).grid(row=2, column=1, sticky="w", pady=3)
-        tk.Label(dlg, text="Unit", bg="#ffffff").grid(row=3, column=0, sticky="w")
+        tk.Label(dlg, text="Unit", bg=theme.SURFACE).grid(row=3, column=0, sticky="w")
         unit_var = tk.StringVar(value=row["unit"])
         ttk.Combobox(dlg, textvariable=unit_var, values=UNITS, width=10).grid(row=3, column=1, sticky="w", pady=3)
 
@@ -234,10 +235,10 @@ class SmartImportDialog(tk.Toplevel):
             dlg.destroy()
             self._render()
 
-        bar = tk.Frame(dlg, bg="#ffffff")
+        bar = tk.Frame(dlg, bg=theme.SURFACE)
         bar.grid(row=4, column=0, columnspan=2, pady=(12, 0), sticky="e")
         tk.Button(bar, text="Remove line", fg="#b91c1c", relief="solid", bd=1, command=_remove).pack(side="left", padx=6)
-        tk.Button(bar, text="Save", bg="#4f46e5", fg="#ffffff", relief="flat", padx=16, command=_save).pack(side="left")
+        tk.Button(bar, text="Save", bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", padx=16, command=_save).pack(side="left")
         item_cb.focus_set()
         self.edit_dialog = dlg
 

@@ -1,0 +1,7 @@
+line-length = 200
+target-version = "py311"
+extend-exclude = ["*.ipynb", "tests/qa_realdb", "_ref_billdesk", "build", "dist", ".cache", "resources"]
+
+[lint]
+# pyflakes (unused / undefined names, redefinitions) and syntax errors: cheap, and each hit has been a real bug or dead code
+select = ["F", "E9"]

@@ -7,7 +7,6 @@ from tkinter import messagebox
 import pytest
 from bson import ObjectId
 
-from app.config.settings import settings
 from app.models.common import CurrentUser
 from app.services.billing_service import BillingService
 from app.services.parked_store import ParkedBillStore

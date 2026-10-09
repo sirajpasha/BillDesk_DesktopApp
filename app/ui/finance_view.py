@@ -7,7 +7,7 @@ from app.services.payment_service import PaymentService
 from app.services.ledger_service import LedgerService
 from app.services.banking_service import BankingService
 from app.utils.currency import format_inr
-from app.utils.formatters import format_date
+from app.ui import theme
 
 class FinanceView(tk.Frame):
     """
@@ -19,7 +19,7 @@ class FinanceView(tk.Frame):
     - 26-trial-balance.png & 27-profit-loss.png (General Ledger Reports)
     """
     def __init__(self, parent, db, current_user, **kwargs):
-        super().__init__(parent, bg="#f8fafc", **kwargs)
+        super().__init__(parent, bg=theme.BG, **kwargs)
         self.db = db
         self.current_user = current_user
         self.pay_svc = PaymentService(db)
@@ -28,34 +28,34 @@ class FinanceView(tk.Frame):
 
         # Style notebook
         style = ttk.Style()
-        style.configure("Finance.TNotebook", background="#f8fafc")
-        style.configure("Finance.TNotebook.Tab", font=("Segoe UI", 9, "bold"), padding=[14, 6])
+        style.configure("Finance.TNotebook", background=theme.BG)
+        style.configure("Finance.TNotebook.Tab", font=theme.F_BOLD, padding=[14, 6])
 
         self.notebook = ttk.Notebook(self, style="Finance.TNotebook")
         self.notebook.pack(fill="both", expand=True, padx=20, pady=(12, 16))
 
         # Tab 0: Accounting Dashboard (Matches 25-accounting-home.png)
-        self.home_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.home_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.home_tab, text="Accounting Home")
         self._build_home_tab()
 
         # Tab 1: AR Aging & Receipts
-        self.ar_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.ar_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.ar_tab, text="Accounts Receivable (AR)")
         self._build_ar_tab()
 
         # Tab 2: AP Disbursements
-        self.ap_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.ap_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.ap_tab, text="Accounts Payable (AP)")
         self._build_ap_tab()
 
         # Tab 3: Banking & BRS
-        self.bank_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.bank_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.bank_tab, text="Banking & BRS")
         self._build_bank_tab()
 
         # Tab 4: General Ledger & Reports
-        self.gl_tab = tk.Frame(self.notebook, bg="#f8fafc")
+        self.gl_tab = tk.Frame(self.notebook, bg=theme.BG)
         self.notebook.add(self.gl_tab, text="General Ledger")
         self._build_gl_tab()
 
@@ -72,21 +72,21 @@ class FinanceView(tk.Frame):
     # 0. ACCOUNTING HOME (Matches 25-accounting-home.png)
     # =========================================================================
     def _build_home_tab(self):
-        top_bar = tk.Frame(self.home_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.home_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=14, pady=(16, 12))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Accounting Dashboard", font=("Segoe UI", 18, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-        tk.Label(title_box, text="Real-time financial status and reporting", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Accounting Dashboard", font=("Segoe UI", 18, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
+        tk.Label(title_box, text="Real-time financial status and reporting", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
 
         tk.Button(
             top_bar,
             text="+ Set Opening Balance",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
             relief="flat",
             bd=0,
             padx=16,
@@ -96,20 +96,20 @@ class FinanceView(tk.Frame):
         ).pack(side="right")
 
         # 4 KPI Cards: Total Receivables (Purple), Total Payables (Red), Bank Balance (Green), Net Profit (YTD) (Indigo)
-        kpi_row = tk.Frame(self.home_tab, bg="#f8fafc")
+        kpi_row = tk.Frame(self.home_tab, bg=theme.BG)
         kpi_row.pack(fill="x", padx=14, pady=(0, 16))
 
         self.kpi_home_ar, _ = self._make_card(kpi_row, "₹ 0.00", "Total Receivables", "#5046e5")
-        self.kpi_home_ap, _ = self._make_card(kpi_row, "₹ 0.00", "Total Payables", "#dc2626")
-        self.kpi_home_bank, _ = self._make_card(kpi_row, "₹ 0.00", "Bank Balance", "#059669")
-        self.kpi_home_profit, _ = self._make_card(kpi_row, "₹ 0.00", "Net Profit (YTD)", "#4f46e5")
+        self.kpi_home_ap, _ = self._make_card(kpi_row, "₹ 0.00", "Total Payables", theme.DANGER)
+        self.kpi_home_bank, _ = self._make_card(kpi_row, "₹ 0.00", "Bank Balance", theme.SUCCESS)
+        self.kpi_home_profit, _ = self._make_card(kpi_row, "₹ 0.00", "Net Profit (YTD)", theme.PRIMARY)
 
         # 6 Action Cards in 2 rows of 3 (Matching 25-accounting-home.png)
-        grid_container = tk.Frame(self.home_tab, bg="#ffffff", bd=1, relief="solid", padx=20, pady=20)
+        grid_container = tk.Frame(self.home_tab, bg=theme.SURFACE, bd=1, relief="solid", padx=20, pady=20)
         grid_container.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
         # Row 1
-        r1 = tk.Frame(grid_container, bg="#ffffff")
+        r1 = tk.Frame(grid_container, bg=theme.SURFACE)
         r1.pack(fill="x", pady=(0, 16))
 
         # 1. BRS
@@ -141,7 +141,7 @@ class FinanceView(tk.Frame):
         )
 
         # Row 2
-        r2 = tk.Frame(grid_container, bg="#ffffff")
+        r2 = tk.Frame(grid_container, bg=theme.SURFACE)
         r2.pack(fill="x")
 
         # 4. Profit & Loss
@@ -173,19 +173,19 @@ class FinanceView(tk.Frame):
         )
 
     def _make_action_card(self, parent, icon: str, title: str, desc: str, btn_text: str, command):
-        card = tk.Frame(parent, bg="#ffffff", bd=1, relief="solid", padx=16, pady=16)
+        card = tk.Frame(parent, bg=theme.SURFACE, bd=1, relief="solid", padx=16, pady=16)
         card.pack(side="left", fill="both", expand=True, padx=8)
 
-        tk.Label(card, text=icon, font=("Segoe UI", 16), bg="#ffffff", fg="#4f46e5").pack(anchor="w")
-        tk.Label(card, text=title, font=("Segoe UI", 11, "bold"), fg="#0f172a", bg="#ffffff").pack(anchor="w", pady=(6, 2))
-        tk.Label(card, text=desc, font=("Segoe UI", 8), fg="#64748b", bg="#ffffff", wraplength=220, justify="left").pack(anchor="w", pady=(0, 14))
+        tk.Label(card, text=icon, font=("Segoe UI", 16), bg=theme.SURFACE, fg=theme.PRIMARY).pack(anchor="w")
+        tk.Label(card, text=title, font=theme.F_H11B, fg=theme.TEXT, bg=theme.SURFACE).pack(anchor="w", pady=(6, 2))
+        tk.Label(card, text=desc, font=theme.F_SMALL, fg=theme.TEXT_MUTED, bg=theme.SURFACE, wraplength=220, justify="left").pack(anchor="w", pady=(0, 14))
 
         tk.Button(
             card,
             text=btn_text,
-            font=("Segoe UI", 9, "bold"),
-            bg="#f8fafc",
-            fg="#334155",
+            font=theme.F_BOLD,
+            bg=theme.BG,
+            fg=theme.SLATE_700,
             relief="solid",
             bd=1,
             padx=12,
@@ -227,19 +227,19 @@ class FinanceView(tk.Frame):
     # 1. AR AGING & RECEIPTS TAB
     # =========================================================================
     def _build_ar_tab(self):
-        top_bar = tk.Frame(self.ar_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.ar_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Accounts Receivable (AR Aging)", font=("Segoe UI", 16, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Accounts Receivable (AR Aging)", font=("Segoe UI", 16, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
 
         tk.Button(
             top_bar,
             text="+ Record Customer Receipt",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -248,14 +248,14 @@ class FinanceView(tk.Frame):
             command=self._record_payment_dialog
         ).pack(side="right")
         tk.Button(
-            top_bar, text="Customer Statement", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155",
+            top_bar, text="Customer Statement", font=theme.F_BOLD, bg=theme.SURFACE, fg=theme.SLATE_700,
             relief="solid", bd=1, padx=12, pady=4, cursor="hand2", command=self._open_statement
         ).pack(side="right", padx=(0, 8))
 
-        card = tk.Frame(self.ar_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.ar_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
-        self.ar_summary_label = tk.Label(card, font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff", padx=16, pady=10)
+        self.ar_summary_label = tk.Label(card, font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE, padx=16, pady=10)
         self.ar_summary_label.pack(anchor="w")
 
         cols = [
@@ -302,13 +302,13 @@ class FinanceView(tk.Frame):
         dlg.geometry("460x360")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=16, pady=12)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=16, pady=12)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Record Customer Payment Receipt", font=("Segoe UI", 12, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text="Record Customer Payment Receipt", font=theme.F_H12B, fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         body.pack(fill="both", expand=True)
 
         entries = {}
@@ -322,12 +322,12 @@ class FinanceView(tk.Frame):
         ]
 
         for idx, (label, key, val) in enumerate(fields):
-            tk.Label(body, text=label, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=idx, column=0, padx=6, pady=4, sticky="w")
+            tk.Label(body, text=label, font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=idx, column=0, padx=6, pady=4, sticky="w")
             if key == "payment_method":
                 ent = ttk.Combobox(body, values=list(PaymentService.PAY_METHODS[:-1]), state="readonly", width=26)
                 ent.set(val)
             else:
-                ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=28)
+                ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=28)
                 ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=6, pady=4, sticky="ew")
             entries[key] = ent
@@ -359,28 +359,28 @@ class FinanceView(tk.Frame):
             except Exception as ex:
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=16, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=10)
         ftr.pack(fill="x", side="bottom")
-        tk.Button(ftr, text="Save Receipt", font=("Segoe UI", 9, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=14, pady=5, command=on_save).pack(side="right", padx=(6, 0))
-        tk.Button(ftr, text="Cancel", font=("Segoe UI", 9), bg="#f1f5f9", fg="#475569", relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
+        tk.Button(ftr, text="Save Receipt", font=theme.F_BOLD, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=14, pady=5, command=on_save).pack(side="right", padx=(6, 0))
+        tk.Button(ftr, text="Cancel", font=theme.F_BODY, bg=theme.HEADING_BG, fg=theme.SLATE_600, relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
 
     # =========================================================================
     # 2. AP DISBURSEMENTS TAB
     # =========================================================================
     def _build_ap_tab(self):
-        top_bar = tk.Frame(self.ap_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.ap_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Accounts Payable (AP)", font=("Segoe UI", 16, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Accounts Payable (AP)", font=("Segoe UI", 16, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
 
         tk.Button(
             top_bar,
             text="+ Disburse Supplier Payment",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -389,7 +389,7 @@ class FinanceView(tk.Frame):
             command=self._supplier_payment_dialog
         ).pack(side="right")
 
-        card = tk.Frame(self.ap_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.ap_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         cols = [
@@ -421,13 +421,13 @@ class FinanceView(tk.Frame):
         dlg.geometry("450x320")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=16, pady=12)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=16, pady=12)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Disburse Supplier Payment", font=("Segoe UI", 12, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text="Disburse Supplier Payment", font=theme.F_H12B, fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         body.pack(fill="both", expand=True)
 
         entries = {}
@@ -440,12 +440,12 @@ class FinanceView(tk.Frame):
         ]
 
         for idx, (label, key, val) in enumerate(fields):
-            tk.Label(body, text=label, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=idx, column=0, padx=6, pady=4, sticky="w")
+            tk.Label(body, text=label, font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=idx, column=0, padx=6, pady=4, sticky="w")
             if key == "payment_method":
                 ent = ttk.Combobox(body, values=list(PaymentService.PAY_METHODS[:-1]), state="readonly", width=24)
                 ent.set(val)
             else:
-                ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=26)
+                ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=26)
                 ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=6, pady=4, sticky="ew")
             entries[key] = ent
@@ -467,30 +467,30 @@ class FinanceView(tk.Frame):
             except Exception as ex:
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=16, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=10)
         ftr.pack(fill="x", side="bottom")
-        tk.Button(ftr, text="Disburse Payment", font=("Segoe UI", 9, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=14, pady=5, command=on_pay).pack(side="right", padx=(6, 0))
-        tk.Button(ftr, text="Cancel", font=("Segoe UI", 9), bg="#f1f5f9", fg="#475569", relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
+        tk.Button(ftr, text="Disburse Payment", font=theme.F_BOLD, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=14, pady=5, command=on_pay).pack(side="right", padx=(6, 0))
+        tk.Button(ftr, text="Cancel", font=theme.F_BODY, bg=theme.HEADING_BG, fg=theme.SLATE_600, relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
 
     # =========================================================================
     # 3. BANKING & BRS TAB
     # =========================================================================
     def _build_bank_tab(self):
-        top_bar = tk.Frame(self.bank_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.bank_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="Banking & Bank Reconciliation (BRS)", font=("Segoe UI", 16, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="Banking & Bank Reconciliation (BRS)", font=("Segoe UI", 16, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
 
-        btn_box = tk.Frame(top_bar, bg="#f8fafc")
+        btn_box = tk.Frame(top_bar, bg=theme.BG)
         btn_box.pack(side="right")
 
-        tk.Button(btn_box, text="+ Add Bank Account", font=("Segoe UI", 8, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=10, pady=4, command=self._add_bank_dialog).pack(side="left", padx=4)
-        tk.Button(btn_box, text="⚡ Auto-Reconciliation", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=4, command=self._auto_reconcile).pack(side="left", padx=4)
-        tk.Button(btn_box, text="📄 View BRS Statement", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=4, command=self._view_brs).pack(side="left", padx=4)
+        tk.Button(btn_box, text="+ Add Bank Account", font=theme.F_LABEL, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=10, pady=4, command=self._add_bank_dialog).pack(side="left", padx=4)
+        tk.Button(btn_box, text="⚡ Auto-Reconciliation", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=4, command=self._auto_reconcile).pack(side="left", padx=4)
+        tk.Button(btn_box, text="📄 View BRS Statement", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=4, command=self._view_brs).pack(side="left", padx=4)
 
-        card = tk.Frame(self.bank_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.bank_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         cols = [
@@ -519,13 +519,13 @@ class FinanceView(tk.Frame):
         dlg.geometry("400x280")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=16, pady=10)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=16, pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Add New Bank Account", font=("Segoe UI", 11, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text="Add New Bank Account", font=theme.F_H11B, fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         body.pack(fill="both", expand=True)
 
         entries = {}
@@ -538,12 +538,12 @@ class FinanceView(tk.Frame):
         ]
 
         for idx, (label, key, val) in enumerate(fields):
-            tk.Label(body, text=label, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=idx, column=0, padx=6, pady=4, sticky="w")
+            tk.Label(body, text=label, font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=idx, column=0, padx=6, pady=4, sticky="w")
             if key == "account_type":
                 ent = ttk.Combobox(body, values=["Current", "Savings", "OD"], state="readonly", width=20)
                 ent.set(val)
             else:
-                ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+                ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=22)
                 ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=6, pady=4, sticky="ew")
             entries[key] = ent
@@ -559,10 +559,10 @@ class FinanceView(tk.Frame):
             except Exception as ex:
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=16, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=10)
         ftr.pack(fill="x", side="bottom")
-        tk.Button(ftr, text="Save Bank", font=("Segoe UI", 9, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=14, pady=5, command=on_save).pack(side="right", padx=(6, 0))
-        tk.Button(ftr, text="Cancel", font=("Segoe UI", 9), bg="#f1f5f9", fg="#475569", relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
+        tk.Button(ftr, text="Save Bank", font=theme.F_BOLD, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=14, pady=5, command=on_save).pack(side="right", padx=(6, 0))
+        tk.Button(ftr, text="Cancel", font=theme.F_BODY, bg=theme.HEADING_BG, fg=theme.SLATE_600, relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
 
     def _auto_reconcile(self):
         sel = self.bank_table.get_selected()
@@ -592,21 +592,21 @@ class FinanceView(tk.Frame):
     # 4. GENERAL LEDGER TAB
     # =========================================================================
     def _build_gl_tab(self):
-        top_bar = tk.Frame(self.gl_tab, bg="#f8fafc")
+        top_bar = tk.Frame(self.gl_tab, bg=theme.BG)
         top_bar.pack(fill="x", padx=12, pady=(14, 10))
 
-        title_box = tk.Frame(top_bar, bg="#f8fafc")
+        title_box = tk.Frame(top_bar, bg=theme.BG)
         title_box.pack(side="left")
-        tk.Label(title_box, text="General Ledger & Chart of Accounts", font=("Segoe UI", 16, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title_box, text="General Ledger & Chart of Accounts", font=("Segoe UI", 16, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
 
-        btn_box = tk.Frame(top_bar, bg="#f8fafc")
+        btn_box = tk.Frame(top_bar, bg=theme.BG)
         btn_box.pack(side="right")
 
-        tk.Button(btn_box, text="+ Post Manual Journal", font=("Segoe UI", 8, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=10, pady=4, command=self._post_journal_dialog).pack(side="left", padx=4)
-        tk.Button(btn_box, text="Trial Balance", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=4, command=self._view_trial_balance).pack(side="left", padx=4)
-        tk.Button(btn_box, text="Profit & Loss", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=4, command=self._view_pl).pack(side="left", padx=4)
+        tk.Button(btn_box, text="+ Post Manual Journal", font=theme.F_LABEL, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=10, pady=4, command=self._post_journal_dialog).pack(side="left", padx=4)
+        tk.Button(btn_box, text="Trial Balance", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=4, command=self._view_trial_balance).pack(side="left", padx=4)
+        tk.Button(btn_box, text="Profit & Loss", font=theme.F_SMALL, bg=theme.SURFACE, relief="solid", bd=1, padx=10, pady=4, command=self._view_pl).pack(side="left", padx=4)
 
-        card = tk.Frame(self.gl_tab, bg="#ffffff", bd=1, relief="solid")
+        card = tk.Frame(self.gl_tab, bg=theme.SURFACE, bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         cols = [
@@ -684,13 +684,13 @@ class FinanceView(tk.Frame):
         dlg.title(title)
         dlg.geometry("640x560")
         dlg.transient(self.winfo_toplevel())
-        dlg.configure(bg="#ffffff")
-        box = tk.Text(dlg, font=("Consolas", 10), bg="#ffffff", fg="#0f172a", relief="flat", padx=16, pady=14, wrap="none")
+        dlg.configure(bg=theme.SURFACE)
+        box = tk.Text(dlg, font=("Consolas", 10), bg=theme.SURFACE, fg=theme.TEXT, relief="flat", padx=16, pady=14, wrap="none")
         box.insert("1.0", text)
         box.config(state="disabled")
         box.pack(fill="both", expand=True)
-        tk.Button(dlg, text="Close", command=dlg.destroy, relief="flat", bg="#4f46e5", fg="#ffffff",
-                  font=("Segoe UI", 9, "bold"), padx=16, pady=5).pack(side="bottom", pady=8)
+        tk.Button(dlg, text="Close", command=dlg.destroy, relief="flat", bg=theme.PRIMARY, fg=theme.SURFACE,
+                  font=theme.F_BOLD, padx=16, pady=5).pack(side="bottom", pady=8)
 
     def _view_trial_balance(self):
         self._show_report("Trial Balance", self.trial_balance_text())
@@ -707,35 +707,35 @@ class FinanceView(tk.Frame):
         dlg.geometry("450x320")
         dlg.transient(self)
         dlg.grab_set()
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
-        hdr = tk.Frame(dlg, bg="#4f46e5", padx=16, pady=10)
+        hdr = tk.Frame(dlg, bg=theme.PRIMARY, padx=16, pady=10)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="Post Balanced Double-Entry Journal", font=("Segoe UI", 11, "bold"), fg="#ffffff", bg="#4f46e5").pack(anchor="w")
+        tk.Label(hdr, text="Post Balanced Double-Entry Journal", font=theme.F_H11B, fg=theme.SURFACE, bg=theme.PRIMARY).pack(anchor="w")
 
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        body = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         body.pack(fill="both", expand=True)
 
-        tk.Label(body, text="Reference (e.g. ADJ-001):", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=0, column=0, padx=6, pady=4, sticky="w")
-        ref_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+        tk.Label(body, text="Reference (e.g. ADJ-001):", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=0, column=0, padx=6, pady=4, sticky="w")
+        ref_ent = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=22)
         ref_ent.grid(row=0, column=1, padx=6, pady=4)
 
-        tk.Label(body, text="Debit Account Code:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=1, column=0, padx=6, pady=4, sticky="w")
-        dr_acc = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+        tk.Label(body, text="Debit Account Code:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=1, column=0, padx=6, pady=4, sticky="w")
+        dr_acc = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=22)
         dr_acc.insert(0, "1200")
         dr_acc.grid(row=1, column=1, padx=6, pady=4)
 
-        tk.Label(body, text="Debit Amount (₹):", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=2, column=0, padx=6, pady=4, sticky="w")
-        dr_amt = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+        tk.Label(body, text="Debit Amount (₹):", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=2, column=0, padx=6, pady=4, sticky="w")
+        dr_amt = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=22)
         dr_amt.grid(row=2, column=1, padx=6, pady=4)
 
-        tk.Label(body, text="Credit Account Code:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=3, column=0, padx=6, pady=4, sticky="w")
-        cr_acc = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+        tk.Label(body, text="Credit Account Code:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=3, column=0, padx=6, pady=4, sticky="w")
+        cr_acc = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=22)
         cr_acc.insert(0, "4000")
         cr_acc.grid(row=3, column=1, padx=6, pady=4)
 
-        tk.Label(body, text="Credit Amount (₹):", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=4, column=0, padx=6, pady=4, sticky="w")
-        cr_amt = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+        tk.Label(body, text="Credit Amount (₹):", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=4, column=0, padx=6, pady=4, sticky="w")
+        cr_amt = tk.Entry(body, font=theme.F_BODY, relief="solid", bd=1, width=22)
         cr_amt.grid(row=4, column=1, padx=6, pady=4)
 
         def on_post():
@@ -761,10 +761,10 @@ class FinanceView(tk.Frame):
             except Exception as ex:
                 messagebox.showerror("Error", str(ex), parent=dlg)
 
-        ftr = tk.Frame(dlg, bg="#ffffff", padx=16, pady=10)
+        ftr = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=10)
         ftr.pack(fill="x", side="bottom")
-        tk.Button(ftr, text="Post Entry", font=("Segoe UI", 9, "bold"), bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=14, pady=5, command=on_post).pack(side="right", padx=(6, 0))
-        tk.Button(ftr, text="Cancel", font=("Segoe UI", 9), bg="#f1f5f9", fg="#475569", relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
+        tk.Button(ftr, text="Post Entry", font=theme.F_BOLD, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", bd=0, padx=14, pady=5, command=on_post).pack(side="right", padx=(6, 0))
+        tk.Button(ftr, text="Cancel", font=theme.F_BODY, bg=theme.HEADING_BG, fg=theme.SLATE_600, relief="solid", bd=1, padx=12, pady=4, command=dlg.destroy).pack(side="right")
 
     # =========================================================================
     # Helpers
@@ -777,7 +777,7 @@ class FinanceView(tk.Frame):
             card,
             text=initial_val,
             font=("Segoe UI", 22, "bold"),
-            fg="#ffffff",
+            fg=theme.SURFACE,
             bg=bg_color,
             anchor="w"
         )
@@ -786,8 +786,8 @@ class FinanceView(tk.Frame):
         sub_label = tk.Label(
             card,
             text=label_text,
-            font=("Segoe UI", 9),
-            fg="#fee2e2" if bg_color == "#dc2626" else "#dcfce7" if bg_color == "#059669" else "#e0e7ff",
+            font=theme.F_BODY,
+            fg="#fee2e2" if bg_color == theme.DANGER else "#dcfce7" if bg_color == theme.SUCCESS else "#e0e7ff",
             bg=bg_color,
             anchor="w"
         )

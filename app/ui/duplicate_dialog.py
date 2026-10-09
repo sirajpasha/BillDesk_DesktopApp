@@ -1,6 +1,6 @@
 from __future__ import annotations
 import tkinter as tk
-from typing import Optional, Tuple
+from app.ui import theme
 
 
 class DuplicateItemDialog(tk.Toplevel):
@@ -23,7 +23,7 @@ class DuplicateItemDialog(tk.Toplevel):
         self.title("Duplicate Item Detected")
         self.geometry("480x280")
         self.resizable(False, False)
-        self.configure(bg="#ffffff")
+        self.configure(bg=theme.SURFACE)
         if hasattr(parent, "winfo_toplevel"):
             self.transient(parent.winfo_toplevel())
         self.grab_set()
@@ -32,18 +32,18 @@ class DuplicateItemDialog(tk.Toplevel):
         self.add_qty: float = curr_qty if curr_qty > 0 else 1.0
 
         # Header banner
-        header = tk.Frame(self, bg="#d97706", padx=16, pady=10)
+        header = tk.Frame(self, bg=theme.WARNING, padx=16, pady=10)
         header.pack(fill="x")
         tk.Label(
             header,
             text="⚠️  Duplicate Item Detected",
-            font=("Segoe UI", 12, "bold"),
-            fg="#ffffff",
-            bg="#d97706"
+            font=theme.F_H12B,
+            fg=theme.SURFACE,
+            bg=theme.WARNING
         ).pack(side="left")
 
         # Body
-        body = tk.Frame(self, bg="#ffffff", padx=20, pady=14)
+        body = tk.Frame(self, bg=theme.SURFACE, padx=20, pady=14)
         body.pack(fill="both", expand=True)
 
         msg = (
@@ -54,29 +54,29 @@ class DuplicateItemDialog(tk.Toplevel):
         tk.Label(
             body,
             text=msg,
-            font=("Segoe UI", 9),
-            fg="#1e293b",
-            bg="#ffffff",
+            font=theme.F_BODY,
+            fg=theme.TEXT_STRONG,
+            bg=theme.SURFACE,
             justify="left",
             wraplength=430
         ).pack(anchor="w", pady=(0, 10))
 
         # Qty input frame
-        qty_box = tk.Frame(body, bg="#f8fafc", padx=12, pady=8, relief="solid", bd=1)
+        qty_box = tk.Frame(body, bg=theme.BG, padx=12, pady=8, relief="solid", bd=1)
         qty_box.pack(fill="x", pady=(0, 12))
         tk.Label(
             qty_box,
             text=f"Quantity to Add to Line #{prev_row_num}:",
-            font=("Segoe UI", 9, "bold"),
-            fg="#334155",
-            bg="#f8fafc"
+            font=theme.F_BOLD,
+            fg=theme.SLATE_700,
+            bg=theme.BG
         ).pack(side="left")
 
         self.qty_var = tk.StringVar(value=f"{self.add_qty:g}")
         self.qty_entry = tk.Entry(
             qty_box,
             textvariable=self.qty_var,
-            font=("Segoe UI", 10, "bold"),
+            font=theme.F_TEXT10B,
             width=8,
             justify="center",
             relief="solid",
@@ -86,23 +86,23 @@ class DuplicateItemDialog(tk.Toplevel):
         tk.Label(
             qty_box,
             text=unit,
-            font=("Segoe UI", 9),
-            fg="#64748b",
-            bg="#f8fafc"
+            font=theme.F_BODY,
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG
         ).pack(side="left")
 
         # Button row
-        btn_box = tk.Frame(body, bg="#ffffff")
+        btn_box = tk.Frame(body, bg=theme.SURFACE)
         btn_box.pack(fill="x", pady=(8, 0))
 
         add_btn = tk.Button(
             btn_box,
             text="➕ Add the QTY (Enter)",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             bg="#16a34a",
-            fg="#ffffff",
+            fg=theme.SURFACE,
             activebackground="#15803d",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -115,9 +115,9 @@ class DuplicateItemDialog(tk.Toplevel):
         ignore_btn = tk.Button(
             btn_box,
             text="🗑️ Ignore (Delete Duplicate)",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#dc2626",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.DANGER,
             activebackground="#fee2e2",
             activeforeground="#b91c1c",
             relief="solid",

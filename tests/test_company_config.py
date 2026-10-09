@@ -330,7 +330,6 @@ def test_company_settings_page_in_the_main_window_uses_the_new_screen(fake_db, t
     win = MainWindow(tk_root, fake_db, AuthService(fake_db), BillingService(fake_db), CurrentUser(user_id="A", username="admin", roles=["Admin"]))
     win.show_page("Company Settings")
     assert win.active_page == "Company Settings" and isinstance(win.frames["Company Settings"], CompanyConfigView)
-    admin_tabs = [win.admin_view.nametowidget(t) for t in win.admin_view.winfo_children()]
     assert not hasattr(win.admin_view, "company_tab")
     clerk = MainWindow(tk_root, fake_db, AuthService(fake_db), BillingService(fake_db), CurrentUser(user_id="U", username="u", roles=["user"]))
     clerk.show_page("Company Settings")

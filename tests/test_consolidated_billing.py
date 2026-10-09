@@ -1,5 +1,4 @@
 import os
-import pytest
 from app.services.billing_service import BillingService
 from app.printing.consolidated import generate_consolidated_report_pdf
 from app.ui.consolidated_view import ConsolidatedReportFrame, _normalize_date_to_iso, _format_iso_to_display

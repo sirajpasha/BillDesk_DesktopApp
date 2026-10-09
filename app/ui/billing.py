@@ -1,10 +1,8 @@
 import logging
 import os
 from app import paths
-import subprocess
-import tempfile
-import platform
 import re
+from typing import Optional
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import date, datetime
@@ -15,13 +13,14 @@ from app.printing.invoice import generate_invoice_pdf
 from app.ui.print_preview import show_print_preview
 from app.ui.duplicate_dialog import DuplicateItemDialog
 from app.ui.components.customer_picker import open_customer_picker
-from app.ui.components.calendar_popup import attach_date_picker, parse_date
+from app.ui.components.calendar_popup import attach_date_picker
 from app.services.master_service import MasterService
 from app.services.pricing_service import PricingService
-from app.utils.currency import format_inr
+from app.ui import theme
+from app.ui.components.line_grid import LineGridMixin
 
 
-class BillingFrame(ttk.Frame):
+class BillingFrame(LineGridMixin, ttk.Frame):
     """Authentic BillDesk POS Billing Terminal matching 04-billing-empty.png, 05, 06, 07."""
     def __init__(self, parent, db, billing, user, **kwargs):
         super().__init__(parent, **kwargs)
@@ -46,50 +45,50 @@ class BillingFrame(ttk.Frame):
 
     def _build_ui(self):
         # Outer container with padding matching 04-billing-empty.png
-        outer = tk.Frame(self, bg="#f8fafc", padx=16, pady=12)
+        outer = tk.Frame(self, bg=theme.BG, padx=16, pady=12)
         outer.pack(fill="both", expand=True)
 
         # ---------------- 1. SUB-HEADER BAR ----------------
-        sub_header = tk.Frame(outer, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        sub_header = tk.Frame(outer, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=14, pady=10)
         sub_header.pack(fill="x", pady=(0, 10))
 
         # Billing Company
-        tk.Label(sub_header, text="Billing Company:", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left", padx=(0, 6))
+        tk.Label(sub_header, text="Billing Company:", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
         self.company_cbo = ttk.Combobox(sub_header, width=22, state="readonly")
         self.company_cbo.pack(side="left", padx=(0, 16))
 
         # Doc Type
-        tk.Label(sub_header, text="Doc Type:", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left", padx=(0, 6))
+        tk.Label(sub_header, text="Doc Type:", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
         self.doctype_cbo = ttk.Combobox(sub_header, values=["Bill/Invoice", "Estimate", "Delivery Note"], width=14, state="readonly")
         self.doctype_cbo.current(0)
         self.doctype_cbo.pack(side="left", padx=(0, 16))
 
         # Customer (F5)
-        tk.Label(sub_header, text="Customer (F5):", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left", padx=(0, 6))
-        cust_search_box = tk.Frame(sub_header, bg="#e2e8f0", padx=1, pady=1)
+        tk.Label(sub_header, text="Customer (F5):", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
+        cust_search_box = tk.Frame(sub_header, bg=theme.BORDER, padx=1, pady=1)
         cust_search_box.pack(side="left", padx=(0, 16))
         self.customer_var = tk.StringVar(value="Cash")
-        self.customer_ent = tk.Entry(cust_search_box, textvariable=self.customer_var, font=("Segoe UI", 9), width=30, relief="flat", bd=0)
+        self.customer_ent = tk.Entry(cust_search_box, textvariable=self.customer_var, font=theme.F_BODY, width=30, relief="flat", bd=0)
         self.customer_ent.pack(side="left", ipady=3, padx=4)
         self.customer_ent.bind("<Button-1>", lambda _e: self._open_customer_search())
         self.customer_ent.bind("<Key>", lambda _e: self._open_customer_search())
 
         # Date
-        tk.Label(sub_header, text="Date:", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left", padx=(0, 6))
-        date_box = tk.Frame(sub_header, bg="#e2e8f0", padx=1, pady=1)
+        tk.Label(sub_header, text="Date:", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
+        date_box = tk.Frame(sub_header, bg=theme.BORDER, padx=1, pady=1)
         date_box.pack(side="left", padx=(0, 16))
-        self.date_ent = tk.Entry(date_box, font=("Segoe UI", 9), width=12, relief="flat", bd=0)
+        self.date_ent = tk.Entry(date_box, font=theme.F_BODY, width=12, relief="flat", bd=0)
         self.date_ent.insert(0, date.today().strftime("%d/%m/%Y"))
         self.date_ent.pack(side="left", ipady=3, padx=4)
         attach_date_picker(self.date_ent, "%d/%m/%Y", on_selected=self._on_date_chosen, allow_future=False, allow_blank=False, label="The bill date")
-        tk.Label(date_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2").pack(side="left", padx=(0, 4))
+        tk.Label(date_box, text="📅", bg=theme.SURFACE, fg=theme.TEXT_MUTED, font=theme.F_BODY, cursor="hand2").pack(side="left", padx=(0, 4))
 
         # Invoice No Tag
-        inv_badge = tk.Label(sub_header, text="Inv No: New", font=("Segoe UI", 9, "bold"), fg="#475569", bg="#f1f5f9", padx=12, pady=4)
+        inv_badge = tk.Label(sub_header, text="Inv No: New", font=theme.F_BOLD, fg=theme.SLATE_600, bg=theme.HEADING_BG, padx=12, pady=4)
         inv_badge.pack(side="right")
 
         # ---------------- 2. SPREADSHEET TABLE GRID (20 ROWS, FULL WIDTH) ----------------
-        grid_container = tk.Frame(outer, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1)
+        grid_container = tk.Frame(outer, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1)
         grid_container.pack(fill="both", expand=True, pady=(0, 10))
 
         # Column definitions: (col_idx, weight, minsize, title, anchor)
@@ -105,13 +104,13 @@ class BillingFrame(ttk.Frame):
         ]
 
         # Table Header Row
-        th_frame = tk.Frame(grid_container, bg="#f8fafc", height=34)
+        th_frame = tk.Frame(grid_container, bg=theme.BG, height=34)
         th_frame.pack(fill="x")
 
-        th_scroll_spacer = tk.Frame(th_frame, bg="#f8fafc", width=16)
+        th_scroll_spacer = tk.Frame(th_frame, bg=theme.BG, width=16)
         th_scroll_spacer.pack(side="right", fill="y")
 
-        th_cols = tk.Frame(th_frame, bg="#f8fafc")
+        th_cols = tk.Frame(th_frame, bg=theme.BG)
         th_cols.pack(side="left", fill="both", expand=True)
 
         for col_idx, weight, minsize, title, anchor in cols_def:
@@ -119,9 +118,9 @@ class BillingFrame(ttk.Frame):
             lbl = tk.Label(
                 th_cols,
                 text=title,
-                font=("Segoe UI", 9, "bold"),
-                fg="#1e293b",
-                bg="#f8fafc",
+                font=theme.F_BOLD,
+                fg=theme.TEXT_STRONG,
+                bg=theme.BG,
                 anchor=anchor,
                 padx=6,
                 pady=6
@@ -129,9 +128,9 @@ class BillingFrame(ttk.Frame):
             lbl.grid(row=0, column=col_idx, sticky="nsew")
 
         # Scrollable table rows canvas
-        t_canvas = tk.Canvas(grid_container, bg="#ffffff", highlightthickness=0)
+        t_canvas = tk.Canvas(grid_container, bg=theme.SURFACE, highlightthickness=0)
         t_scroll = ttk.Scrollbar(grid_container, orient="vertical", command=t_canvas.yview)
-        rows_frame = tk.Frame(t_canvas, bg="#ffffff")
+        rows_frame = tk.Frame(t_canvas, bg=theme.SURFACE)
 
         rows_frame.bind("<Configure>", lambda e: t_canvas.configure(scrollregion=t_canvas.bbox("all")))
         t_win = t_canvas.create_window((0, 0), window=rows_frame, anchor="nw")
@@ -158,31 +157,31 @@ class BillingFrame(ttk.Frame):
 
         # ---------------- 3. BOTTOM SUMMARY SECTION ----------------
         # Matches 04-billing-empty.png & 06-billing-filled.png
-        self.hint_lbl = tk.Label(outer, text="Type an item code or name, then press Enter.", font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc", anchor="w")
+        self.hint_lbl = tk.Label(outer, text="Type an item code or name, then press Enter.", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG, anchor="w")
         self.hint_lbl.pack(fill="x", pady=(0, 6))
 
-        summary_bar = tk.Frame(outer, bg="#f8fafc")
+        summary_bar = tk.Frame(outer, bg=theme.BG)
         summary_bar.pack(fill="x", pady=(0, 10))
 
         # Card 1: Customer Delivery
-        card_delivery = tk.Frame(summary_bar, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=12, pady=10, width=260, height=85)
+        card_delivery = tk.Frame(summary_bar, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=12, pady=10, width=260, height=85)
         card_delivery.pack(side="left", padx=(0, 10))
         card_delivery.pack_propagate(False)
 
-        self.deliv_name_lbl = tk.Label(card_delivery, text="Customer (Delivery): Cash", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff", anchor="w")
+        self.deliv_name_lbl = tk.Label(card_delivery, text="Customer (Delivery): Cash", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE, anchor="w")
         self.deliv_name_lbl.pack(fill="x")
-        self.deliv_addr_lbl = tk.Label(card_delivery, text="Cash Customer", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff", anchor="w")
+        self.deliv_addr_lbl = tk.Label(card_delivery, text="Cash Customer", font=theme.F_SMALL, fg=theme.TEXT_MUTED, bg=theme.SURFACE, anchor="w")
         self.deliv_addr_lbl.pack(fill="x")
-        self.deliv_phone_lbl = tk.Label(card_delivery, text="", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff", anchor="w")
+        self.deliv_phone_lbl = tk.Label(card_delivery, text="", font=theme.F_SMALL, fg=theme.TEXT_MUTED, bg=theme.SURFACE, anchor="w")
         self.deliv_phone_lbl.pack(fill="x")
 
         # Card 2: Bill To
-        card_billto = tk.Frame(summary_bar, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=12, pady=10, width=260, height=85)
+        card_billto = tk.Frame(summary_bar, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=12, pady=10, width=260, height=85)
         card_billto.pack(side="left", padx=(0, 10))
         card_billto.pack_propagate(False)
 
-        tk.Label(card_billto, text="Bill To:", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff", anchor="w").pack(fill="x")
-        self.billto_lbl = tk.Label(card_billto, text="-", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff", anchor="w")
+        tk.Label(card_billto, text="Bill To:", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE, anchor="w").pack(fill="x")
+        self.billto_lbl = tk.Label(card_billto, text="-", font=theme.F_SMALL, fg=theme.TEXT_MUTED, bg=theme.SURFACE, anchor="w")
         self.billto_lbl.pack(fill="x")
 
         # Card 3: Internal Notes (Light Yellow Box)
@@ -190,31 +189,31 @@ class BillingFrame(ttk.Frame):
         card_notes.pack(side="left", padx=(0, 10))
         card_notes.pack_propagate(False)
 
-        tk.Label(card_notes, text="Internal Notes:", font=("Segoe UI", 9, "bold"), fg="#92400e", bg="#fffbeb", anchor="w").pack(fill="x")
-        self.notes_ent = tk.Entry(card_notes, font=("Segoe UI", 8), bg="#fffbeb", fg="#78350f", relief="flat", bd=0)
+        tk.Label(card_notes, text="Internal Notes:", font=theme.F_BOLD, fg="#92400e", bg="#fffbeb", anchor="w").pack(fill="x")
+        self.notes_ent = tk.Entry(card_notes, font=theme.F_SMALL, bg="#fffbeb", fg="#78350f", relief="flat", bd=0)
         self.notes_ent.insert(0, "Add internal notes...")
         self.notes_ent.pack(fill="x", pady=(4, 0))
 
         # Far Right: Massive Total Display
-        total_box = tk.Frame(summary_bar, bg="#f8fafc", padx=16)
+        total_box = tk.Frame(summary_bar, bg=theme.BG, padx=16)
         total_box.pack(side="right", fill="y")
-        self.total_lbl = tk.Label(total_box, text="Total: ₹0.00", font=("Segoe UI", 22, "bold"), fg="#15803d", bg="#f8fafc")
+        self.total_lbl = tk.Label(total_box, text="Total: ₹0.00", font=("Segoe UI", 22, "bold"), fg="#15803d", bg=theme.BG)
         self.total_label = self.total_lbl
         self.total_lbl.pack(side="right", pady=16)
 
         # ---------------- 4. ACTION BUTTONS (BOTTOM RIGHT) ----------------
         # Matches Park (F6) and Parked (0) (F7) docked to the right
-        btn_bar = tk.Frame(outer, bg="#f8fafc")
+        btn_bar = tk.Frame(outer, bg=theme.BG)
         btn_bar.pack(fill="x", side="bottom")
 
         self.parked_list_btn = tk.Button(
             btn_bar,
             text="📥 Parked (0) (F7)",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             bg="#3b82f6",
-            fg="#ffffff",
+            fg=theme.SURFACE,
             activebackground="#2563eb",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -227,11 +226,11 @@ class BillingFrame(ttk.Frame):
         self.park_btn = tk.Button(
             btn_bar,
             text="🗂️ Park (F6)",
-            font=("Segoe UI", 9, "bold"),
+            font=theme.F_BOLD,
             bg="#f59e0b",
-            fg="#ffffff",
-            activebackground="#d97706",
-            activeforeground="#ffffff",
+            fg=theme.SURFACE,
+            activebackground=theme.WARNING,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -242,10 +241,8 @@ class BillingFrame(ttk.Frame):
         self.park_btn.pack(side="right", padx=(0, 6))
 
     def _bind_hotkeys(self):
-        # only while this screen is showing (the main window routes F2 / F3 / F5 / F6 as well)
-        self.bind_all("<F5>", lambda _e: self._open_customer_search() if self.winfo_ismapped() else None)
-        self.bind_all("<F6>", lambda _e: self.park_bill() if self.winfo_ismapped() else None)
-        self.bind_all("<F7>", lambda _e: self._open_parked_modal() if self.winfo_ismapped() else None)
+        """Nothing to bind here: the main window routes F2 / F3 / F5 / F6 / F7 to this screen while it is showing."""
+        return None
 
     def _load_defaults(self):
         # Load companies
@@ -264,37 +261,36 @@ class BillingFrame(ttk.Frame):
         if self.row_widgets:
             self.row_widgets[0]["code"].focus_set()
 
-    def _on_mousewheel(self, event):
-        if hasattr(self, "t_canvas") and event.delta:
-            self.t_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+    def _row_code_and_name(self, row: dict):
+        return row["code"].get(), row["name"].get()
 
     def _create_row_widget(self, row_idx: int) -> dict:
-        row_f = tk.Frame(self.rows_frame, bg="#ffffff", height=32)
+        row_f = tk.Frame(self.rows_frame, bg=theme.SURFACE, height=32)
         row_f.pack(fill="x", expand=True, pady=1)
 
         for col_idx, weight, minsize, title, anchor in self.cols_def:
             row_f.grid_columnconfigure(col_idx, weight=weight, minsize=minsize)
 
         # Sno
-        sno_lbl = tk.Label(row_f, text=str(row_idx + 1), font=("Segoe UI", 9), fg="#64748b", bg="#ffffff", anchor="center")
+        sno_lbl = tk.Label(row_f, text=str(row_idx + 1), font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE, anchor="center")
         sno_lbl.grid(row=0, column=0, sticky="nsew", padx=1, pady=2)
 
         # Code
-        c_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        c_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         c_box.grid(row=0, column=1, sticky="nsew", padx=2, pady=2)
-        code_ent = tk.Entry(c_box, font=("Segoe UI", 9), width=5, relief="flat", bd=0)
+        code_ent = tk.Entry(c_box, font=theme.F_BODY, width=5, relief="flat", bd=0)
         code_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # Item Description (stretches to fill table)
-        d_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        d_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         d_box.grid(row=0, column=2, sticky="nsew", padx=2, pady=2)
-        name_ent = tk.Entry(d_box, font=("Segoe UI", 9), width=10, relief="flat", bd=0)
+        name_ent = tk.Entry(d_box, font=theme.F_BODY, width=10, relief="flat", bd=0)
         name_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # Qty
-        q_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        q_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         q_box.grid(row=0, column=3, sticky="nsew", padx=2, pady=2)
-        qty_ent = tk.Entry(q_box, font=("Segoe UI", 9), width=5, relief="flat", bd=0, justify="right")
+        qty_ent = tk.Entry(q_box, font=theme.F_BODY, width=5, relief="flat", bd=0, justify="right")
         qty_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # Unit
@@ -306,24 +302,24 @@ class BillingFrame(ttk.Frame):
         unit_cbo.grid(row=0, column=4, sticky="nsew", padx=2, pady=2)
 
         # Rate
-        r_box = tk.Frame(row_f, bg="#e2e8f0", padx=1, pady=1)
+        r_box = tk.Frame(row_f, bg=theme.BORDER, padx=1, pady=1)
         r_box.grid(row=0, column=5, sticky="nsew", padx=2, pady=2)
-        rate_ent = tk.Entry(r_box, font=("Segoe UI", 9), width=5, relief="flat", bd=0, justify="right")
+        rate_ent = tk.Entry(r_box, font=theme.F_BODY, width=5, relief="flat", bd=0, justify="right")
         rate_ent.pack(fill="both", expand=True, ipady=3, padx=2)
 
         # Amount
-        amt_lbl = tk.Label(row_f, text="₹0.00", font=("Segoe UI", 9, "bold"), fg="#0f172a", bg="#ffffff", anchor="e", padx=4)
+        amt_lbl = tk.Label(row_f, text="₹0.00", font=theme.F_BOLD, fg=theme.TEXT, bg=theme.SURFACE, anchor="e", padx=4)
         amt_lbl.grid(row=0, column=6, sticky="nsew", padx=2, pady=2)
 
         # Red Delete Button [X]
         del_btn = tk.Button(
             row_f,
             text="✕",
-            font=("Segoe UI", 8, "bold"),
-            fg="#ffffff",
+            font=theme.F_LABEL,
+            fg=theme.SURFACE,
             bg="#ef4444",
-            activebackground="#dc2626",
-            activeforeground="#ffffff",
+            activebackground=theme.DANGER,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             cursor="hand2",
@@ -357,26 +353,6 @@ class BillingFrame(ttk.Frame):
             "item_id": None,
             "frame": row_f,
         }
-
-    def _add_row(self) -> int:
-        new_idx = len(self.row_widgets)
-        row_data = self._create_row_widget(new_idx)
-        self.row_widgets.append(row_data)
-        self.rows_frame.update_idletasks()
-        self.t_canvas.configure(scrollregion=self.t_canvas.bbox("all"))
-        return new_idx
-
-    def _scroll_to_row(self, row_idx: int):
-        try:
-            if row_idx < 0 or row_idx >= len(self.row_widgets):
-                return
-            self.rows_frame.update_idletasks()
-            total_rows = len(self.row_widgets)
-            if total_rows > 0:
-                fraction = max(0.0, min(1.0, row_idx / total_rows))
-                self.t_canvas.yview_moveto(fraction)
-        except Exception:
-            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # ---------------- SPREADSHEET ROW LOGIC ----------------
     def _resolve_item(self, code: str):
@@ -414,10 +390,10 @@ class BillingFrame(ttk.Frame):
         dlg = tk.Toplevel(self)
         dlg.title("Choose item")
         dlg.transient(self.winfo_toplevel())
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
         tk.Label(dlg, text=f"{len(candidates)} items match '{code}' - choose one (Enter), or Esc to cancel",
-                 font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff", padx=12, pady=8).pack(anchor="w")
-        lb = tk.Listbox(dlg, font=("Segoe UI", 10), height=min(12, len(candidates)), width=48, activestyle="dotbox", exportselection=False)
+                 font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE, padx=12, pady=8).pack(anchor="w")
+        lb = tk.Listbox(dlg, font=theme.F_TEXT10, height=min(12, len(candidates)), width=48, activestyle="dotbox", exportselection=False)
         for i in candidates:
             lb.insert(tk.END, f"{(i.get('item_alias') or i.get('item_id') or ''):<8} {i.get('name', '')}  ({i.get('unit') or 'Kg'})")
         lb.pack(padx=12, pady=(0, 12), fill="both", expand=True)
@@ -455,7 +431,7 @@ class BillingFrame(ttk.Frame):
         who = (self.selected_customer or {}).get("name")
         rate_txt = f"fixed rate for {who}" if (is_fixed and who) else "item rate"
         self.hint_lbl.config(text=f"{item.get('name', '')}:  {stock_txt}   |   ₹{rate:.2f} per {unit} ({rate_txt})",
-                             fg="#b45309" if (stock <= 0 and not settings.allow_negative_stock) else "#475569")
+                             fg="#b45309" if (stock <= 0 and not settings.allow_negative_stock) else theme.SLATE_600)
 
     def _on_code_entered(self, row_idx: int, focus_next: bool = True):
         if row_idx >= len(self.row_widgets):
@@ -657,15 +633,6 @@ class BillingFrame(ttk.Frame):
         row["amount"].config(text=f"₹{amount:.2f}")
         self._update_grand_total()
 
-    def _is_row_empty(self, row_idx: int) -> bool:
-        if row_idx < 0 or row_idx >= len(self.row_widgets):
-            return True
-        row = self.row_widgets[row_idx]
-        code = row["code"].get().strip()
-        name = row["name"].get().strip()
-        item_id = row.get("item_id")
-        return not code and not name and not item_id
-
     def _compact_row_gap(self, row_idx: int) -> int:
         """
         If there is any gap above row_idx (an empty row among 0..row_idx-1),
@@ -864,14 +831,6 @@ class BillingFrame(ttk.Frame):
         """After the date: straight to the first empty row (row N+1 when N rows are filled), in the Code box."""
         self.after(60, self.focus_first_empty_row)
 
-    def focus_first_empty_row(self) -> int:
-        idx = next((i for i in range(len(self.row_widgets)) if self._is_row_empty(i)), None)
-        if idx is None:
-            idx = self._add_row()
-        self._scroll_to_row(idx)
-        self.row_widgets[idx]["code"].focus_set()
-        return idx
-
     def _invoice_date_iso(self) -> str:
         """The bill date from the Date box as YYYY-MM-DD; raises ValueError (with a message to show) when it cannot be used."""
         picker = self.date_ent._date_picker
@@ -911,29 +870,29 @@ class BillingFrame(ttk.Frame):
         sh = modal.winfo_screenheight()
         modal.geometry(f"640x520+{(sw-640)//2}+{(sh-520)//2}")
 
-        frame = tk.Frame(modal, bg="#ffffff", padx=24, pady=20)
+        frame = tk.Frame(modal, bg=theme.SURFACE, padx=24, pady=20)
         frame.pack(fill="both", expand=True)
 
         # Header with close X
-        h_box = tk.Frame(frame, bg="#ffffff")
+        h_box = tk.Frame(frame, bg=theme.SURFACE)
         h_box.pack(fill="x", pady=(0, 16))
-        tk.Label(h_box, text="Record Payment Receipt", font=("Segoe UI", 14, "bold"), fg="#0f172a", bg="#ffffff").pack(side="left")
-        tk.Button(h_box, text="✕", font=("Segoe UI", 10), bg="#ffffff", fg="#64748b", relief="flat", bd=0, command=modal.destroy).pack(side="right")
+        tk.Label(h_box, text="Record Payment Receipt", font=("Segoe UI", 14, "bold"), fg=theme.TEXT, bg=theme.SURFACE).pack(side="left")
+        tk.Button(h_box, text="✕", font=theme.F_TEXT10, bg=theme.SURFACE, fg=theme.TEXT_MUTED, relief="flat", bd=0, command=modal.destroy).pack(side="right")
 
         # Top section: 2 columns
-        grid_two = tk.Frame(frame, bg="#ffffff")
+        grid_two = tk.Frame(frame, bg=theme.SURFACE)
         grid_two.pack(fill="x", pady=(0, 16))
 
         # Left Box (Customer Info)
-        left_box = tk.Frame(grid_two, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12, width=280)
+        left_box = tk.Frame(grid_two, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=14, pady=12, width=280)
         left_box.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
         if self.selected_customer is None:
-            tk.Label(left_box, text="Walk-in counter sale", font=("Segoe UI", 9, "bold"), fg="#475569", bg="#ffffff").pack(anchor="w", pady=(0, 8))
+            tk.Label(left_box, text="Walk-in counter sale", font=theme.F_BOLD, fg=theme.SLATE_600, bg=theme.SURFACE).pack(anchor="w", pady=(0, 8))
 
-        tk.Label(left_box, text="Customer", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+        tk.Label(left_box, text="Customer", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w")
         cust_name_str = self.selected_customer.get("name") if self.selected_customer else "Cash"
-        tk.Label(left_box, text=cust_name_str, font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#f1f5f9", padx=8, pady=4).pack(fill="x", pady=(2, 12))
+        tk.Label(left_box, text=cust_name_str, font=theme.F_TEXT10B, fg=theme.TEXT_STRONG, bg=theme.HEADING_BG, padx=8, pady=4).pack(fill="x", pady=(2, 12))
 
         unpaid_count = 0
         cur_bal = 0.0
@@ -942,61 +901,61 @@ class BillingFrame(ttk.Frame):
             cur_bal = float(fresh.get("current_balance", 0.0) or 0.0)
             unpaid_count = self.db.collection("bills").count_documents({
                 "customer_id": self.selected_customer.get("cust_id"), "status": {"$in": ["unpaid", "partial"]}, "is_deleted": 0})
-        bal_row = tk.Frame(left_box, bg="#ffffff")
+        bal_row = tk.Frame(left_box, bg=theme.SURFACE)
         bal_row.pack(fill="x")
-        tk.Label(bal_row, text=f"OUTSTANDING\n₹{cur_bal:.2f}", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="left")
-        tk.Label(bal_row, text=f"UNPAID BILLS\n{unpaid_count}", font=("Segoe UI", 8, "bold"), fg="#475569", bg="#ffffff", justify="left").pack(side="right")
+        tk.Label(bal_row, text=f"OUTSTANDING\n₹{cur_bal:.2f}", font=theme.F_LABEL, fg=theme.SLATE_600, bg=theme.SURFACE, justify="left").pack(side="left")
+        tk.Label(bal_row, text=f"UNPAID BILLS\n{unpaid_count}", font=theme.F_LABEL, fg=theme.SLATE_600, bg=theme.SURFACE, justify="left").pack(side="right")
 
         # Right Box (Payment Details)
-        right_box = tk.Frame(grid_two, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12, width=280)
+        right_box = tk.Frame(grid_two, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=14, pady=12, width=280)
         right_box.pack(side="left", fill="both", expand=True, padx=(8, 0))
 
-        tk.Label(right_box, text="Amount Received", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=0, column=0, sticky="w")
-        tk.Label(right_box, text="Payment Date (bill date)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=0, column=1, sticky="w", padx=(10, 0))
+        tk.Label(right_box, text="Amount Received", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=0, column=0, sticky="w")
+        tk.Label(right_box, text="Payment Date (bill date)", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=0, column=1, sticky="w", padx=(10, 0))
 
-        amt_box = tk.Frame(right_box, bg="#cbd5e1", padx=1, pady=1)
+        amt_box = tk.Frame(right_box, bg=theme.BORDER_DARK, padx=1, pady=1)
         amt_box.grid(row=1, column=0, sticky="ew", pady=(2, 10))
-        amt_rec_ent = tk.Entry(amt_box, font=("Segoe UI", 12, "bold"), width=12, relief="flat", bd=0)
+        amt_rec_ent = tk.Entry(amt_box, font=theme.F_H12B, width=12, relief="flat", bd=0)
         amt_rec_ent.insert(0, f"{total_amount:.0f}")
         amt_rec_ent.pack(fill="both", ipady=4, padx=4)
 
-        date_box = tk.Frame(right_box, bg="#cbd5e1", padx=1, pady=1)
+        date_box = tk.Frame(right_box, bg=theme.BORDER_DARK, padx=1, pady=1)
         date_box.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(2, 10))
         # The counter payment is recorded on the bill's own date, so this is shown, not typed (it used to look editable and was ignored).
-        pay_date_ent = tk.Entry(date_box, font=("Segoe UI", 10), width=12, relief="flat", bd=0, readonlybackground="#f1f5f9")
+        pay_date_ent = tk.Entry(date_box, font=theme.F_TEXT10, width=12, relief="flat", bd=0, readonlybackground=theme.HEADING_BG)
         pay_date_ent.insert(0, datetime.strptime(invoice_date_iso, "%Y-%m-%d").strftime("%d/%m/%Y"))
         pay_date_ent.config(state="readonly")
         pay_date_ent.pack(fill="both", ipady=4, padx=4)
 
-        tk.Label(right_box, text="Payment Method", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=2, column=0, sticky="w")
-        tk.Label(right_box, text="Reference / UTR", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=2, column=1, sticky="w", padx=(10, 0))
+        tk.Label(right_box, text="Payment Method", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=2, column=0, sticky="w")
+        tk.Label(right_box, text="Reference / UTR", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=2, column=1, sticky="w", padx=(10, 0))
 
         method_cbo = ttk.Combobox(right_box, values=["Cash", "UPI", "Cheque", "NEFT/RTGS", "Credit/Due"], state="readonly", width=12)
         method_cbo.current(0)
         method_cbo.grid(row=3, column=0, sticky="ew", pady=(2, 0))
 
-        utr_box = tk.Frame(right_box, bg="#cbd5e1", padx=1, pady=1)
+        utr_box = tk.Frame(right_box, bg=theme.BORDER_DARK, padx=1, pady=1)
         utr_box.grid(row=3, column=1, sticky="ew", padx=(10, 0), pady=(2, 0))
-        utr_ent = tk.Entry(utr_box, font=("Segoe UI", 10), width=12, relief="flat", bd=0)
+        utr_ent = tk.Entry(utr_box, font=theme.F_TEXT10, width=12, relief="flat", bd=0)
         utr_ent.insert(0, "NEW")
         utr_ent.pack(fill="both", ipady=4, padx=4)
 
         # Payment Allocation Box
-        alloc_box = tk.Frame(frame, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=12)
+        alloc_box = tk.Frame(frame, bg=theme.SURFACE, highlightbackground=theme.BORDER, highlightthickness=1, padx=14, pady=12)
         alloc_box.pack(fill="x", pady=(0, 20))
 
-        alloc_h = tk.Frame(alloc_box, bg="#ffffff")
+        alloc_h = tk.Frame(alloc_box, bg=theme.SURFACE)
         alloc_h.pack(fill="x", pady=(0, 8))
-        tk.Label(alloc_h, text="Payment Allocation", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left")
+        tk.Label(alloc_h, text="Payment Allocation", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left")
 
 
         # Info tip
         tip_box = tk.Frame(alloc_box, bg="#eff6ff", padx=10, pady=8)
         tip_box.pack(fill="x")
-        tk.Label(tip_box, text="ⓘ  The amount received is applied to this bill. Any balance stays outstanding on the customer account.", font=("Segoe UI", 8), fg="#1e40af", bg="#eff6ff").pack(anchor="w")
+        tk.Label(tip_box, text="ⓘ  The amount received is applied to this bill. Any balance stays outstanding on the customer account.", font=theme.F_SMALL, fg="#1e40af", bg="#eff6ff").pack(anchor="w")
 
         # Bottom buttons: Cancel and Post Payment
-        bot_btns = tk.Frame(frame, bg="#ffffff")
+        bot_btns = tk.Frame(frame, bg=theme.SURFACE)
         bot_btns.pack(fill="x", side="bottom")
 
         def _execute_post():
@@ -1112,11 +1071,11 @@ class BillingFrame(ttk.Frame):
         tk.Button(
             bot_btns,
             text="Post Payment",
-            font=("Segoe UI", 10, "bold"),
+            font=theme.F_TEXT10B,
             bg="#5b54d6",
-            fg="#ffffff",
+            fg=theme.SURFACE,
             activebackground="#4a43c2",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=20,
@@ -1128,9 +1087,9 @@ class BillingFrame(ttk.Frame):
         tk.Button(
             bot_btns,
             text="Cancel",
-            font=("Segoe UI", 10),
-            bg="#f1f5f9",
-            fg="#475569",
+            font=theme.F_TEXT10,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_600,
             relief="flat",
             bd=0,
             padx=16,
@@ -1224,16 +1183,16 @@ class BillingFrame(ttk.Frame):
         sh = modal.winfo_screenheight()
         modal.geometry(f"450x320+{(sw-450)//2}+{(sh-320)//2}")
 
-        frame = tk.Frame(modal, bg="#ffffff", padx=16, pady=14)
+        frame = tk.Frame(modal, bg=theme.SURFACE, padx=16, pady=14)
         frame.pack(fill="both", expand=True)
-        tk.Label(frame, text="Select Parked Bill to Recall", font=("Segoe UI", 11, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w", pady=(0, 10))
+        tk.Label(frame, text="Select Parked Bill to Recall", font=theme.F_H11B, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(anchor="w", pady=(0, 10))
 
         for idx, pb in enumerate(parked):
             c_name = pb["customer"].get("name") if pb.get("customer") else "Cash Customer"
-            card = tk.Frame(frame, bg="#f8fafc", highlightbackground="#e2e8f0", highlightthickness=1, padx=10, pady=8, cursor="hand2")
+            card = tk.Frame(frame, bg=theme.BG, highlightbackground=theme.BORDER, highlightthickness=1, padx=10, pady=8, cursor="hand2")
             card.pack(fill="x", pady=4)
-            tk.Label(card, text=f"#{idx+1} {c_name} — Total: ₹{pb['total']:.2f}", font=("Segoe UI", 9, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
-            tk.Label(card, text=f"Parked {pb['parked_at']}" + (f" by {pb['parked_by']}" if pb.get("parked_by") else "") + f" ({len(pb['lines'])} items)", font=("Segoe UI", 8), fg="#64748b", bg="#f8fafc").pack(anchor="w")
+            tk.Label(card, text=f"#{idx+1} {c_name} — Total: ₹{pb['total']:.2f}", font=theme.F_BOLD, fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
+            tk.Label(card, text=f"Parked {pb['parked_at']}" + (f" by {pb['parked_by']}" if pb.get("parked_by") else "") + f" ({len(pb['lines'])} items)", font=theme.F_SMALL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
 
             card.bind("<Button-1>", lambda _e, i=idx: _recall(i))
 
