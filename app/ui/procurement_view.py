@@ -159,6 +159,7 @@ class ProcurementView(ttk.Frame):
         bar = ttk.Frame(self.returns_tab)
         bar.pack(fill="x", pady=6)
         ttk.Button(bar, text="🖨 Print Debit Note", command=self._print_selected_return).pack(side="left", padx=4)
+        ttk.Button(bar, text="Cancel Debit Note", command=self._cancel_selected_return).pack(side="left", padx=4)
         ttk.Button(bar, text="Refresh", command=self.load_returns).pack(side="left", padx=4)
         cols = [
             ("return_id", "Debit Note", 170),
@@ -168,6 +169,7 @@ class ProcurementView(ttk.Frame):
             ("gross_amount", "Goods (₹)", 110),
             ("tds_amount", "TDS back (₹)", 110),
             ("net_amount", "Debit Note (₹)", 120),
+            ("status", "Status", 90),
         ]
         self.returns_table = DataTable(self.returns_tab, columns=cols,
                                        empty_text="No goods sent back yet. Select a vendor bill and use Return Goods to Supplier.")
@@ -184,6 +186,23 @@ class ProcurementView(ttk.Frame):
                 d[k] = format_inr(d.get(k, 0.0), symbol=False)
             formatted.append(d)
         self.returns_table.set_data(formatted)
+
+    def _cancel_selected_return(self):
+        row = self.returns_table.get_selected()
+        if not row:
+            messagebox.showinfo("Select", "Select a debit note first.", parent=self)
+            return
+        if not messagebox.askyesno("Cancel debit note", f"Cancel {row['return_id']}?\n\nWhat you owe the supplier, the vendor bill's balance and "
+                                   "the stock go back to where they were and the ledger is reversed. The debit note stays on file, marked cancelled.", parent=self):
+            return
+        from app.services.purchase_returns_service import PurchaseReturnsService
+        try:
+            PurchaseReturnsService(self.db).cancel_return(row["return_id"], user_id=self.current_user.username, reason="cancelled from Procurement")
+        except Exception as exc:
+            messagebox.showerror("Cancel debit note", str(exc), parent=self)
+            return
+        messagebox.showinfo("Cancel debit note", f"{row['return_id']} cancelled.", parent=self)
+        self.refresh()
 
     def _print_selected_return(self):
         row = self.returns_table.get_selected()

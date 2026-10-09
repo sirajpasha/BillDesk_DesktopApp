@@ -896,9 +896,30 @@ class BillHistoryFrame(tk.Frame):
             if sel:
                 open_note_pdf(dlg, self.db, "sales", rets[sel[0]])
         lb.bind("<Double-1>", lambda _e: _print())
+        def _cancel():
+            sel = lb.curselection()
+            if not sel:
+                return
+            ret = rets[sel[0]]
+            if not messagebox.askyesno("Cancel return", f"Cancel {ret['return_id']} ({format_inr(ret.get('total_refund_amount', 0.0))})?\n\n"
+                                       "The credit given to the customer is taken back, the stock returns to where it was and the "
+                                       "ledger is reversed. The credit note stays on file, marked cancelled.", parent=dlg):
+                return
+            try:
+                ReturnsService(self.db).cancel_return(ret["return_id"], user_id=self.current_user.username if self.current_user else "system",
+                                                      reason="cancelled from Bill History")
+            except Exception as exc:
+                messagebox.showerror("Cancel return", str(exc), parent=dlg)
+                return
+            messagebox.showinfo("Cancel return", f"{ret['return_id']} cancelled.", parent=dlg)
+            dlg.destroy()
+            self.refresh()
+
         row = tk.Frame(dlg)
         row.pack(pady=(0, 12))
         tk.Button(row, text="Print / Save PDF", command=_print, bg="#4f46e5", fg="#ffffff", relief="flat", padx=14, pady=5).pack(side="left", padx=6)
+        tk.Button(row, text="Cancel this return", command=_cancel, fg="#b91c1c", relief="solid", bd=1, padx=12, pady=4).pack(side="left", padx=6)
+        self.credit_notes_dialog = dlg
         tk.Button(row, text="Close", command=dlg.destroy, relief="solid", bd=1, padx=14, pady=4).pack(side="left")
 
     def _void_selected(self):
