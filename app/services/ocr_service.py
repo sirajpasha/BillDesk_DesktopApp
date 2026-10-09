@@ -3,6 +3,8 @@ import os
 import re
 import sys
 import shutil
+import difflib
+from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import pytesseract
@@ -357,6 +359,97 @@ class SmartOcrService:
                 res.append(char)
         return "".join(res)
 
+    # ------------------------------------------------------------------ order photo -> rows
+    ENGINE_MISSING = "Tesseract OCR engine is not installed with this build (missing tesseract executable or language data)."
+    DATE_RE = re.compile(r"(?<!\d)(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{2,4})(?!\d)")
+
+    def engine_ready(self) -> bool:
+        return bool(self.tesseract_exe and self.tessdata_dir and "eng" in self.get_available_languages())
+
+    @classmethod
+    def find_date(cls, text: str) -> Optional[date]:
+        """First date written like 20.01.26, 20/1/2026 or 20-01-26 (day first, as people write it here)."""
+        for m in cls.DATE_RE.finditer(cls.normalize_indic_digits(text)):
+            d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if y < 100:
+                y += 2000
+            if not 2000 <= y <= 2100:                       # garbage from a badly read photo
+                continue
+            try:
+                return date(y, mo, d)
+            except ValueError:
+                continue
+        return None
+
+    @staticmethod
+    def guess_customer(lines: List[str], customers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """The first line that is only letters (no quantity) is usually the customer's name. Returns {"text", "customer"}."""
+        for line in lines:
+            t = line.strip(" .:-_|")
+            if len(t) < 3 or re.search(r"\d", t):
+                continue
+            q = t.lower()
+            best, best_ratio = None, 0.0
+            for c in customers:
+                for name in (c.get("name"), c.get("bill_to_name")):
+                    if not name:
+                        continue
+                    n = str(name).lower().strip()
+                    ratio = 1.0 if (q == n or q in n or n in q) else difflib.SequenceMatcher(None, q, n).ratio()
+                    if ratio > best_ratio:
+                        best, best_ratio = c, ratio
+            return {"text": t, "customer": best if best_ratio >= 0.6 else None}
+        return {"text": "", "customer": None}
+
+    def read_order_image(self, image_input: Any, items_cache: List[Dict[str, Any]],
+                         customers: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Photo / scan of an order -> {"rows", "customer", "customer_text", "date", "raw_text", "warnings", "engine_ok"}.
+
+        OCR reads English and Tamil (and the other installed Indian languages) together, digits in Indian scripts are
+        converted, item names are translated to English through the produce dictionary and matched to the Item Master
+        (with a spelling-tolerant match, because handwriting and photos make OCR slip). Rows that could not be matched
+        come back with matched=False so the screen can ask the user instead of guessing."""
+        result: Dict[str, Any] = {"rows": [], "customer": None, "customer_text": "", "date": None, "raw_text": "", "warnings": [], "engine_ok": True}
+        if not self.engine_ready():
+            result["engine_ok"] = False
+            result["warnings"].append(self.ENGINE_MISSING)
+            return result
+        try:
+            text = self.extract_text_from_image(image_input)
+        except Exception as exc:
+            result["engine_ok"] = False
+            result["warnings"].append(f"The image could not be read: {exc}")
+            return result
+        result["raw_text"] = text
+        lines = [l.strip() for l in text.splitlines() if l.strip()]
+        result["date"] = self.find_date(text)
+        head = self.guess_customer([l for l in lines if not self.DATE_RE.search(self.normalize_indic_digits(l))], customers or [])
+        result["customer_text"], result["customer"] = head["text"], head["customer"]
+        body = [l for l in lines if l.strip(" .:-_|") != head["text"] and not self.DATE_RE.fullmatch(self.normalize_indic_digits(l).strip())]
+        rows = self.parse_order_lines("\n".join(body), items_cache)
+        for r in rows:                                   # stray Latin letters next to a Tamil word are OCR noise: retry without them
+            if not r.get("matched"):
+                words = [w for w in str(r.get("raw_query", "")).split() if re.search(r"[ऀ-ൿ]", w)]
+                again = self._match_produce_item(" ".join(words), items_cache) if words else None
+                if again:
+                    r.update({"item_id": again.get("item_id"), "code": again.get("item_alias") or again.get("item_id"), "name": again.get("name"),
+                              "unit": again.get("unit") or r.get("unit"), "standard_rate": float(again.get("standard_rate") or 0.0), "matched": True})
+        result["rows"] = [r for r in rows if r.get("matched") or (len(str(r.get("raw_query", "")).strip()) >= 2 and float(r.get("qty") or 0) < 5000)]
+        if result["rows"] and not any(r.get("matched") for r in result["rows"]):
+            # nothing at all matched: that is noise, not an order. Say so instead of listing rubbish for the user to delete.
+            result["rows"] = []
+            result["customer"], result["customer_text"], result["date"] = None, "", None
+            result["warnings"].append("The text in this image could not be read reliably. Tesseract is built for printed text; "
+                                      "handwriting (especially Tamil) usually needs a clear printed or typed order, a straight bright photo, or typing the lines.")
+        elif not result["rows"]:
+            result["warnings"].append("No order lines were found in the image. Try a straighter, brighter photo, or type the lines.")
+        unmatched = [r for r in result["rows"] if not r.get("matched")]
+        if unmatched:
+            result["warnings"].append(f"{len(unmatched)} line(s) could not be matched to an item. Check them before importing.")
+        if text and len(lines) and not result["customer"] and head["text"]:
+            result["warnings"].append(f"Customer '{head['text']}' was not found in the customer master: choose one with F5.")
+        return result
+
     def parse_order_lines(
         self,
         raw_text: str,
@@ -493,6 +586,11 @@ class SmartOcrService:
             if syn in q_lower or q_lower in syn:
                 canonical_search = canonical.lower()
                 break
+
+        if canonical_search is None:
+            near = difflib.get_close_matches(q_lower, list(PRODUCE_SYNONYMS), n=1, cutoff=0.72)
+            if near:
+                canonical_search = PRODUCE_SYNONYMS[near[0]].lower()
 
         # 3. Search in item master names
         search_terms = [canonical_search, q_lower] if canonical_search else [q_lower]

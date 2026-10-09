@@ -14,6 +14,8 @@ from app.models.billing import BillCreate, BillLine
 from app.printing.invoice import generate_invoice_pdf
 from app.ui.print_preview import show_print_preview
 from app.ui.duplicate_dialog import DuplicateItemDialog
+from app.ui.components.customer_picker import open_customer_picker
+from app.ui.components.calendar_popup import attach_date_picker, parse_date
 from app.services.master_service import MasterService
 from app.services.pricing_service import PricingService
 from app.utils.currency import format_inr
@@ -79,6 +81,8 @@ class BillingFrame(ttk.Frame):
         self.date_ent = tk.Entry(date_box, font=("Segoe UI", 9), width=12, relief="flat", bd=0)
         self.date_ent.insert(0, date.today().strftime("%d/%m/%Y"))
         self.date_ent.pack(side="left", ipady=3, padx=4)
+        attach_date_picker(self.date_ent, "%d/%m/%Y", on_selected=self._on_date_chosen)
+        tk.Label(date_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2").pack(side="left", padx=(0, 4))
 
         # Invoice No Tag
         inv_badge = tk.Label(sub_header, text="Inv No: New", font=("Segoe UI", 9, "bold"), fg="#475569", bg="#f1f5f9", padx=12, pady=4)
@@ -238,9 +242,10 @@ class BillingFrame(ttk.Frame):
         self.park_btn.pack(side="right", padx=(0, 6))
 
     def _bind_hotkeys(self):
-        self.bind_all("<F5>", lambda _e: self._open_customer_search())
-        self.bind_all("<F6>", lambda _e: self.park_bill())
-        self.bind_all("<F7>", lambda _e: self._open_parked_modal())
+        # only while this screen is showing (the main window routes F2 / F3 / F5 / F6 as well)
+        self.bind_all("<F5>", lambda _e: self._open_customer_search() if self.winfo_ismapped() else None)
+        self.bind_all("<F6>", lambda _e: self.park_bill() if self.winfo_ismapped() else None)
+        self.bind_all("<F7>", lambda _e: self._open_parked_modal() if self.winfo_ismapped() else None)
 
     def _load_defaults(self):
         # Load companies
@@ -801,164 +806,80 @@ class BillingFrame(ttk.Frame):
         self.total_lbl.config(text=f"Total: ₹{total:.2f}")
         return total
 
-    # ---------------- CUSTOMER SEARCH MODAL (F5) ----------------
-    # Matches 05-billing-customer-search.png
+    # ---------------- CUSTOMER SEARCH (F5) ----------------
+    # Shared with the New Customer Order screen: app/ui/components/customer_picker.py
     def _open_customer_search(self):
-        modal = tk.Toplevel(self)
-        modal.title("Select Customer (F5)")
-        modal.geometry("500x380")
-        modal.resizable(False, False)
-        modal.transient(self)
-        modal.grab_set()
+        return open_customer_picker(self, self.db, self._apply_customer, allow_cash=True)
 
-        # Center on screen
-        sw = modal.winfo_screenwidth()
-        sh = modal.winfo_screenheight()
-        modal.geometry(f"500x380+{(sw-500)//2}+{(sh-380)//2}")
+    def _apply_customer(self, cust):
+        """The chosen customer (None = walk-in Cash): fill the bill header, re-price the lines, then move on to the date."""
+        self.selected_customer = cust
+        if cust:
+            self.customer_var.set(cust.get("name", "Cash"))
+            self.deliv_name_lbl.config(text=f"Customer (Delivery): {cust.get('name')}")
+            addr = cust.get("address") or cust.get("bill_to_address") or "-"
+            phone = cust.get("contact_person_phone") or cust.get("phone") or cust.get("bill_to_phone") or ""
+            self.deliv_addr_lbl.config(text=addr)
+            self.deliv_phone_lbl.config(text=phone)
+            bill_to = cust.get("bill_to_name") or cust.get("name", "-")
+            self.billto_lbl.config(text=bill_to)
 
-        frame = tk.Frame(modal, bg="#ffffff", padx=20, pady=16)
-        frame.pack(fill="both", expand=True)
+            # Auto-select company in company_cbo if matching company_id
+            target_comp_id = cust.get("company_id")
+            if target_comp_id and hasattr(self, "_companies_list"):
+                for idx, c in enumerate(self._companies_list):
+                    if c.get("company_id") == target_comp_id:
+                        self.company_cbo.current(idx)
+                        break
+        else:
+            self.customer_var.set("Cash")
+            self.deliv_name_lbl.config(text="Customer (Delivery): Cash")
+            self.deliv_addr_lbl.config(text="Cash Customer")
+            self.deliv_phone_lbl.config(text="")
+            self.billto_lbl.config(text="-")
 
-        top_bar = tk.Frame(frame, bg="#ffffff")
-        top_bar.pack(fill="x", pady=(0, 12))
-        tk.Label(top_bar, text="Select Customer (F5)", font=("Segoe UI", 12, "bold"), fg="#1e293b", bg="#ffffff").pack(side="left")
-        tk.Button(top_bar, text="✕", font=("Segoe UI", 10), bg="#ffffff", fg="#64748b", relief="flat", bd=0, command=modal.destroy).pack(side="right")
+        # Re-resolve rates for any rows already entered!
+        cust_id = cust.get("cust_id") if cust else "CASH"
+        for r_idx, row in enumerate(self.row_widgets):
+            if row.get("item_id"):
+                item_id = row["item_id"]
+                item = self.db.collection("items").find_one({"item_id": item_id})
+                default_rate = float(item.get("standard_rate") or item.get("rate") or item.get("default_rate") or settings.default_rate) if item else settings.default_rate
+                r_rate, _ = self.pricing_svc.resolve_rate(cust_id, item_id, default_rate=default_rate)
+                row["rate"].delete(0, tk.END)
+                row["rate"].insert(0, f"{r_rate:.2f}")
+                self._recalculate_row(r_idx)
 
-        # Search Entry with border
-        s_box = tk.Frame(frame, bg="#3b82f6", padx=1, pady=1)
-        s_box.pack(fill="x", pady=(0, 12))
-        search_ent = tk.Entry(s_box, font=("Segoe UI", 11), relief="flat", bd=0)
-        search_ent.pack(fill="x", ipady=6, padx=8)
-        modal.focus_force()
-        search_ent.focus_force()
+        self.after(60, self._focus_date)
 
-        # List Container
-        list_canvas = tk.Canvas(frame, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0")
-        list_scroll = ttk.Scrollbar(frame, orient="vertical", command=list_canvas.yview)
-        cards_box = tk.Frame(list_canvas, bg="#ffffff")
+    # ---------------- DATE (calendar drop-down) AND WHERE THE CURSOR GOES NEXT ----------------
+    def _focus_date(self):
+        try:
+            self.date_ent.focus_set()
+            self.date_ent.select_range(0, tk.END)
+        except tk.TclError:
+            pass
 
-        cards_box.bind("<Configure>", lambda e: list_canvas.configure(scrollregion=list_canvas.bbox("all")))
-        c_win = list_canvas.create_window((0, 0), window=cards_box, anchor="nw")
-        list_canvas.bind("<Configure>", lambda e: list_canvas.itemconfig(c_win, width=e.width))
-        list_canvas.configure(yscrollcommand=list_scroll.set)
+    def _on_date_chosen(self, _d=None):
+        """After the date: straight to the first empty row (row N+1 when N rows are filled), in the Code box."""
+        self.after(60, self.focus_first_empty_row)
 
-        list_canvas.pack(side="left", fill="both", expand=True)
-        list_scroll.pack(side="right", fill="y")
+    def focus_first_empty_row(self) -> int:
+        idx = next((i for i in range(len(self.row_widgets)) if self._is_row_empty(i)), None)
+        if idx is None:
+            idx = self._add_row()
+        self._scroll_to_row(idx)
+        self.row_widgets[idx]["code"].focus_set()
+        return idx
 
-        customers = list(self.db.collection("customers").find({"is_deleted": 0}))
-
-        choices: list = []          # (card frame, customer or None for the cash customer), in on-screen order
-        cursor = {"i": 0}
-
-        def _highlight(i: int):
-            if not choices:
-                return
-            cursor["i"] = max(0, min(i, len(choices) - 1))
-            for n, (frame_, _c) in enumerate(choices):
-                frame_.configure(highlightbackground="#4f46e5" if n == cursor["i"] else "#e2e8f0",
-                                 highlightthickness=2 if n == cursor["i"] else 1)
-            frame_ = choices[cursor["i"]][0]
-            list_canvas.update_idletasks()
-            bbox = list_canvas.bbox("all")
-            if bbox and bbox[3] > 0:
-                list_canvas.yview_moveto(max(0.0, (frame_.winfo_y() - 40) / bbox[3]))
-
-        def _render_customers(query=""):
-            for w in cards_box.winfo_children():
-                w.destroy()
-            choices.clear()
-
-            # Always offer Walk-in / Cash option
-            if not query or "cash" in query.lower():
-                c_card = tk.Frame(cards_box, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=12, pady=8, cursor="hand2")
-                c_card.pack(fill="x", pady=3, padx=4)
-                tk.Label(c_card, text="Cash Customer", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
-                tk.Label(c_card, text="Counter Walk-in Sale", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff").pack(anchor="w")
-                c_card.bind("<Button-1>", lambda _e: _pick_customer(None))
-                choices.append((c_card, None))
-
-            q_lower = query.lower()
-            matched = [
-                c for c in customers
-                if q_lower in c.get("name", "").lower()
-                or q_lower in str(c.get("bill_to_name", "")).lower()
-                or query in str(c.get("phone", ""))
-                or query in str(c.get("contact_person_phone", ""))
-                or query in str(c.get("bill_to_phone", ""))
-            ]
-            for cust in matched:
-                c_card = tk.Frame(cards_box, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=12, pady=8, cursor="hand2")
-                c_card.pack(fill="x", pady=3, padx=4)
-                tk.Label(c_card, text=cust.get("name", ""), font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
-
-                bname = cust.get("bill_to_name")
-                bname_str = f"Bill To: {bname}  |  " if (bname and bname != cust.get("name")) else ""
-                phone_str = cust.get("contact_person_phone") or cust.get("phone") or cust.get("bill_to_phone") or "-"
-                gst_str = cust.get("gst_number", "")
-                gst_part = f"  |  GST: {gst_str}" if gst_str else ""
-                tk.Label(c_card, text=f"{bname_str}{phone_str}{gst_part}", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff").pack(anchor="w")
-
-                c_card.bind("<Button-1>", lambda _e, cu=cust: _pick_customer(cu))
-                choices.append((c_card, cust))
-            _highlight(0)
-
-        def _pick_customer(cust):
-            self.selected_customer = cust
-            if cust:
-                self.customer_var.set(cust.get("name", "Cash"))
-                self.deliv_name_lbl.config(text=f"Customer (Delivery): {cust.get('name')}")
-                addr = cust.get("address") or cust.get("bill_to_address") or "-"
-                phone = cust.get("contact_person_phone") or cust.get("phone") or cust.get("bill_to_phone") or ""
-                self.deliv_addr_lbl.config(text=addr)
-                self.deliv_phone_lbl.config(text=phone)
-                bill_to = cust.get("bill_to_name") or cust.get("name", "-")
-                self.billto_lbl.config(text=bill_to)
-
-                # Auto-select company in company_cbo if matching company_id
-                target_comp_id = cust.get("company_id")
-                if target_comp_id and hasattr(self, "_companies_list"):
-                    for idx, c in enumerate(self._companies_list):
-                        if c.get("company_id") == target_comp_id:
-                            self.company_cbo.current(idx)
-                            break
-            else:
-                self.customer_var.set("Cash")
-                self.deliv_name_lbl.config(text="Customer (Delivery): Cash")
-                self.deliv_addr_lbl.config(text="Cash Customer")
-                self.deliv_phone_lbl.config(text="")
-                self.billto_lbl.config(text="-")
-
-            # Re-resolve rates for any rows already entered!
-            cust_id = cust.get("cust_id") if cust else "CASH"
-            for r_idx, row in enumerate(self.row_widgets):
-                if row.get("item_id"):
-                    item_id = row["item_id"]
-                    item = self.db.collection("items").find_one({"item_id": item_id})
-                    default_rate = float(item.get("standard_rate") or item.get("rate") or item.get("default_rate") or settings.default_rate) if item else settings.default_rate
-                    r_rate, _ = self.pricing_svc.resolve_rate(cust_id, item_id, default_rate=default_rate)
-                    row["rate"].delete(0, tk.END)
-                    row["rate"].insert(0, f"{r_rate:.2f}")
-                    self._recalculate_row(r_idx)
-
-            modal.destroy()
-
-        def _on_key(e):
-            if e.keysym in ("Up", "Down", "Return", "Escape", "Tab"):
-                return
-            _render_customers(search_ent.get().strip())
-
-        def _enter(_e=None):
-            if choices:
-                _pick_customer(choices[cursor["i"]][1])
-            return "break"
-
-        search_ent.bind("<KeyRelease>", _on_key)
-        search_ent.bind("<Down>", lambda _e: (_highlight(cursor["i"] + 1), "break")[1])
-        search_ent.bind("<Up>", lambda _e: (_highlight(cursor["i"] - 1), "break")[1])
-        search_ent.bind("<Return>", _enter)
-        modal.bind("<Escape>", lambda _e: modal.destroy())
-        modal.refresh_list, modal.move_highlight, modal.pick_highlighted = (lambda: _render_customers(search_ent.get().strip())), (lambda d: _highlight(cursor["i"] + d)), _enter
-        _render_customers()
+    def _invoice_date_iso(self) -> str:
+        """The bill date from the Date box as YYYY-MM-DD; raises ValueError (with a message to show) when it cannot be used."""
+        d = parse_date(self.date_ent.get(), "%d/%m/%Y")
+        if d is None:
+            raise ValueError("The bill date is not valid. Use DD/MM/YYYY, or pick it from the calendar.")
+        if d > date.today():
+            raise ValueError("The bill date cannot be in the future.")
+        return d.strftime("%Y-%m-%d")
 
     # ---------------- BILL SAVING & PAYMENT RECEIPT MODAL (F2 / F3) ----------------
     # Matches 07-billing-payment.png
@@ -969,6 +890,12 @@ class BillingFrame(ttk.Frame):
         self._open_payment_modal(print_pdf=True)
 
     def _open_payment_modal(self, print_pdf: bool = False):
+        try:
+            invoice_date_iso = self._invoice_date_iso()
+        except ValueError as exc:
+            messagebox.showwarning("Bill Date", str(exc), parent=self)
+            self._focus_date()
+            return
         total_amount = self._update_grand_total()
         if total_amount <= 0:
             messagebox.showwarning("Empty Bill", "Please add at least one line item before saving.", parent=self)
@@ -1153,7 +1080,7 @@ class BillingFrame(ttk.Frame):
 
             # Create bill
             bill_in = BillCreate(
-                invoice_date=datetime.now().strftime("%Y-%m-%d"),
+                invoice_date=invoice_date_iso,
                 customer_id=cust_id,
                 customer_name=cust_name,
                 company_id=sel_comp_id,
@@ -1351,6 +1278,8 @@ class BillingFrame(ttk.Frame):
         self.deliv_addr_lbl.config(text="Cash Customer")
         self.deliv_phone_lbl.config(text="")
         self.billto_lbl.config(text="-")
+        self.date_ent.delete(0, tk.END)
+        self.date_ent.insert(0, date.today().strftime("%d/%m/%Y"))
         self._update_grand_total()
         if self.row_widgets:
             self.row_widgets[0]["code"].focus_set()

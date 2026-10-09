@@ -8,6 +8,8 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.config.settings import settings
+from app.ui.components.customer_picker import open_customer_picker
+from app.ui.smart_import_dialog import SmartImportDialog
 from app.utils.currency import money
 from app.models.order import OrderCreate, OrderItem
 from app.services.order_service import OrderService
@@ -324,7 +326,7 @@ class OrderFormView(tk.Frame):
                 w.bind("<Button-1>", lambda _e, c=cmd: c())
             return box
 
-        self.save_fn_box = _make_key_btn(fn_bar, "F2", "Save", self._on_f2_save)
+        self.save_fn_box = _make_key_btn(fn_bar, "F3", "Save", self._on_f3_save)
         _make_key_btn(fn_bar, "F5", "Customer", self._open_customer_search)
         _make_key_btn(fn_bar, "F8", "Smart", self._open_smart_importer)
         self.save_print_fn_box = _make_key_btn(fn_bar, "F10", "Save & Print", self._on_f10_save_print)
@@ -697,6 +699,64 @@ class OrderFormView(tk.Frame):
 
     # ---------------- SMART TEXT IMPORTER (F8) ----------------
     def _open_smart_importer(self):
+        """F8: read an order from a photo / scan (Tesseract OCR, translated to English) or, via the link, paste text."""
+        self._load_caches()
+        customers = list(self.db.collection("customers").find({"is_deleted": 0}))
+        dlg = SmartImportDialog(self, self.items_cache, customers, on_import=self._import_scanned, on_text_mode=self._open_text_importer)
+        self.smart_dialog = dlg
+        return dlg
+
+    def _import_scanned(self, rows, customer, order_date):
+        """Rows reviewed in the Smart Importer -> the grid. A customer / date read from the image fill the form when it has none yet."""
+        if customer and not self.selected_customer:
+            self._apply_customer(customer)
+        if order_date:
+            self.date_var.set(order_date.strftime("%d - %m - %Y"))
+        by_id = {it.get("item_id"): it for it in self.items_cache}
+        matches = [(by_id[r["item_id"]], r["qty"], r["unit"]) for r in rows if r.get("item_id") in by_id]
+        count = self.import_matches(matches)
+        messagebox.showinfo("Smart Importer", f"{count} item(s) imported into the order. Check the quantities, then save with F3.", parent=self)
+        return count
+
+    def import_matches(self, matches) -> int:
+        """Put (item, qty, unit) triples into the grid: a repeated item adds to its row, new items go to the first empty rows."""
+        row_of_item = {r.get("item_id"): i for i, r in enumerate(self.row_widgets) if r.get("item_id")}
+        start_idx = next((i for i, r in enumerate(self.row_widgets)
+                          if not r["code_var"].get().strip() and not r["item_var"].get().strip()), len(self.row_widgets))
+        cust_id = self.selected_customer.get("cust_id") if self.selected_customer else "CASH"
+        done = 0
+        for matched, qty, unit in matches:
+            item_id = matched.get("item_id")
+            qty = float(qty) if qty and float(qty) > 0 else 1.0
+            if item_id in row_of_item:
+                idx = row_of_item[item_id]
+                try:
+                    prev = float(self.row_widgets[idx]["qty_var"].get() or 0)
+                except ValueError:
+                    prev = 0.0
+                self.row_widgets[idx]["qty_var"].set(f"{prev + qty:g}")
+                self._recalculate_row(idx)
+                done += 1
+                continue
+            while start_idx >= len(self.row_widgets):
+                self._add_row()
+            row = self.row_widgets[start_idx]
+            row["item_id"] = item_id
+            row["code_var"].set(matched.get("item_alias") or item_id)
+            row["item_var"].set(matched.get("name"))
+            default_rate = float(matched.get("standard_rate") or matched.get("rate") or matched.get("default_rate") or settings.default_rate)
+            resolved_rate, _ = self.pricing_svc.resolve_rate(cust_id, item_id, default_rate=default_rate)
+            row["rate_var"].set(f"{resolved_rate:.2f}")
+            row["qty_var"].set(f"{qty:g}")
+            row["unit"].set(matched.get("unit") or unit or "Kg")
+            self._recalculate_row(start_idx)
+            row_of_item[item_id] = start_idx
+            start_idx += 1
+            done += 1
+        self._recalculate()
+        return done
+
+    def _open_text_importer(self):
         dlg = tk.Toplevel(self)
         dlg.title("Smart Order Importer (F8)")
         dlg.geometry("560x440")
@@ -1043,84 +1103,35 @@ class OrderFormView(tk.Frame):
             self.customer_ent.config(fg="#94a3b8")
 
     def _open_customer_search(self):
-        dlg = tk.Toplevel(self)
-        dlg.title("Select Customer (F5)")
-        dlg.geometry("520x420")
-        dlg.resizable(False, False)
-        dlg.configure(bg="#ffffff")
-        dlg.transient(self.winfo_toplevel())
-        dlg.grab_set()
+        """Same dialog as New Bill (F5): type to filter, Up / Down, Enter. Orders need a customer from the master, so no walk-in option."""
+        return open_customer_picker(self, self.db, self._apply_customer, allow_cash=False)
 
-        header = tk.Frame(dlg, bg="#f8fafc", padx=16, pady=12, highlightbackground="#e2e8f0", highlightthickness=1)
-        header.pack(fill="x")
+    def _apply_customer(self, matched):
+        if matched:
+            self.selected_customer = matched
+            self.customer_var.set(matched.get("name", ""))
+            self.customer_ent.config(fg="#0f172a")
+            for r_idx, row in enumerate(self.row_widgets):                   # fixed rates for the lines already entered
+                item_id = row.get("item_id")
+                if item_id:
+                    res_rate, _ = self.pricing_svc.resolve_rate(matched.get("cust_id"), item_id, default_rate=settings.default_rate)
+                    row["rate_var"].set(f"{res_rate:.2f}")
+                    self._recalculate_row(r_idx)
+        self.after(60, self.focus_first_empty_row)
 
-        tk.Label(header, text="Search Customer:", font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#f8fafc").pack(anchor="w", pady=(0, 4))
-        search_ent = tk.Entry(header, font=("Segoe UI", 10), bg="#ffffff", relief="solid", bd=1)
-        search_ent.pack(fill="x", ipady=3)
-        search_ent.focus_set()
-
-        body = tk.Frame(dlg, bg="#ffffff", padx=16, pady=10)
-        body.pack(fill="both", expand=True)
-
-        tree = ttk.Treeview(body, columns=("name", "phone", "bill_to"), show="headings", height=12)
-        tree.heading("name", text="Customer Name")
-        tree.heading("phone", text="Phone")
-        tree.heading("bill_to", text="DC Company")
-        tree.column("name", width=220)
-        tree.column("phone", width=120)
-        tree.column("bill_to", width=140)
-        tree.pack(fill="both", expand=True)
-
-        try:
-            custs = list(self.db.collection("customers").find({"is_deleted": 0}))
-        except Exception:
-            custs = []
-
-        def _populate_tree(q=""):
-            tree.delete(*tree.get_children())
-            q_low = q.lower().strip()
-            for c in custs:
-                name = c.get("name", "")
-                phone = c.get("phone") or c.get("bill_to_phone") or ""
-                bill_to = c.get("bill_to_name", "")
-                if not q_low or q_low in name.lower() or q_low in phone.lower() or q_low in bill_to.lower():
-                    tree.insert("", "end", iid=c.get("cust_id"), values=(name, phone, bill_to))
-
-        _populate_tree()
-        search_ent.bind("<KeyRelease>", lambda _e: _populate_tree(search_ent.get()))
-
-        def _select():
-            selected = tree.selection()
-            if not selected:
-                return
-            c_id = selected[0]
-            matched = next((c for c in custs if c.get("cust_id") == c_id), None)
-            if matched:
-                self.selected_customer = matched
-                self.customer_var.set(matched.get("name", ""))
-                self.customer_ent.config(fg="#0f172a")
-
-                # Recalculate fixed rates for existing items
-                for r_idx, row in enumerate(self.row_widgets):
-                    item_id = row.get("item_id")
-                    if item_id:
-                        res_rate, _ = self.pricing_svc.resolve_rate(matched.get("cust_id"), item_id, default_rate=settings.default_rate)
-                        row["rate_var"].set(f"{res_rate:.2f}")
-                        self._recalculate_row(r_idx)
-
-            dlg.destroy()
-            self.row_widgets[0]["code"].focus_set()
-
-        tree.bind("<Double-1>", lambda _e: _select())
-        tree.bind("<Return>", lambda _e: _select())
-
-        btn_row = tk.Frame(dlg, bg="#ffffff", padx=16, pady=8)
-        btn_row.pack(fill="x")
-        tk.Button(btn_row, text="Select", font=("Segoe UI", 9, "bold"), bg="#1976d2", fg="#ffffff", relief="flat", padx=16, pady=4, cursor="hand2", command=_select).pack(side="right")
-        tk.Button(btn_row, text="Cancel", font=("Segoe UI", 9), bg="#f1f5f9", fg="#64748b", relief="solid", bd=1, padx=12, pady=4, cursor="hand2", command=dlg.destroy).pack(side="right", padx=(0, 8))
+    def focus_first_empty_row(self) -> int:
+        idx = next((i for i in range(len(self.row_widgets)) if self._is_row_empty(i)), None)
+        if idx is None:
+            idx = self._add_row()
+        self._scroll_to_row(idx)
+        self.row_widgets[idx]["code"].focus_set()
+        return idx
 
     # ---------------- SAVE & VALIDATION (F2 / F10) ----------------
     def _on_f2_save(self):
+        self._save_order(print_pdf=False)
+
+    def _on_f3_save(self):
         self._save_order(print_pdf=False)
 
     def _on_f10_save_print(self):
@@ -1382,11 +1393,9 @@ class OrderFormView(tk.Frame):
         self._recalculate()
 
     def _bind_shortcuts(self):
-        self.bind_all("<F2>", lambda _e: self._on_f2_save())
-        self.bind_all("<F5>", lambda _e: self._open_customer_search())
-        self.bind_all("<F8>", lambda _e: self._open_smart_importer())
-        self.bind_all("<F10>", lambda _e: self._on_f10_save_print())
-        self.bind_all("<Escape>", lambda _e: self._on_esc())
+        """The function keys are routed by the main window to whichever screen is showing (F3 save, F5 customer, F8 smart import,
+        F10 save & print, Esc close). Binding them here with bind_all made them fire on every screen."""
+        return None
 
     def _on_esc(self):
         if self._popup_window and self._popup_window.winfo_exists():
