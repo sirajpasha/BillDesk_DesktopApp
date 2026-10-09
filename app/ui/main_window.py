@@ -397,7 +397,9 @@ class MainWindow:
         self.root.bind_all("<F4>", lambda _e: self.show_page("Customer Master"))
         self.root.bind_all("<F5>", lambda _e: self._on_f5())
         self.root.bind_all("<F6>", lambda _e: self._on_f6())
-        self.root.bind_all("<F10>", lambda _e: self.show_page("Item Master"))
+        self.root.bind_all("<F8>", lambda _e: self._on_f8())
+        self.root.bind_all("<F10>", lambda _e: self._on_f10())
+        self.root.bind_all("<Escape>", lambda _e: self._on_escape())
         self.root.bind_all("<F11>", lambda _e: self.show_page("Customer Master"))
         self.root.bind_all("<F12>", lambda _e: self._logout())
 
@@ -405,22 +407,48 @@ class MainWindow:
         self.root.bind_all("<Control-p>", lambda _e: self.show_page("Procurement"))
         self.root.bind_all("<Control-d>", lambda _e: self.show_page("Finance"))
 
+    ORDER_PAGES = ("New Order", "Create New Order")
+
+    def _order_form(self):
+        """The New Customer Order screen when it is the one showing, else None."""
+        return self.order_form_view if self.active_page in self.ORDER_PAGES else None
+
     def _on_f2(self):
-        # If in billing, let billing handle F2 (Save Bill); otherwise switch to New Bill
+        # In billing F2 saves the bill; in the order form it saves the order; elsewhere it opens New Bill
         if self.active_page == "New Bill" and hasattr(self.frames["New Bill"], "_on_f2_save"):
             self.frames["New Bill"]._on_f2_save()
+        elif self._order_form():
+            self.order_form_view._on_f3_save()
         else:
             self.show_page("New Bill")
+
+    def _on_f8(self):
+        if self._order_form():
+            self.order_form_view._open_smart_importer()
+
+    def _on_f10(self):
+        if self._order_form():
+            self.order_form_view._on_f10_save_print()
+        else:
+            self.show_page("Item Master")
+
+    def _on_escape(self):
+        if self._order_form():
+            self.order_form_view._on_esc()
 
     def _on_f3(self):
         if self.active_page == "New Bill" and hasattr(self.frames["New Bill"], "_on_f3_save_print"):
             self.frames["New Bill"]._on_f3_save_print()
+        elif self._order_form():
+            self.order_form_view._on_f3_save()
         else:
             self.show_page("Item Master")
 
     def _on_f5(self):
         if self.active_page == "New Bill" and hasattr(self.frames["New Bill"], "_open_customer_search"):
             self.frames["New Bill"]._open_customer_search()
+        elif self._order_form():
+            self.order_form_view._open_customer_search()
         elif self.active_page == "Dashboard":
             self.show_page("Supplier Master")
         else:
@@ -527,7 +555,9 @@ class MainWindow:
         if name == "Dashboard":
             shortcuts_text = "F1: Refresh | F2: New Bill | F3: Items | F4: Customers | F5: Suppliers | F6: Bills History | F12: Logout"
         elif name == "New Bill":
-            shortcuts_text = "F2: Save Bill | F3: Save & Print | F5: Customer Search | F6: Park Bill | F7: View Parked Bills | F8: Smart Loader | F12: Logout"
+            shortcuts_text = "F2: Save Bill | F3: Save & Print | F5: Customer Search | F6: Park Bill | F7: View Parked Bills | F12: Logout"
+        elif name in self.ORDER_PAGES:
+            shortcuts_text = "F3: Save Order | F5: Customer Search | F8: Smart Import (text / image) | F10: Save & Print | Esc: Close"
         elif "Master" in name or name in ("Customers", "Items", "Suppliers"):
             shortcuts_text = "F1: Search | F2: Add Record | F5: Refresh | F12: Back"
         elif name == "Bill History":

@@ -22,7 +22,7 @@ class DashboardFrame(ttk.Frame):
         # Scrollable container for full dashboard
         canvas = tk.Canvas(self, bg="#f8fafc", highlightthickness=0)
         v_scroll = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg="#f8fafc", padx=28, pady=20)
+        scrollable_frame = tk.Frame(canvas, bg="#f8fafc", padx=28, pady=12)
 
         scrollable_frame.bind(
             "<Configure>",
@@ -43,13 +43,10 @@ class DashboardFrame(ttk.Frame):
         tk.Label(
             scrollable_frame,
             text="Dashboard",
-            font=("Segoe UI", 22, "bold"),
+            font=("Segoe UI", 18, "bold"),
             fg="#0f172a",
             bg="#f8fafc"
-        ).pack(anchor="w", pady=(0, 20))
-
-        # ---------------- AT A GLANCE: what needs attention today ----------------
-        self._build_insights(scrollable_frame)
+        ).pack(anchor="w", pady=(0, 8))
 
         # ---------------- SECTION 1: Sales Analytics ----------------
         self._build_analytics_section(
@@ -84,45 +81,53 @@ class DashboardFrame(ttk.Frame):
             scrollable_frame,
             section_title="Purchase Analytics",
             card_keys=[
-                ("pur_today", "TODAY'S PURCHASES", "🚚", "#ea580c"),
-                ("pur_this_week", "THIS WEEK PURCHASES", "↗", "#f59e0b"),
-                ("pur_this_month", "THIS MONTH PURCHASES", "📅", "#d97706"),
-                ("pur_last_month", "LAST MONTH PURCHASES", "📋", "#64748b"),
+                ("pur_today", "TODAY'S PURCHASE", "🚚", "#ea580c"),
+                ("pur_yesterday", "YESTERDAY'S PURCHASE", "↺", "#f59e0b"),
+                ("pur_this_week", "THIS WEEK PURCHASE", "↗", "#f59e0b"),
+                ("pur_last_week", "LAST WEEK PURCHASE", "📊", "#d97706"),
+                ("pur_this_month", "THIS MONTH PURCHASE", "📅", "#d97706"),
+                ("pur_last_month", "LAST MONTH PURCHASE", "📋", "#64748b"),
             ]
         )
 
+        # ---------------- QUICK ACTIONS ----------------
+        self._build_quick_actions(scrollable_frame)
+
+        # ---------------- AT A GLANCE: what needs attention today (below the fold on a small screen) ----------------
+        self._build_insights(scrollable_frame)
+
     def _build_insights(self, parent):
-        tk.Label(parent, text="At a glance", font=("Segoe UI", 13, "bold"), fg="#1e293b", bg="#f8fafc").pack(anchor="w", pady=(0, 10))
+        tk.Label(parent, text="At a glance", font=("Segoe UI", 11, "bold"), fg="#1e293b", bg="#f8fafc").pack(anchor="w", pady=(0, 4))
         row = tk.Frame(parent, bg="#f8fafc")
-        row.pack(fill="x", pady=(0, 10))
+        row.pack(fill="x", pady=(0, 4))
         self.insight_vals = {}
         for col, (key, title, color) in enumerate((
                 ("receivable", "TO COLLECT (RECEIVABLES)", "#4f46e5"),
                 ("overdue", "OVERDUE OVER 30 DAYS", "#dc2626"),
                 ("collected", "COLLECTED TODAY", "#059669"),
                 ("pending", "ORDERS WAITING", "#d97706"))):
-            card = tk.Frame(row, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=16, pady=12)
-            card.grid(row=0, column=col, sticky="nsew", padx=6)
-            row.columnconfigure(col, weight=1)
-            tk.Label(card, text=title, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
-            val = tk.Label(card, text="0", font=("Segoe UI", 18, "bold"), fg=color, bg="#ffffff")
-            val.pack(anchor="w", pady=(6, 0))
-            sub = tk.Label(card, text="", font=("Segoe UI", 9), fg="#94a3b8", bg="#ffffff")
+            card = tk.Frame(row, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=10, pady=6)
+            card.grid(row=0, column=col, sticky="nsew", padx=4)
+            row.columnconfigure(col, weight=1, uniform="glance")
+            tk.Label(card, text=title, font=("Segoe UI", 7, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+            val = tk.Label(card, text="0", font=("Segoe UI", 13, "bold"), fg=color, bg="#ffffff")
+            val.pack(anchor="w", pady=(3, 0))
+            sub = tk.Label(card, text="", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff")
             sub.pack(anchor="w")
             self.insight_vals[key] = (val, sub)
 
         panels = tk.Frame(parent, bg="#f8fafc")
-        panels.pack(fill="x", pady=(0, 16))
+        panels.pack(fill="x", pady=(0, 4))
         panels.columnconfigure(0, weight=3)
         panels.columnconfigure(1, weight=2)
-        left = tk.Frame(panels, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        left = tk.Frame(panels, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=10, pady=6)
         left.grid(row=0, column=0, sticky="nsew", padx=6)
         tk.Label(left, text="Sales - last 14 days", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
-        self.trend_canvas = tk.Canvas(left, height=150, bg="#ffffff", highlightthickness=0)
+        self.trend_canvas = tk.Canvas(left, height=100, bg="#ffffff", highlightthickness=0)
         self.trend_canvas.pack(fill="x", pady=(6, 0))
         self.trend_canvas.bind("<Configure>", lambda _e: self._draw_trend())
         self._trend_data = []
-        right = tk.Frame(panels, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        right = tk.Frame(panels, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=10, pady=6)
         right.grid(row=0, column=1, sticky="nsew", padx=6)
         tk.Label(right, text="Customers who owe the most", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
         self.top_owing_box = tk.Frame(right, bg="#ffffff")
@@ -132,14 +137,14 @@ class DashboardFrame(ttk.Frame):
         c = self.trend_canvas
         c.delete("all")
         data = self._trend_data
-        w, h = max(c.winfo_width(), 200), 150
+        w, h = max(c.winfo_width(), 200), 100
         if not data or max(v for _d, v in data) <= 0:
             c.create_text(w // 2, h // 2, text="No sales in the last 14 days", fill="#94a3b8", font=("Segoe UI", 10))
             return
         top = max(v for _d, v in data)
         slot = (w - 20) / len(data)
         for i, (day, val) in enumerate(data):
-            bar_h = int((h - 40) * val / top)
+            bar_h = int((h - 36) * val / top)
             x0 = 10 + i * slot + slot * 0.15
             x1 = 10 + (i + 1) * slot - slot * 0.15
             c.create_rectangle(x0, h - 22 - bar_h, x1, h - 22, fill="#4f46e5" if i == len(data) - 1 else "#818cf8", outline="")
@@ -200,7 +205,7 @@ class DashboardFrame(ttk.Frame):
 
         for w in self.top_owing_box.winfo_children():
             w.destroy()
-        rows = ar.get("customers", [])[:5]
+        rows = ar.get("customers", [])[:4]
         if not rows:
             tk.Label(self.top_owing_box, text="Nobody owes anything.", font=("Segoe UI", 9), fg="#94a3b8", bg="#ffffff").pack(anchor="w")
         for r in rows:
@@ -210,79 +215,57 @@ class DashboardFrame(ttk.Frame):
             tk.Label(line, text=format_inr(r["total"]), font=("Segoe UI", 9, "bold"), fg="#0f172a", bg="#ffffff").pack(side="right")
 
     def _build_analytics_section(self, parent, section_title: str, card_keys: list):
-        tk.Label(
-            parent,
-            text=section_title,
-            font=("Segoe UI", 13, "bold"),
-            fg="#1e293b",
-            bg="#f8fafc"
-        ).pack(anchor="w", pady=(14, 10))
+        tk.Label(parent, text=section_title, font=("Segoe UI", 11, "bold"), fg="#1e293b", bg="#f8fafc").pack(anchor="w", pady=(8, 4))
 
-        # Grid of cards: 4 columns wide
         grid_frame = tk.Frame(parent, bg="#f8fafc")
-        grid_frame.pack(fill="x", pady=(0, 16))
+        grid_frame.pack(fill="x", pady=(0, 4))
 
+        per_row = 6
         for idx, (key, title, icon_char, color) in enumerate(card_keys):
-            row = idx // 4
-            col = idx % 4
+            row, col = divmod(idx, per_row)
+            card = tk.Frame(grid_frame, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=10, pady=6)
+            card.grid(row=row, column=col, sticky="nsew", padx=4, pady=3)
+            grid_frame.columnconfigure(col, weight=1, uniform=f"cards-{section_title}")
 
-            card = tk.Frame(
-                grid_frame,
-                bg="#ffffff",
-                highlightbackground="#e2e8f0",
-                highlightthickness=1,
-                padx=16,
-                pady=14
-            )
-            card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
-            grid_frame.columnconfigure(col, weight=1)
-
-            # Top Row: Icon + Header
             top_row = tk.Frame(card, bg="#ffffff")
             top_row.pack(fill="x")
+            tk.Label(top_row, text=icon_char, font=("Segoe UI", 8, "bold"), fg=color, bg="#ffffff").pack(side="left", padx=(0, 5))
+            tk.Label(top_row, text=title, font=("Segoe UI", 7, "bold"), fg="#64748b", bg="#ffffff").pack(side="left")
 
-            # Colored Icon Pill
-            icon_lbl = tk.Label(
-                top_row,
-                text=icon_char,
-                font=("Segoe UI", 10, "bold"),
-                fg=color,
-                bg="#f1f5f9",
-                width=3,
-                height=1
-            )
-            icon_lbl.pack(side="left", padx=(0, 8))
-
-            title_lbl = tk.Label(
-                top_row,
-                text=title,
-                font=("Segoe UI", 8, "bold"),
-                fg="#64748b",
-                bg="#ffffff"
-            )
-            title_lbl.pack(side="left")
-
-            # Big Value Label
-            val_lbl = tk.Label(
-                card,
-                text="₹0.00",
-                font=("Segoe UI", 18, "bold"),
-                fg="#0f172a",
-                bg="#ffffff"
-            )
-            val_lbl.pack(anchor="w", pady=(8, 2))
-
-            # Subtitle / Count
-            sub_lbl = tk.Label(
-                card,
-                text="0 bills",
-                font=("Segoe UI", 9),
-                fg="#94a3b8",
-                bg="#ffffff"
-            )
+            val_lbl = tk.Label(card, text="\u20b90.00", font=("Segoe UI", 13, "bold"), fg="#0f172a", bg="#ffffff")
+            val_lbl.pack(anchor="w", pady=(3, 0))
+            sub_lbl = tk.Label(card, text="0 bills", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff")
             sub_lbl.pack(anchor="w")
-
             self.card_widgets[key] = (val_lbl, sub_lbl)
+
+    def _build_quick_actions(self, parent):
+        tk.Label(parent, text="Quick Actions", font=("Segoe UI", 11, "bold"), fg="#1e293b", bg="#f8fafc").pack(anchor="w", pady=(10, 4))
+        row = tk.Frame(parent, bg="#f8fafc")
+        row.pack(fill="x", pady=(0, 6))
+        actions = (
+            ("QUICK ACTION", "New Bill", "New Bill", "#6366f1", "\U0001f9fe"),
+            ("MANAGE", "Items", "Item Master", "#10b981", "\U0001f4e6"),
+            ("VIEW", "Customers", "Customer Master", "#f59e0b", "\U0001f465"),
+            ("MANAGE", "Suppliers", "Supplier Master", "#8b5cf6", "\U0001f6d2"),
+            ("HISTORY", "Existing Bills", "Bill History", "#f472b6", "\U0001f553"),
+        )
+        self.quick_buttons = {}
+        for col, (kicker, label, page, color, icon) in enumerate(actions):
+            btn = tk.Frame(row, bg=color, cursor="hand2", padx=12, pady=8)
+            btn.grid(row=0, column=col, sticky="nsew", padx=4)
+            row.columnconfigure(col, weight=1, uniform="quick")
+            tk.Label(btn, text=icon, font=("Segoe UI", 12), bg=color, fg="#ffffff").pack(side="left", padx=(0, 10))
+            box = tk.Frame(btn, bg=color)
+            box.pack(side="left")
+            tk.Label(box, text=kicker, font=("Segoe UI", 7, "bold"), bg=color, fg="#ffffff").pack(anchor="w")
+            tk.Label(box, text=label, font=("Segoe UI", 10, "bold"), bg=color, fg="#ffffff").pack(anchor="w")
+            for w in (btn, box, *btn.winfo_children(), *box.winfo_children()):
+                w.bind("<Button-1>", lambda _e, p=page: self._go(p))
+            self.quick_buttons[page] = btn
+
+    def _go(self, page: str) -> None:
+        if self.on_navigate:
+            self.on_navigate(page)
 
     def refresh(self):
         """Aggregate sales, orders, and procurement metrics for all date buckets."""
@@ -378,14 +361,18 @@ class DashboardFrame(ttk.Frame):
             return total, len(matched)
 
         p_today, cp_today = _calc_purchases(lambda p: _to_dt(p, "bill_date") and _to_dt(p, "bill_date").strftime("%Y-%m-%d") == today_str)
+        p_yest, cp_yest = _calc_purchases(lambda p: _to_dt(p, "bill_date") and _to_dt(p, "bill_date").strftime("%Y-%m-%d") == yesterday_str)
+        p_lweek, cp_lweek = _calc_purchases(lambda p: _to_dt(p, "bill_date") and start_last_week <= _to_dt(p, "bill_date") < start_of_week)
         p_tweek, cp_tweek = _calc_purchases(lambda p: _to_dt(p, "bill_date") and start_of_week <= _to_dt(p, "bill_date") < end_of_week)
         p_tmonth, cp_tmonth = _calc_purchases(lambda p: _to_dt(p, "bill_date") and _to_dt(p, "bill_date") >= start_of_month)
         p_lmonth, cp_lmonth = _calc_purchases(lambda p: _to_dt(p, "bill_date") and start_prev_month <= _to_dt(p, "bill_date") < start_of_month)
 
-        self._set_card("pur_today", p_today, f"{cp_today} purchases")
-        self._set_card("pur_this_week", p_tweek, f"{cp_tweek} purchases")
-        self._set_card("pur_this_month", p_tmonth, f"{cp_tmonth} purchases")
-        self._set_card("pur_last_month", p_lmonth, f"{cp_lmonth} purchases")
+        self._set_card("pur_today", p_today, f"{cp_today} orders")
+        self._set_card("pur_yesterday", p_yest, f"{cp_yest} orders")
+        self._set_card("pur_last_week", p_lweek, f"{cp_lweek} orders")
+        self._set_card("pur_this_week", p_tweek, f"{cp_tweek} orders")
+        self._set_card("pur_this_month", p_tmonth, f"{cp_tmonth} orders")
+        self._set_card("pur_last_month", p_lmonth, f"{cp_lmonth} orders")
 
     def _set_card(self, key: str, amount: float, subtitle: str):
         if key in self.card_widgets:

@@ -77,7 +77,8 @@ class BillingService:
                 )
 
         if bill.invoice_no is None:
-            bill.invoice_no = self.next_invoice_number()
+            prefix = (bill.invoice_date or "")[:10].replace("-", "")
+            bill.invoice_no = self.bill_repo.next_invoice_number(prefix + "-" if len(prefix) == 8 and prefix.isdigit() else None)
         if self.bill_repo.find_one({"invoice_no": bill.invoice_no}):
             raise ValueError(f"Invoice {bill.invoice_no} already exists")
 
