@@ -151,6 +151,22 @@ class LedgerService:
         lines = self._balance_lines([(PAYABLES, amt)], [(settlement_account(payment.get("payment_method")), amt)])
         return self.post_journal_entry(ref, "supplier_payment", lines, user_id, entry_date)
 
+    def post_sales_return(self, ret: Dict[str, Any], refund_method: str = "Cash", user_id: str = "system",
+                          entry_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+        """Goods returned by a customer. Dr Sales (contra revenue), Cr Receivables (a walk-in is refunded: Cr Cash/Bank).
+        Goods that go back on the shelf also reverse their cost: Dr Inventory, Cr Cost of goods sold."""
+        ref = ret.get("return_id")
+        amt = money(ret.get("total_refund_amount"))
+        if amt <= 0 or not ref or self.has_entry(ref, "sales_return"):
+            return None
+        walk_in = not ret.get("customer_id") or ret.get("customer_id") == "CASH"
+        credit_to = settlement_account(refund_method) if walk_in else RECEIVABLES
+        entry = self.post_journal_entry(ref, "sales_return", self._balance_lines([(SALES, amt)], [(credit_to, amt)]), user_id, entry_date)
+        cost = money(ret.get("restock_cost"))
+        if cost > 0:
+            self.post_journal_entry(ref, "sales_return_cogs", self._balance_lines([(INVENTORY, cost)], [(COGS, cost)]), user_id, entry_date)
+        return entry
+
     def post_waste(self, waste: Dict[str, Any], user_id: str = "system",
                    entry_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
         """Spoilage: Dr Waste expense, Cr Inventory."""
