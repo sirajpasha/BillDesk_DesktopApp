@@ -120,7 +120,7 @@ GST is not used (fresh fruit and vegetables are exempt), so there is no tax set-
 | Menu | Contains |
 |---|---|
 | **File** | New Bill (F2), New Customer Order, Ordering System (Ctrl+O), Purchase system (Ctrl+P), Logout (F12), Exit |
-| **Masters** | Item Master (F10), Customer Master (F4), Supplier Master (F5), Waste Management |
+| **Masters** | Item Master (F10), Customer Master (F4), Supplier Master (F11), Inventory & Stock, Waste Management |
 | **Reports** | Bills History (F6), Daybook, Item-wise Sales, Customer-wise Sales, Bills Consolidated Report, Order Consolidation, Fixed Rates Report, Profit & Loss, Balance Sheet, Dashboard (F1) |
 | **Accounts** | Accounting Dashboard (Ctrl+D), Trial Balance, Profit & Loss, Balance Sheet, BRS, Handover & Settlement, Integrity Check, Accounts Receivables, Accounts Payables |
 | **Settings** | User Management, Company Settings, Database Settings, System Audit Logs |
@@ -618,7 +618,7 @@ The bill is made with the order's items and rates and the order becomes **billed
 ---
 
 ### Suppliers
-<!-- id: suppliers | screen: Supplier Master | keywords: suppliers, vendors, supplier master, add supplier, TDS, farmer, F5, edit supplier | context: Supplier Master | related: vendor-bill, supplier-payment -->
+<!-- id: suppliers | screen: Supplier Master | keywords: suppliers, vendors, supplier master, add supplier, TDS, farmer, F11, edit supplier | context: Supplier Master | related: vendor-bill, supplier-payment -->
 
 **Masters → Supplier Master**.
 
@@ -654,7 +654,7 @@ A new price for the same customer and item replaces the old one. The billing hin
 ### Inventory: live stock
 <!-- id: inventory | screen: Inventory | keywords: inventory, stock, live stock, godown, quantity on hand, stock overview, movements, history | context: Inventory; Waste Management | related: stock-adjust, waste, crates -->
 
-**Masters → Waste Management** opens the inventory screen with four tabs.
+**Masters → Inventory & Stock** opens the inventory screen on **Live Stock Overview** (**Masters → Waste Management** opens the same screen on the waste tab). It has four tabs.
 
 ![Live stock](user-guide-native/img/60-inventory.png)
 
@@ -1015,7 +1015,15 @@ Amounts must be numbers (0 or more). You can have only one open session.
 
 ![Add user](user-guide-native/img/113-add-user.png)
 
-The **role** decides which menus a person sees. A forgotten password is reset by the administrator with `scripts\reset_password.py`.
+The **role** decides which menus a person sees:
+
+| Role | Sees |
+|---|---|
+| **user** (cashier) | File (billing, orders, purchases), Bills History, Bills Consolidated Report, Order Consolidation, Dashboard, Help |
+| **manager** | all of the above, plus **Masters** (items, customers, suppliers, inventory, waste, fixed rates), **Accounts**, **Daybook**, item-wise and customer-wise sales, Profit & Loss, Balance Sheet |
+| **admin** | everything, including **Settings** (users, company, database, audit logs) |
+
+A menu never offers a screen you cannot open. A forgotten password is reset by the administrator with `scripts\reset_password.py`.
 
 ---
 
@@ -1053,9 +1061,18 @@ Name, address, phones, email, GSTIN (optional), terms and conditions, signatory 
 ### System audit logs
 <!-- id: audit-logs | screen: System Audit Logs | keywords: audit, audit log, who did what, activity, history of changes, user activity | context: System Audit Logs | related: users -->
 
-**Settings → System Audit Logs** lists what users did and when, so you can see who made, voided or changed something.
+**Settings → System Audit Logs** answers *who did what, and when*. Nothing on it can be changed. It has two lists:
 
-![Audit logs](user-guide-native/img/117-audit-logs.png)
+1. **Bill changes:** every time a bill was made, voided, or had goods returned (or a return cancelled): the time, the user, the invoice, the action and, where something changed, what it was before and after.
+2. **Sign-ins and activity:** who signed in and when.
+
+![Audit logs: bill changes](user-guide-native/img/117-audit-logs.png)
+
+![Audit logs: sign-ins](user-guide-native/img/118-audit-logs-activity.png)
+
+* **From / To** (calendar boxes), **Action** (All, or one kind), and **Search** (any word: a user, an invoice number) narrow the list; press **Show** or Enter.
+* **Export CSV** saves what is on screen.
+* The newest 2,000 entries are listed; use the dates to look further back.
 
 ---
 
@@ -1073,15 +1090,16 @@ The strip at the bottom of each screen lists the keys that work there.
 | **F2** | New Bill | save and take payment | save the order |
 | **F3** | Item Master | save **and print** | **save the order** |
 | **F4** | Customer Master | | |
-| **F5** | Supplier Master (from Dashboard); refresh | **choose customer** | **choose customer** |
+| **F5** | refresh the screen | **choose customer** | **choose customer** |
 | **F6** | Bills History | **park** the bill | |
 | **F7** | | **parked** bills | |
 | **F8** | | | **Smart Importer** |
 | **F9** | **Help for this screen** | | |
 | **F10** | Item Master | | save and print |
-| **F11** | Customer Master | | |
+| **F11** | Supplier Master | | |
 | **F12** | Log out | | |
 | **Esc** | close a dialog | close a dialog | close the form |
+| **Ctrl+N** | New Customer Order | | |
 | **Ctrl+O** | Orders | | |
 | **Ctrl+P** | Procurement | | |
 | **Ctrl+D** | Accounting Dashboard | | |

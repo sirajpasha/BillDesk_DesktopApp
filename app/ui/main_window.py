@@ -2,7 +2,7 @@ import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from typing import Dict
+from typing import Any, Dict
 from app.config.settings import settings
 
 from app.ui.dashboard import DashboardFrame
@@ -20,6 +20,7 @@ from app.ui.consolidated_view import ConsolidatedReportFrame
 from app.ui.integrity_view import IntegrityView
 from app.ui.reports_view import ReportsFrame
 from app.ui.help_view import HelpFrame
+from app.ui.audit_view import AuditLogView
 from app.ui.company_view import CompanyConfigView
 from app.ui import theme
 
@@ -36,7 +37,8 @@ class MainWindow:
     # Pages guarded by a group; every entry point (menu, F-keys, dashboard buttons) goes through show_page.
     PAGE_GROUPS = {
         "Item Master": "masters", "Customer Master": "masters", "Supplier Master": "masters",
-        "Fixed Rates": "masters", "Master Data": "masters",
+        "Fixed Rates": "masters", "Master Data": "masters", "Inventory": "masters", "Waste Management": "masters",
+        "Daybook": "finance", "Item-wise Sales": "finance", "Customer-wise Sales": "finance",
         "Finance": "finance", "Accounting Dashboard": "finance", "Trial Balance": "finance",
         "Profit & Loss": "finance", "Balance Sheet": "finance", "BRS": "finance",
         "Accounts Receivables": "finance", "Accounts Payables": "finance", "Handover & Settlement": "finance",
@@ -186,7 +188,7 @@ class MainWindow:
             # Attach drop-down menu
             menu = tk.Menu(btn, tearoff=0, bg=theme.SURFACE, fg=theme.TEXT, activebackground=theme.PRIMARY, activeforeground=theme.SURFACE, font=theme.F_BODY, bd=1, relief="solid")
             for item in items:
-                if item == "---":
+                if item == "---" or item[0] == "---":
                     menu.add_separator()
                 else:
                     label, target_page, shortcut = item
@@ -261,7 +263,8 @@ class MainWindow:
             menus["Masters"] = [
                 ("Item Master", "Item Master", "F10"),
                 ("Customer Master", "Customer Master", "F4"),
-                ("Supplier Master", "Supplier Master", "F5"),
+                ("Supplier Master", "Supplier Master", "F11"),
+                ("Inventory & Stock", "Inventory", ""),
                 ("Waste Management", "Waste Management", ""),
             ]
 
@@ -383,7 +386,8 @@ class MainWindow:
         self.company_view = CompanyConfigView(content, self.db, current_user=self.current_user)
         self.frames["Company Settings"] = self.company_view
         self.frames["Company Configuration"] = self.company_view
-        self.frames["System Audit Logs"] = self.admin_view
+        self.audit_view = AuditLogView(content, self.db, current_user=self.current_user)
+        self.frames["System Audit Logs"] = self.audit_view
 
         # 10. Consolidated Billing Report
         self.consolidated_view = ConsolidatedReportFrame(
@@ -401,25 +405,27 @@ class MainWindow:
         self.help_view = HelpFrame(content)
         self.frames["Help"] = self.help_view
 
-    def _bind_global_shortcuts(self):
-        """Bind keyboard accelerators matching the User Guide."""
-        self.root.bind_all("<F1>", lambda _e: self._on_f1())
-        self.root.bind_all("<F2>", lambda _e: self._on_f2())
-        self.root.bind_all("<F3>", lambda _e: self._on_f3())
-        self.root.bind_all("<F4>", lambda _e: self.show_page("Customer Master"))
-        self.root.bind_all("<F5>", lambda _e: self._on_f5())
-        self.root.bind_all("<F6>", lambda _e: self._on_f6())
-        self.root.bind_all("<F7>", lambda _e: self._on_f7())
-        self.root.bind_all("<F8>", lambda _e: self._on_f8())
-        self.root.bind_all("<F9>", lambda _e: self._on_f9())
-        self.root.bind_all("<F10>", lambda _e: self._on_f10())
-        self.root.bind_all("<Escape>", lambda _e: self._on_escape())
-        self.root.bind_all("<F11>", lambda _e: self.show_page("Customer Master"))
-        self.root.bind_all("<F12>", lambda _e: self._logout())
+    def _build_key_actions(self) -> Dict[str, Any]:
+        """Every application-wide key and what it does: the single table the bindings, the menus' key labels and the tests all use."""
+        return {
+            "<F1>": self._on_f1, "<F2>": self._on_f2, "<F3>": self._on_f3, "<F4>": lambda: self.show_page("Customer Master"),
+            "<F5>": self._on_f5, "<F6>": self._on_f6, "<F7>": self._on_f7, "<F8>": self._on_f8, "<F9>": self._on_f9, "<F10>": self._on_f10,
+            "<F11>": lambda: self.show_page("Supplier Master"), "<F12>": self._logout, "<Escape>": self._on_escape,
+            "<Control-n>": lambda: self.show_page("New Order"), "<Control-o>": lambda: self.show_page("Orders"),
+            "<Control-p>": lambda: self.show_page("Procurement"), "<Control-d>": lambda: self.show_page("Finance"),
+        }
 
-        self.root.bind_all("<Control-o>", lambda _e: self.show_page("Orders"))
-        self.root.bind_all("<Control-p>", lambda _e: self.show_page("Procurement"))
-        self.root.bind_all("<Control-d>", lambda _e: self.show_page("Finance"))
+    @staticmethod
+    def key_sequence(label: str) -> str:
+        """The label shown in a menu ("F10", "Ctrl+O") as a Tk key sequence ("<F10>", "<Control-o>")."""
+        label = label.strip()
+        return f"<Control-{label.split('+', 1)[1].lower()}>" if label.lower().startswith("ctrl+") else f"<{label}>"
+
+    def _bind_global_shortcuts(self):
+        """Bind the keyboard accelerators (see _build_key_actions)."""
+        self.key_actions = self._build_key_actions()
+        for seq, action in self.key_actions.items():
+            self.root.bind_all(seq, lambda _e, f=action: f())
 
     ORDER_PAGES = ("New Order", "Create New Order")
 
@@ -484,8 +490,6 @@ class MainWindow:
             self.frames["New Bill"]._open_customer_search()
         elif self._order_form():
             self.order_form_view._open_customer_search()
-        elif self.active_page == "Dashboard":
-            self.show_page("Supplier Master")
         else:
             # Refresh active page
             if self.active_page and self.active_page in self.frames:
@@ -526,14 +530,12 @@ class MainWindow:
 
         target_frame = self.frames.get(name)
         if not target_frame:
-            # Search case-insensitive
-            for k in self.frames:
-                if name.lower() == k.lower() or name.lower() in k.lower():
-                    target_frame = self.frames[k]
-                    name = k
+            for k in self.frames:                           # same name in another case
+                if name.strip() and name.lower() == k.lower():
+                    target_frame, name = self.frames[k], k
                     break
-
         if not target_frame:
+            logging.getLogger(__name__).warning("show_page: there is no screen called %r", name)
             return
 
         if not self.can_open(name):
@@ -561,8 +563,18 @@ class MainWindow:
             self.masters_view.notebook.select(self.masters_view.pricing_tab)
         elif name == "Order Matrix" and hasattr(self.orders_view, "notebook"):
             self.orders_view.notebook.select(self.orders_view.matrix_tab)
+        elif name == "Orders" and hasattr(self.orders_view, "notebook"):
+            self.orders_view.notebook.select(self.orders_view.list_tab)
+        elif name == "Inventory" and hasattr(self.inventory_view, "notebook"):
+            self.inventory_view.notebook.select(self.inventory_view.stock_tab)
         elif name == "Waste Management" and hasattr(self.inventory_view, "notebook"):
             self.inventory_view.notebook.select(self.inventory_view.waste_tab)
+        elif name == "Procurement" and hasattr(self.procurement_view, "notebook"):
+            self.procurement_view.notebook.select(self.procurement_view.bills_tab)
+        elif name in ("Handover & Settlement", "Administration"):
+            self.admin_view.notebook.select(self.admin_view.session_tab)
+        elif name == "User Management":
+            self.admin_view.notebook.select(self.admin_view.users_tab)
         elif hasattr(self, "finance_view") and hasattr(self.finance_view, "notebook"):
             if name in ("Finance", "Accounting Dashboard"):
                 self.finance_view.notebook.select(self.finance_view.home_tab)
@@ -592,7 +604,7 @@ class MainWindow:
 
         # Update contextual bottom function keys legend matching screenshots
         if name == "Dashboard":
-            shortcuts_text = "F1: Refresh | F2: New Bill | F3: Items | F4: Customers | F5: Suppliers | F6: Bills History | F9: Help | F12: Logout"
+            shortcuts_text = "F1: Refresh | F2: New Bill | F3: Items | F4: Customers | F11: Suppliers | F6: Bills History | F9: Help | F12: Logout"
         elif name == "New Bill":
             shortcuts_text = "F2: Save Bill | F3: Save & Print | F5: Customer Search | F6: Park Bill | F7: View Parked Bills | F9: Help | F12: Logout"
         elif name in self.ORDER_PAGES:

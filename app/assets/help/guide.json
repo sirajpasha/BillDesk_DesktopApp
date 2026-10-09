@@ -551,7 +551,7 @@
     "Settings",
     "Help"
    ],
-   "text": "Menu bar\nTop: your company name and the menu bar.\nMiddle: the screen you are working on.\nBottom strip: the keys that work on this screen, who is signed in and the date and time.\nMenu | Contains\nFile | New Bill (F2), New Customer Order, Ordering System (Ctrl+O), Purchase system (Ctrl+P), Logout (F12), Exit\nMasters | Item Master (F10), Customer Master (F4), Supplier Master (F5), Waste Management\nReports | Bills History (F6), Daybook, Item-wise Sales, Customer-wise Sales, Bills Consolidated Report, Order Consolidation, Fixed Rates Report, Profit & Loss, Balance Sheet, Dashboard (F1)\nAccounts | Accounting Dashboard (Ctrl+D), Trial Balance, Profit & Loss, Balance Sheet, BRS, Handover & Settlement, Integrity Check, Accounts Receivables, Accounts Payables\nSettings | User Management, Company Settings, Database Settings, System Audit Logs\nHelp | Help & User Guide (F9), Keyboard shortcuts, About\nPress F9 on any screen for help about that screen. All shortcut keys are listed in Keyboard shortcuts.",
+   "text": "Menu bar\nTop: your company name and the menu bar.\nMiddle: the screen you are working on.\nBottom strip: the keys that work on this screen, who is signed in and the date and time.\nMenu | Contains\nFile | New Bill (F2), New Customer Order, Ordering System (Ctrl+O), Purchase system (Ctrl+P), Logout (F12), Exit\nMasters | Item Master (F10), Customer Master (F4), Supplier Master (F11), Inventory & Stock, Waste Management\nReports | Bills History (F6), Daybook, Item-wise Sales, Customer-wise Sales, Bills Consolidated Report, Order Consolidation, Fixed Rates Report, Profit & Loss, Balance Sheet, Dashboard (F1)\nAccounts | Accounting Dashboard (Ctrl+D), Trial Balance, Profit & Loss, Balance Sheet, BRS, Handover & Settlement, Integrity Check, Accounts Receivables, Accounts Payables\nSettings | User Management, Company Settings, Database Settings, System Audit Logs\nHelp | Help & User Guide (F9), Keyboard shortcuts, About\nPress F9 on any screen for help about that screen. All shortcut keys are listed in Keyboard shortcuts.",
    "blocks": [
     {
      "t": "image",
@@ -579,7 +579,7 @@
       ],
       [
        "**Masters**",
-       "Item Master (F10), Customer Master (F4), Supplier Master (F5), Waste Management"
+       "Item Master (F10), Customer Master (F4), Supplier Master (F11), Inventory & Stock, Waste Management"
       ],
       [
        "**Reports**",
@@ -2352,7 +2352,7 @@
     "add supplier",
     "TDS",
     "farmer",
-    "F5",
+    "F11",
     "edit supplier"
    ],
    "related": [
@@ -2467,14 +2467,14 @@
     "waste",
     "crates"
    ],
-   "summary": "Masters → Waste Management opens the inventory screen with four tabs.",
+   "summary": "Masters → Inventory & Stock opens the inventory screen on Live Stock Overview (Masters → Waste Management opens the same screen on the waste tab). It has four tabs.",
    "steps": [],
    "headings": [],
-   "text": "Masters → Waste Management opens the inventory screen with four tabs.\nLive stock\nLive Stock Overview: every item with its quantity on hand.\nStock Movement History: every sale, return, goods receipt, adjustment and waste that changed stock, with date and reference.\nStock movements\nProduce Waste Logs and Crate Balances are described next.\nStock for an item may show 0 if you never entered it: BillDesk then does not block sales. Goods receipts and adjustments start it.",
+   "text": "Masters → Inventory & Stock opens the inventory screen on Live Stock Overview (Masters → Waste Management opens the same screen on the waste tab). It has four tabs.\nLive stock\nLive Stock Overview: every item with its quantity on hand.\nStock Movement History: every sale, return, goods receipt, adjustment and waste that changed stock, with date and reference.\nStock movements\nProduce Waste Logs and Crate Balances are described next.\nStock for an item may show 0 if you never entered it: BillDesk then does not block sales. Goods receipts and adjustments start it.",
    "blocks": [
     {
      "t": "p",
-     "text": "**Masters → Waste Management** opens the inventory screen with four tabs."
+     "text": "**Masters → Inventory & Stock** opens the inventory screen on **Live Stock Overview** (**Masters → Waste Management** opens the same screen on the waste tab). It has four tabs."
     },
     {
      "t": "image",
@@ -3694,8 +3694,12 @@
     "Type a **username** (3–30 letters, digits, dot, dash or underscore, unique), a **password** (at least 6 characters, not the same as the username), choose the **role** from the list, add email and phone (optional).",
     "Press **Create User**."
    ],
-   "headings": [],
-   "text": "Settings → User Management, tab Users & Access.\nUsers\n+ Add Operator User.\nType a username (3–30 letters, digits, dot, dash or underscore, unique), a password (at least 6 characters, not the same as the username), choose the role from the list, add email and phone (optional).\nPress Create User.\nAdd user\nThe role decides which menus a person sees. A forgotten password is reset by the administrator with scripts\\reset_password.py.",
+   "headings": [
+    "user (cashier)",
+    "manager",
+    "admin"
+   ],
+   "text": "Settings → User Management, tab Users & Access.\nUsers\n+ Add Operator User.\nType a username (3–30 letters, digits, dot, dash or underscore, unique), a password (at least 6 characters, not the same as the username), choose the role from the list, add email and phone (optional).\nPress Create User.\nAdd user\nThe role decides which menus a person sees:\nRole | Sees\nuser (cashier) | File (billing, orders, purchases), Bills History, Bills Consolidated Report, Order Consolidation, Dashboard, Help\nmanager | all of the above, plus Masters (items, customers, suppliers, inventory, waste, fixed rates), Accounts, Daybook, item-wise and customer-wise sales, Profit & Loss, Balance Sheet\nadmin | everything, including Settings (users, company, database, audit logs)\nA menu never offers a screen you cannot open. A forgotten password is reset by the administrator with scripts\\reset_password.py.",
    "blocks": [
     {
      "t": "p",
@@ -3721,7 +3725,32 @@
     },
     {
      "t": "p",
-     "text": "The **role** decides which menus a person sees. A forgotten password is reset by the administrator with `scripts\\reset_password.py`."
+     "text": "The **role** decides which menus a person sees:"
+    },
+    {
+     "t": "table",
+     "rows": [
+      [
+       "Role",
+       "Sees"
+      ],
+      [
+       "**user** (cashier)",
+       "File (billing, orders, purchases), Bills History, Bills Consolidated Report, Order Consolidation, Dashboard, Help"
+      ],
+      [
+       "**manager**",
+       "all of the above, plus **Masters** (items, customers, suppliers, inventory, waste, fixed rates), **Accounts**, **Daybook**, item-wise and customer-wise sales, Profit & Loss, Balance Sheet"
+      ],
+      [
+       "**admin**",
+       "everything, including **Settings** (users, company, database, audit logs)"
+      ]
+     ]
+    },
+    {
+     "t": "p",
+     "text": "A menu never offers a screen you cannot open. A forgotten password is reset by the administrator with `scripts\\reset_password.py`."
     }
    ]
   },
@@ -3850,19 +3879,42 @@
    "related": [
     "users"
    ],
-   "summary": "Settings → System Audit Logs lists what users did and when, so you can see who made, voided or changed something.",
-   "steps": [],
+   "summary": "Settings → System Audit Logs answers who did what, and when. Nothing on it can be changed. It has two lists:",
+   "steps": [
+    "**Bill changes:** every time a bill was made, voided, or had goods returned (or a return cancelled): the time, the user, the invoice, the action and, where something changed, what it was before and after.",
+    "**Sign-ins and activity:** who signed in and when."
+   ],
    "headings": [],
-   "text": "Settings → System Audit Logs lists what users did and when, so you can see who made, voided or changed something.\nAudit logs",
+   "text": "Settings → System Audit Logs answers who did what, and when. Nothing on it can be changed. It has two lists:\nBill changes: every time a bill was made, voided, or had goods returned (or a return cancelled): the time, the user, the invoice, the action and, where something changed, what it was before and after.\nSign-ins and activity: who signed in and when.\nAudit logs: bill changes\nAudit logs: sign-ins\nFrom / To (calendar boxes), Action (All, or one kind), and Search (any word: a user, an invoice number) narrow the list; press Show or Enter.\nExport CSV saves what is on screen.\nThe newest 2,000 entries are listed; use the dates to look further back.",
    "blocks": [
     {
      "t": "p",
-     "text": "**Settings → System Audit Logs** lists what users did and when, so you can see who made, voided or changed something."
+     "text": "**Settings → System Audit Logs** answers *who did what, and when*. Nothing on it can be changed. It has two lists:"
+    },
+    {
+     "t": "ol",
+     "items": [
+      "**Bill changes:** every time a bill was made, voided, or had goods returned (or a return cancelled): the time, the user, the invoice, the action and, where something changed, what it was before and after.",
+      "**Sign-ins and activity:** who signed in and when."
+     ]
     },
     {
      "t": "image",
-     "alt": "Audit logs",
+     "alt": "Audit logs: bill changes",
      "src": "117-audit-logs.png"
+    },
+    {
+     "t": "image",
+     "alt": "Audit logs: sign-ins",
+     "src": "118-audit-logs-activity.png"
+    },
+    {
+     "t": "ul",
+     "items": [
+      "**From / To** (calendar boxes), **Action** (All, or one kind), and **Search** (any word: a user, an invoice number) narrow the list; press **Show** or Enter.",
+      "**Export CSV** saves what is on screen.",
+      "The newest 2,000 entries are listed; use the dates to look further back."
+     ]
     }
    ]
   },
@@ -3914,11 +3966,12 @@
     "F11",
     "F12",
     "Esc",
+    "Ctrl+N",
     "Ctrl+O",
     "Ctrl+P",
     "Ctrl+D"
    ],
-   "text": "The strip at the bottom of each screen lists the keys that work there.\nKey | Anywhere | On New Bill | On New Order\nF1 | Dashboard (search on Bill History) |  | \nF2 | New Bill | save and take payment | save the order\nF3 | Item Master | save and print | save the order\nF4 | Customer Master |  | \nF5 | Supplier Master (from Dashboard); refresh | choose customer | choose customer\nF6 | Bills History | park the bill | \nF7 |  | parked bills | \nF8 |  |  | Smart Importer\nF9 | Help for this screen |  | \nF10 | Item Master |  | save and print\nF11 | Customer Master |  | \nF12 | Log out |  | \nEsc | close a dialog | close a dialog | close the form\nCtrl+O | Orders |  | \nCtrl+P | Procurement |  | \nCtrl+D | Accounting Dashboard |  | \nIn lists and dialogs: ↑ / ↓ move, Enter chooses, Esc closes. In the grids: Enter moves to the next box. In any date box: ↓ opens the calendar.",
+   "text": "The strip at the bottom of each screen lists the keys that work there.\nKey | Anywhere | On New Bill | On New Order\nF1 | Dashboard (search on Bill History) |  | \nF2 | New Bill | save and take payment | save the order\nF3 | Item Master | save and print | save the order\nF4 | Customer Master |  | \nF5 | refresh the screen | choose customer | choose customer\nF6 | Bills History | park the bill | \nF7 |  | parked bills | \nF8 |  |  | Smart Importer\nF9 | Help for this screen |  | \nF10 | Item Master |  | save and print\nF11 | Supplier Master |  | \nF12 | Log out |  | \nEsc | close a dialog | close a dialog | close the form\nCtrl+N | New Customer Order |  | \nCtrl+O | Orders |  | \nCtrl+P | Procurement |  | \nCtrl+D | Accounting Dashboard |  | \nIn lists and dialogs: ↑ / ↓ move, Enter chooses, Esc closes. In the grids: Enter moves to the next box. In any date box: ↓ opens the calendar.",
    "blocks": [
     {
      "t": "p",
@@ -3959,7 +4012,7 @@
       ],
       [
        "**F5**",
-       "Supplier Master (from Dashboard); refresh",
+       "refresh the screen",
        "**choose customer**",
        "**choose customer**"
       ],
@@ -3995,7 +4048,7 @@
       ],
       [
        "**F11**",
-       "Customer Master",
+       "Supplier Master",
        "",
        ""
       ],
@@ -4010,6 +4063,12 @@
        "close a dialog",
        "close a dialog",
        "close the form"
+      ],
+      [
+       "**Ctrl+N**",
+       "New Customer Order",
+       "",
+       ""
       ],
       [
        "**Ctrl+O**",
