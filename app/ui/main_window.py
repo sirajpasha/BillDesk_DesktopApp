@@ -19,6 +19,7 @@ from app.ui.database_settings import DatabaseSettingsFrame
 from app.ui.consolidated_view import ConsolidatedReportFrame
 from app.ui.integrity_view import IntegrityView
 from app.ui.reports_view import ReportsFrame
+from app.ui.help_view import HelpFrame
 from app.ui.company_view import CompanyConfigView
 from app.ui import theme
 
@@ -302,6 +303,12 @@ class MainWindow:
                 ("System Audit Logs", "System Audit Logs", ""),
             ]
 
+        menus["Help"] = [
+            ("Help & User Guide", "Help", "F9"),
+            ("Keyboard shortcuts", "Help:shortcuts", ""),
+            ("Messages and what to do", "Help:messages", ""),
+            ("About this guide", "Help:about-guide", ""),
+        ]
         return menus
 
     def _init_all_views(self):
@@ -390,6 +397,10 @@ class MainWindow:
             content, self.db, billing=self.billing
         )
 
+        # 12. Help & User Guide (F9)
+        self.help_view = HelpFrame(content)
+        self.frames["Help"] = self.help_view
+
     def _bind_global_shortcuts(self):
         """Bind keyboard accelerators matching the User Guide."""
         self.root.bind_all("<F1>", lambda _e: self._on_f1())
@@ -400,6 +411,7 @@ class MainWindow:
         self.root.bind_all("<F6>", lambda _e: self._on_f6())
         self.root.bind_all("<F7>", lambda _e: self._on_f7())
         self.root.bind_all("<F8>", lambda _e: self._on_f8())
+        self.root.bind_all("<F9>", lambda _e: self._on_f9())
         self.root.bind_all("<F10>", lambda _e: self._on_f10())
         self.root.bind_all("<Escape>", lambda _e: self._on_escape())
         self.root.bind_all("<F11>", lambda _e: self.show_page("Customer Master"))
@@ -431,6 +443,15 @@ class MainWindow:
             frame.focus_search()
         else:
             self.show_page("Dashboard")
+
+    def _on_f9(self):
+        """F9 = help for the screen you are on (context help); on the Help screen itself it just focuses the search box."""
+        if self.active_page == "Help":
+            self.help_view.query_ent.focus_set()
+            return
+        topic = self.help_view.svc.for_page(self.active_page or "")
+        self.show_page("Help")
+        self.help_view.open_topic(topic)
 
     def _on_f7(self):
         if self.active_page == "New Bill" and hasattr(self.frames["New Bill"], "_open_parked_modal"):
@@ -497,6 +518,10 @@ class MainWindow:
             return
         if name == "Exit":
             self.root.destroy()
+            return
+        if name.startswith("Help:"):                       # "Help:<topic id>" opens the Help screen at that topic
+            self.show_page("Help")
+            self.help_view.open_topic(name.split(":", 1)[1])
             return
 
         target_frame = self.frames.get(name)
@@ -567,15 +592,15 @@ class MainWindow:
 
         # Update contextual bottom function keys legend matching screenshots
         if name == "Dashboard":
-            shortcuts_text = "F1: Refresh | F2: New Bill | F3: Items | F4: Customers | F5: Suppliers | F6: Bills History | F12: Logout"
+            shortcuts_text = "F1: Refresh | F2: New Bill | F3: Items | F4: Customers | F5: Suppliers | F6: Bills History | F9: Help | F12: Logout"
         elif name == "New Bill":
-            shortcuts_text = "F2: Save Bill | F3: Save & Print | F5: Customer Search | F6: Park Bill | F7: View Parked Bills | F12: Logout"
+            shortcuts_text = "F2: Save Bill | F3: Save & Print | F5: Customer Search | F6: Park Bill | F7: View Parked Bills | F9: Help | F12: Logout"
         elif name in self.ORDER_PAGES:
-            shortcuts_text = "F3: Save Order | F5: Customer Search | F8: Smart Import (text / image) | F10: Save & Print | Esc: Close"
+            shortcuts_text = "F3: Save Order | F5: Customer Search | F8: Smart Import (text / image) | F10: Save & Print | F9: Help | Esc: Close"
         elif name == "Bill History":
-            shortcuts_text = "F1: Search | F2: New Bill | F5: Refresh | F12: Logout"
+            shortcuts_text = "F1: Search | F2: New Bill | F5: Refresh | F9: Help | F12: Logout"
         else:
-            shortcuts_text = "F1: Dashboard | F2: New Bill | F5: Refresh | F12: Logout"
+            shortcuts_text = "F1: Dashboard | F2: New Bill | F5: Refresh | F9: Help | F12: Logout"
 
         self.shortcut_label.config(text=shortcuts_text)
 

@@ -1,3 +1,5 @@
+> **This is the guide of the older web version.** The guide for the desktop program (with search, screenshots of every screen, and the same text inside the program under Help / F9) is [BillDesk_Native_User_Guide.md](BillDesk_Native_User_Guide.md).
+
 # BillDesk User Guide
 
 BillDesk (SV Billing) is a billing, stock, orders and accounts system for a vegetable and fruit business. The desktop version runs

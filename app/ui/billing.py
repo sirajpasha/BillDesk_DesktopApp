@@ -57,12 +57,6 @@ class BillingFrame(LineGridMixin, ttk.Frame):
         self.company_cbo = ttk.Combobox(sub_header, width=22, state="readonly")
         self.company_cbo.pack(side="left", padx=(0, 16))
 
-        # Doc Type
-        tk.Label(sub_header, text="Doc Type:", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
-        self.doctype_cbo = ttk.Combobox(sub_header, values=["Bill/Invoice", "Estimate", "Delivery Note"], width=14, state="readonly")
-        self.doctype_cbo.current(0)
-        self.doctype_cbo.pack(side="left", padx=(0, 16))
-
         # Customer (F5)
         tk.Label(sub_header, text="Customer (F5):", font=theme.F_BOLD, fg=theme.TEXT_STRONG, bg=theme.SURFACE).pack(side="left", padx=(0, 6))
         cust_search_box = tk.Frame(sub_header, bg=theme.BORDER, padx=1, pady=1)
