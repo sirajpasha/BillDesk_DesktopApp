@@ -266,7 +266,7 @@ class FinanceView(tk.Frame):
             ("90_plus", "90+ Overdue (₹)", 130),
             ("total", "Total Outstanding (₹)", 150),
         ]
-        self.ar_table = DataTable(card, columns=cols)
+        self.ar_table = DataTable(card, columns=cols, empty_text="Nobody owes anything right now.")
         self.ar_table.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
     def _open_statement(self):
@@ -394,7 +394,7 @@ class FinanceView(tk.Frame):
             ("balance_due", "Balance Due (₹)", 130),
             ("status", "Status", 90),
         ]
-        self.ap_table = DataTable(card, columns=cols)
+        self.ap_table = DataTable(card, columns=cols, empty_text="No vendor bills yet.")
         self.ap_table.pack(fill="both", expand=True, padx=12, pady=12)
 
     def load_ap(self):

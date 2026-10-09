@@ -13,12 +13,11 @@ class ProcurementView(ttk.Frame):
         self.current_user = current_user
         self.proc_svc = ProcurementService(db)
 
-        header = ttk.Frame(self)
-        header.pack(fill="x", padx=10, pady=(10, 6))
-        ttk.Label(header, text="Procurement & Vendor Management", font=("Segoe UI", 16, "bold")).pack(side="left")
+        from app.ui import theme
+        theme.page_header(self, "Procurement & Vendor Management", "Vendor bills, purchase orders, goods received and returns").pack(fill="x", padx=28, pady=(20, 10))
 
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=10, pady=6)
+        self.notebook = notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True, padx=28, pady=(0, 16))
 
         # Tab 1: Purchase Bills
         self.bills_tab = ttk.Frame(notebook)
@@ -35,12 +34,18 @@ class ProcurementView(ttk.Frame):
         notebook.add(self.grn_tab, text="Goods Receipt Notes (GRN)")
         self._build_grn_tab()
 
+        # Tab 4: Returns to suppliers (debit notes)
+        self.returns_tab = ttk.Frame(notebook)
+        notebook.add(self.returns_tab, text="Returns to Suppliers")
+        self._build_returns_tab()
+
         self.refresh()
 
     def refresh(self):
         self.load_bills()
         self.load_pos()
         self.load_grns()
+        self.load_returns()
 
     # ---------------- PURCHASE BILLS TAB ----------------
     def _build_bills_tab(self):
@@ -48,6 +53,7 @@ class ProcurementView(ttk.Frame):
         bar.pack(fill="x", pady=6)
         ttk.Button(bar, text="+ Enter Vendor Bill", command=self._add_vendor_bill_dialog).pack(side="left", padx=4)
         ttk.Button(bar, text="Refresh Bills", command=self.load_bills).pack(side="left", padx=4)
+        ttk.Button(bar, text="↩ Return Goods to Supplier", command=self._return_selected_bill).pack(side="left", padx=4)
 
         cols = [
             ("purchase_id", "Purchase ID", 140),
@@ -60,7 +66,7 @@ class ProcurementView(ttk.Frame):
             ("balance_due", "Balance Due (₹)", 130),
             ("status", "Status", 90),
         ]
-        self.bills_table = DataTable(self.bills_tab, columns=cols)
+        self.bills_table = DataTable(self.bills_tab, columns=cols, empty_text="No vendor bills yet. Use + Enter Vendor Bill when a supplier invoice arrives.")
         self.bills_table.pack(fill="both", expand=True)
 
     def load_bills(self):
@@ -135,6 +141,57 @@ class ProcurementView(ttk.Frame):
         ttk.Button(btn_box, text="Record Bill", command=on_save).pack(side="left", padx=8)
         ttk.Button(btn_box, text="Cancel", command=dlg.destroy).pack(side="left", padx=8)
 
+    def _return_selected_bill(self):
+        row = self.bills_table.get_selected()
+        if not row:
+            messagebox.showinfo("Select Bill", "Select the vendor bill the goods came on.", parent=self)
+            return
+        from app.ui.return_dialog import PurchaseReturnDialog
+        dlg = PurchaseReturnDialog(self, self.db, row["purchase_id"], row.get("supplier_name", ""), walk_in=False,
+                                   user=self.current_user.username)
+        self.wait_window(dlg)
+        if dlg.result:
+            self.refresh()
+
+    # ---------------- RETURNS TO SUPPLIERS TAB ----------------
+    def _build_returns_tab(self):
+        bar = ttk.Frame(self.returns_tab)
+        bar.pack(fill="x", pady=6)
+        ttk.Button(bar, text="🖨 Print Debit Note", command=self._print_selected_return).pack(side="left", padx=4)
+        ttk.Button(bar, text="Refresh", command=self.load_returns).pack(side="left", padx=4)
+        cols = [
+            ("return_id", "Debit Note", 170),
+            ("return_date", "Date", 110),
+            ("supplier_name", "Supplier", 200),
+            ("purchase_id", "Vendor Bill", 190),
+            ("gross_amount", "Goods (₹)", 110),
+            ("tds_amount", "TDS back (₹)", 110),
+            ("net_amount", "Debit Note (₹)", 120),
+        ]
+        self.returns_table = DataTable(self.returns_tab, columns=cols,
+                                       empty_text="No goods sent back yet. Select a vendor bill and use Return Goods to Supplier.")
+        self.returns_table.pack(fill="both", expand=True)
+
+    def load_returns(self):
+        rets = self.proc_svc.proc_repo.returns.find({"is_deleted": 0}, sort=[("return_date", -1)], limit=200)
+        self._returns_raw = {r["return_id"]: r for r in rets}
+        formatted = []
+        for r in rets:
+            d = dict(r)
+            d["return_date"] = format_date(d.get("return_date"))
+            for k in ("gross_amount", "tds_amount", "net_amount"):
+                d[k] = format_inr(d.get(k, 0.0), symbol=False)
+            formatted.append(d)
+        self.returns_table.set_data(formatted)
+
+    def _print_selected_return(self):
+        row = self.returns_table.get_selected()
+        if not row:
+            messagebox.showinfo("Select", "Select a debit note first.", parent=self)
+            return
+        from app.ui.return_dialog import open_note_pdf
+        open_note_pdf(self, self.db, "purchase", self._returns_raw[row["return_id"]])
+
     # ---------------- PURCHASE ORDERS TAB ----------------
     def _build_po_tab(self):
         bar = ttk.Frame(self.po_tab)
@@ -149,7 +206,7 @@ class ProcurementView(ttk.Frame):
             ("total_amount", "Total (₹)", 130),
             ("status", "Status", 110),
         ]
-        self.po_table = DataTable(self.po_tab, columns=cols)
+        self.po_table = DataTable(self.po_tab, columns=cols, empty_text="No purchase orders yet. Orders you convert to a purchase appear here.")
         self.po_table.pack(fill="both", expand=True)
 
     def load_pos(self):
@@ -177,7 +234,7 @@ class ProcurementView(ttk.Frame):
             ("received_by", "Received By", 130),
             ("status", "Status", 90),
         ]
-        self.grn_table = DataTable(self.grn_tab, columns=cols)
+        self.grn_table = DataTable(self.grn_tab, columns=cols, empty_text="No goods receipts yet. A receipt records the produce actually received against a purchase order and adds it to stock.")
         self.grn_table.pack(fill="both", expand=True)
 
     def load_grns(self):

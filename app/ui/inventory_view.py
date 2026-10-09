@@ -12,12 +12,11 @@ class InventoryView(ttk.Frame):
         self.current_user = current_user
         self.inv_svc = InventoryService(db)
 
-        header = ttk.Frame(self)
-        header.pack(fill="x", padx=10, pady=(10, 6))
-        ttk.Label(header, text="Inventory & Mandi Operations", font=("Segoe UI", 16, "bold")).pack(side="left")
+        from app.ui import theme
+        theme.page_header(self, "Inventory & Mandi Operations", "Stock on hand, movements, spoilage and crates").pack(fill="x", padx=28, pady=(20, 10))
 
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=6)
+        self.notebook.pack(fill="both", expand=True, padx=28, pady=(0, 16))
 
         # Tab 1: Live Stock
         self.stock_tab = ttk.Frame(self.notebook)
@@ -64,7 +63,7 @@ class InventoryView(ttk.Frame):
             ("stock", "Current Live Stock", 130),
             ("status", "Status", 90),
         ]
-        self.stock_table = DataTable(self.stock_tab, columns=cols)
+        self.stock_table = DataTable(self.stock_tab, columns=cols, empty_text="No stock recorded yet. Stock rises when goods are received (Procurement > Goods Receipt Notes) or adjusted here.")
         self.stock_table.pack(fill="both", expand=True)
 
     def load_stock(self):
@@ -180,7 +179,7 @@ class InventoryView(ttk.Frame):
             ("reference_id", "Reference Doc", 150),
             ("notes", "Notes", 200),
         ]
-        self.txns_table = DataTable(self.txns_tab, columns=cols)
+        self.txns_table = DataTable(self.txns_tab, columns=cols, empty_text="No stock movements yet. Every sale, return, goods receipt and adjustment is listed here.")
         self.txns_table.pack(fill="both", expand=True)
 
     def load_txns(self):
@@ -207,7 +206,7 @@ class InventoryView(ttk.Frame):
             ("amount", "Financial Loss (₹)", 140),
             ("reason", "Reason", 220),
         ]
-        self.waste_table = DataTable(self.waste_tab, columns=cols)
+        self.waste_table = DataTable(self.waste_tab, columns=cols, empty_text="No spoilage logged. Record waste here so it reaches your profit and loss.")
         self.waste_table.pack(fill="both", expand=True)
 
     def load_waste(self):
@@ -234,7 +233,7 @@ class InventoryView(ttk.Frame):
             ("returned_qty", "Crates Returned", 110),
             ("reference_id", "Ref Doc", 150),
         ]
-        self.crates_table = DataTable(self.crates_tab, columns=cols)
+        self.crates_table = DataTable(self.crates_tab, columns=cols, empty_text="No crate balances yet. Crates issued and returned on bills appear here.")
         self.crates_table.pack(fill="both", expand=True)
 
     def load_crates(self):

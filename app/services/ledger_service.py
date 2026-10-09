@@ -167,6 +167,17 @@ class LedgerService:
             self.post_journal_entry(ref, "sales_return_cogs", self._balance_lines([(INVENTORY, cost)], [(COGS, cost)]), user_id, entry_date)
         return entry
 
+    def post_purchase_return(self, ret: Dict[str, Any], user_id: str = "system",
+                             entry_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+        """Goods sent back to a supplier (debit note): Dr Payables (net), Dr TDS Payable (the TDS that comes back), Cr Inventory (gross)."""
+        ref = ret.get("return_id")
+        gross = money(ret.get("gross_amount"))
+        if gross <= 0 or not ref or self.has_entry(ref, "purchase_return"):
+            return None
+        tds = money(ret.get("tds_amount"))
+        lines = self._balance_lines([(PAYABLES, gross - tds), (TDS_PAYABLE, tds)], [(INVENTORY, gross)])
+        return self.post_journal_entry(ref, "purchase_return", lines, user_id, entry_date)
+
     def post_waste(self, waste: Dict[str, Any], user_id: str = "system",
                    entry_date: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
         """Spoilage: Dr Waste expense, Cr Inventory."""

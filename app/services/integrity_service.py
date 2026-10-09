@@ -105,7 +105,8 @@ class IntegrityService:
                     expected[p.get("party_id")] -= unallocated
         for r in self._live("sales_returns"):                       # credit left on the account after a return
             if r.get("status") != "cancelled" and r.get("customer_id") != "CASH":
-                expected[r.get("customer_id")] -= _f(r.get("credit_amount"))
+                # returns from the older web app carry no credit_amount: it reduced the customer's balance by the whole refund
+                expected[r.get("customer_id")] -= _f(r.get("credit_amount", r.get("total_refund_amount")))
         bad = []
         for c in self._live("customers"):
             cid = c.get("cust_id")
@@ -241,6 +242,9 @@ class IntegrityService:
         owed: Dict[str, float] = defaultdict(float)
         for p in self._live("purchase_bills"):
             owed[p.get("supplier_id")] += _f(p.get("balance_due"))
+        for r in self._live("purchase_returns"):                    # credit left with the supplier after goods were sent back
+            if r.get("status") != "cancelled":
+                owed[r.get("supplier_id")] -= _f(r.get("credit_amount"))
         bad = []
         for s in self._live("suppliers"):
             if abs(_f(s.get("current_balance")) - owed.get(s.get("supplier_id"), 0.0)) > TOL:

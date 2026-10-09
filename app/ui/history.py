@@ -459,6 +459,11 @@ class BillHistoryFrame(tk.Frame):
             command=self._return_selected
         )
         self.btn_return.pack(side="left", padx=(0, 8))
+        tk.Button(
+            action_strip, text="🖨 Credit Notes", font=("Segoe UI", 9), bg="#ffffff", fg="#475569",
+            activebackground="#f1f5f9", relief="solid", bd=1, padx=12, pady=4, cursor="hand2",
+            command=self._credit_notes_selected
+        ).pack(side="left", padx=(0, 8))
 
         # 5. Refresh Button (Right aligned)
         tk.Button(
@@ -861,6 +866,38 @@ class BillHistoryFrame(tk.Frame):
         self.wait_window(dlg)
         if dlg.result:
             self.refresh()
+
+    def _credit_notes_selected(self):
+        """List the returns made against the selected invoice and print one."""
+        bill = self._get_selected_bill()
+        if not bill:
+            messagebox.showinfo("Select Bill", "Please select an invoice.", parent=self)
+            return
+        from app.services.returns_service import ReturnsService
+        rets = ReturnsService(self.db).returns_for_invoice(bill["invoice_no"])
+        if not rets:
+            messagebox.showinfo("Credit notes", f"No goods have been returned against {bill['invoice_no']}.", parent=self)
+            return
+        from app.ui.return_dialog import open_note_pdf
+        from app.utils.currency import format_inr
+        dlg = tk.Toplevel(self)
+        dlg.title(f"Credit notes - {bill['invoice_no']}")
+        dlg.transient(self.winfo_toplevel())
+        lb = tk.Listbox(dlg, width=64, height=min(10, len(rets)), font=("Segoe UI", 10))
+        for r in rets:
+            lb.insert(tk.END, f"{r['return_id']}   {format_date(r.get('return_date'))}   {format_inr(r.get('total_refund_amount', 0.0))}")
+        lb.pack(padx=14, pady=(14, 6))
+        lb.selection_set(0)
+
+        def _print():
+            sel = lb.curselection()
+            if sel:
+                open_note_pdf(dlg, self.db, "sales", rets[sel[0]])
+        lb.bind("<Double-1>", lambda _e: _print())
+        row = tk.Frame(dlg)
+        row.pack(pady=(0, 12))
+        tk.Button(row, text="Print / Save PDF", command=_print, bg="#4f46e5", fg="#ffffff", relief="flat", padx=14, pady=5).pack(side="left", padx=6)
+        tk.Button(row, text="Close", command=dlg.destroy, relief="solid", bd=1, padx=14, pady=4).pack(side="left")
 
     def _void_selected(self):
         bill = self._get_selected_bill()

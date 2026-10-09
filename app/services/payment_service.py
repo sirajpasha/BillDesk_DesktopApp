@@ -278,7 +278,7 @@ class PaymentService:
                            "debit": 0.0, "credit": float(p.get("amount", 0.0) or 0.0),
                            "note": " ".join(x for x in (p.get("payment_method"), p.get("reference_no")) if x)})
 
-        for r in self.db.collection("sales_returns").find({"customer_id": customer_id, "is_deleted": 0, "status": {"$ne": "cancelled"}}):
+        for r in self.db.collection("sales_returns").find({"customer_id": customer_id, "is_deleted": {"$ne": 1}, "status": {"$ne": "cancelled"}}):
             events.append({"date": self._as_date(r.get("return_date") or r.get("created_at")) or datetime.min,
                            "type": "Return", "ref": r.get("return_id", ""), "debit": 0.0,
                            "credit": float(r.get("total_refund_amount", 0.0) or 0.0), "note": f"Goods returned, invoice {r.get('original_invoice_no', '')}"})

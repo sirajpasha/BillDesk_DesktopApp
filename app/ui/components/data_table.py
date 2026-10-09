@@ -11,6 +11,7 @@ class DataTable(ttk.Frame):
         on_select: Optional[Callable[[Dict[str, Any]], None]] = None,
         on_double_click: Optional[Callable[[Dict[str, Any]], None]] = None,
         show_search: bool = True,
+        empty_text: str = "",
         **kwargs
     ):
         super().__init__(parent, **kwargs)
@@ -19,6 +20,8 @@ class DataTable(ttk.Frame):
         self.on_double_click = on_double_click
         self.raw_data: List[Dict[str, Any]] = []
         self.sort_descending = False
+        self.empty_text = empty_text
+        self._shown: List[Dict[str, Any]] = []         # the rows on screen (after the filter), in order
 
         if show_search:
             search_bar = ttk.Frame(self)
@@ -53,6 +56,8 @@ class DataTable(ttk.Frame):
         self.tree.tag_configure("odd", background="#ffffff")
         self.tree.tag_configure("even", background="#f9fafb")
 
+        self.empty_lbl = tk.Label(self.tree, text=self.empty_text, font=("Segoe UI", 10), fg="#64748b", bg="#ffffff",
+                                  justify="center", wraplength=420)
         self.tree.bind("<<TreeviewSelect>>", self._handle_select)
         if self.on_double_click:
             self.tree.bind("<Double-1>", self._handle_double_click)
@@ -63,6 +68,12 @@ class DataTable(ttk.Frame):
 
     def _render(self, rows: List[Dict[str, Any]]):
         self.tree.delete(*self.tree.get_children())
+        self._shown = list(rows)
+        if self.empty_text and not rows:
+            self.empty_lbl.config(text=self.empty_text if not self.raw_data else "Nothing matches the filter.")
+            self.empty_lbl.place(relx=0.5, rely=0.4, anchor="center")
+        else:
+            self.empty_lbl.place_forget()
         for idx, item in enumerate(rows):
             vals = [item.get(c[0], "") for c in self.columns]
             tag = "even" if idx % 2 == 0 else "odd"
@@ -97,7 +108,7 @@ class DataTable(ttk.Frame):
         sel = self.tree.selection()
         if sel:
             idx = int(sel[0])
-            return self.raw_data[idx] if idx < len(self.raw_data) else None
+            return self._shown[idx] if idx < len(self._shown) else None
         return None
 
     def _handle_select(self, event):
