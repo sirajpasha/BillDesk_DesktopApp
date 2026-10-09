@@ -153,8 +153,9 @@ def test_single_instance_guard():
         pytest.skip("Windows mutex")
     import importlib
     main = importlib.import_module("main")
-    assert main._acquire_single_instance() is True
-    assert main._acquire_single_instance() is False                             # a second window/process is refused
+    name = f"BillDeskTestMutex-{os.getpid()}"                                   # not the real name: a running BillDesk must not matter
+    assert main._acquire_single_instance(name) is True
+    assert main._acquire_single_instance(name) is False                         # a second window/process is refused
 
 
 # ------------------------------------------------------------------ packaging consistency (cheap, runs everywhere)

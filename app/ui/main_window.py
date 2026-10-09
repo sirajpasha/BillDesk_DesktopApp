@@ -18,6 +18,7 @@ from app.ui.admin_view import AdminView
 from app.ui.database_settings import DatabaseSettingsFrame
 from app.ui.consolidated_view import ConsolidatedReportFrame
 from app.ui.integrity_view import IntegrityView
+from app.ui.company_view import CompanyConfigView
 
 
 class MainWindow:
@@ -36,7 +37,7 @@ class MainWindow:
         "Finance": "finance", "Accounting Dashboard": "finance", "Trial Balance": "finance",
         "Profit & Loss": "finance", "Balance Sheet": "finance", "BRS": "finance",
         "Accounts Receivables": "finance", "Accounts Payables": "finance", "Handover & Settlement": "finance",
-        "Integrity Check": "finance",
+        "Integrity Check": "finance", "Company Configuration": "settings",
         "Administration": "settings", "User Management": "settings", "Company Settings": "settings",
         "System Audit Logs": "settings", "DB Connection": "settings",
     }
@@ -371,7 +372,9 @@ class MainWindow:
         self.frames["Administration"] = self.admin_view
         self.frames["Handover & Settlement"] = self.admin_view
         self.frames["User Management"] = self.admin_view
-        self.frames["Company Settings"] = self.admin_view
+        self.company_view = CompanyConfigView(content, self.db, current_user=self.current_user)
+        self.frames["Company Settings"] = self.company_view
+        self.frames["Company Configuration"] = self.company_view
         self.frames["System Audit Logs"] = self.admin_view
 
         # 10. Consolidated Billing Report

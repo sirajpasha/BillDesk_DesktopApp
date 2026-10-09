@@ -8,7 +8,7 @@ from app.utils.currency import format_inr
 from app.utils.formatters import format_date
 
 class AdminView(ttk.Frame):
-    """System Administration: Users, Roles, Company Profile, and Cashier Drawer Sessions."""
+    """System Administration: Users, Roles and Cashier Drawer Sessions (company details live in Settings > Company Settings)."""
     def __init__(self, parent, db, current_user, **kwargs):
         super().__init__(parent, **kwargs)
         self.db = db
@@ -34,17 +34,11 @@ class AdminView(ttk.Frame):
         notebook.add(self.users_tab, text="Users & Access")
         self._build_users_tab()
 
-        # Tab 3: Company Settings
-        self.company_tab = ttk.Frame(notebook)
-        notebook.add(self.company_tab, text="Company Profile & Mandi Defaults")
-        self._build_company_tab()
-
         self.refresh()
 
     def refresh(self):
         self.load_session()
         self.load_users()
-        self.load_company()
 
     # ---------------- CASHIER SESSIONS TAB ----------------
     def _build_session_tab(self):
@@ -224,41 +218,3 @@ class AdminView(ttk.Frame):
         ttk.Button(btn_box, text="Create User", command=on_save).pack(side="left", padx=8)
         ttk.Button(btn_box, text="Cancel", command=dlg.destroy).pack(side="left", padx=8)
 
-    # ---------------- COMPANY TAB ----------------
-    def _build_company_tab(self):
-        frame = ttk.LabelFrame(self.company_tab, text="Company Profile & Invoicing Details", padding=14)
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        self.comp_entries = {}
-        fields = [
-            ("Legal Business Name", "name"),
-            ("Market / Yard Address", "address"),
-            ("Phone Number", "phone"),
-            ("Contact Email", "email"),
-            ("GSTIN Number", "gst_number"),
-            ("Terms & Conditions (On Invoice)", "terms_and_conditions"),
-            ("Signatory Title", "signatory_label"),
-        ]
-
-        for idx, (label, key) in enumerate(fields):
-            ttk.Label(frame, text=label).grid(row=idx, column=0, padx=12, pady=6, sticky="w")
-            ent = ttk.Entry(frame, width=44)
-            ent.grid(row=idx, column=1, padx=12, pady=6, sticky="w")
-            self.comp_entries[key] = ent
-
-        save_btn = ttk.Button(frame, text="Save Company Profile", command=self._save_company)
-        save_btn.grid(row=len(fields), column=1, padx=12, pady=16, sticky="w")
-
-    def load_company(self):
-        comp = self.master_svc.get_company()
-        for k, ent in self.comp_entries.items():
-            ent.delete(0, "end")
-            ent.insert(0, str(comp.get(k, "")))
-
-    def _save_company(self):
-        try:
-            data = {k: ent.get().strip() for k, ent in self.comp_entries.items()}
-            self.master_svc.save_company(data)
-            messagebox.showinfo("Saved", "Company profile updated successfully!")
-        except Exception as ex:
-            messagebox.showerror("Error", str(ex))
