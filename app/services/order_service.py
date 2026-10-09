@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -9,6 +10,8 @@ from app.repositories.procurement_repo import ProcurementRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.models.order import OrderCreate, OrderItem
 from app.models.billing import BillCreate, BillItem
+from app.config.settings import settings
+from app.database.connection import transactional
 from app.utils.currency import money
 from app.services.billing_service import BillingService
 from app.services.procurement_service import ProcurementService
@@ -26,11 +29,27 @@ class OrderService:
         self.billing_svc = BillingService(db)
         self.procurement_svc = ProcurementService(db)
 
+    @staticmethod
+    def charges(subtotal: float) -> tuple:
+        """(commission, mandi_fee) on an items subtotal, from the configured percentage rates."""
+        return money(subtotal * settings.commission_rate / 100.0), money(subtotal * settings.mandi_fee_rate / 100.0)
+
     def next_order_number(self) -> str:
         return self.order_repo.next_order_number()
 
     def get_orders(self, query: str = "", status: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         return self.order_repo.search_orders(query, status, limit)
+
+    def order_stats(self) -> Dict[str, int]:
+        """Counts over ALL orders (the list on screen is capped, the totals must not be)."""
+        base = {"is_deleted": 0}
+        start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        return {
+            "total": self.order_repo.count_documents(base),
+            "pending": self.order_repo.count_documents({**base, "status": {"$in": ["pending", "Pending"]}}),
+            "today": self.order_repo.count_documents({**base, "order_date": {"$gte": start, "$lte": end}}),
+        }
 
     def get_order(self, order_id: str) -> Optional[Dict[str, Any]]:
         return self.order_repo.find_one({"order_id": order_id, "is_deleted": 0})
@@ -43,7 +62,8 @@ class OrderService:
                 raise ValueError("Item quantity must be greater than zero")
 
         order_id = self.next_order_number()
-        total_amount = money(sum(money(float(i.qty) * float(i.rate)) for i in order_data.items))
+        items_total = money(sum(money(float(i.qty) * float(i.rate)) for i in order_data.items))
+        total_amount = money(items_total + float(order_data.commission_amt or 0.0) + float(order_data.mandi_fee_amt or 0.0))
         now = datetime.now(timezone.utc)
 
         doc = {
@@ -85,6 +105,7 @@ class OrderService:
 
     CONVERTIBLE_STATUSES = ("pending", "confirmed", "delivered")
 
+    @transactional
     def cancel_order(self, order_id: str) -> Dict[str, Any]:
         order = self.get_order(order_id)
         if not order:
@@ -96,6 +117,7 @@ class OrderService:
         self.order_repo.update_one({"order_id": order_id}, {"$set": {"status": "cancelled", "updated_at": datetime.now(timezone.utc)}})
         return self.get_order(order_id) or {}
 
+    @transactional
     def convert_to_bill(self, order_id: str, user_id: str = "system") -> Dict[str, Any]:
         """1-Click convert order into a sales invoice.
 
@@ -121,16 +143,26 @@ class OrderService:
                 qty, rate = float(it["qty"]), float(it.get("rate", 0.0))
                 lines.append(BillItem(item_id=it["item_id"], item_alias=it.get("item_alias"), name=it["name"],
                                       qty=qty, unit=it["unit"], rate=rate, amount=money(qty * rate)))
-            total = money(sum(l.amount for l in lines))      # the invoice total always equals its lines
+            lines_total = money(sum(l.amount for l in lines))
+            # Charges that were part of the order's own total travel to the bill; orders saved before charges
+            # were included in the total (total == lines) convert with none.
+            included = money(float(order.get("total_amount") or 0.0) - lines_total)
+            commission = min(money(float(order.get("commission_amt") or 0.0)), included) if included > 0.005 else 0.0
+            mandi = money(included - commission) if included > 0.005 else 0.0
+            total = money(lines_total + commission + mandi)
             bill = self.billing_svc.create_bill(BillCreate(
                 invoice_date=datetime.now().strftime("%Y-%m-%d"),
                 customer_id=order["customer_id"], customer_name=order["customer_name"], company_id=order.get("company_id"),
                 items=lines, total_amount=total, balance_due=total, created_by=user_id,
+                commission_amt=commission, mandi_fee_amt=mandi,
                 crates_issued=float(order.get("crates_issued") or 0), crates_returned=float(order.get("crates_returned") or 0),
                 notes=f"Converted from Order {order_id}",
             ))
         except Exception:
-            self.order_repo.update_one({"order_id": order_id, "status": "billing"}, {"$set": {"status": status}})
+            try:        # standalone MongoDB has no rollback: put the claimed order back (inside a transaction this is moot)
+                self.order_repo.update_one({"order_id": order_id, "status": "billing"}, {"$set": {"status": status}})
+            except Exception:
+                logging.getLogger(__name__).warning("Could not release the claimed order %s", order_id, exc_info=True)
             raise
 
         invoice_no = bill["invoice_no"]
@@ -141,6 +173,7 @@ class OrderService:
         )
         return {"order_id": order_id, "invoice_no": invoice_no, "total_amount": total}
 
+    @transactional
     def convert_to_purchase(self, order_id: str, supplier_id: str, supplier_name: str = "", user_id: str = "system") -> Dict[str, Any]:
         """Convert order demand into a supplier purchase bill (TDS applied) and increment warehouse stock."""
         order = self.get_order(order_id)

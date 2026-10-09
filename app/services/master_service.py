@@ -1,4 +1,8 @@
 from __future__ import annotations
+import base64
+import csv
+import io
+import re
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from app.repositories.master_repo import (
@@ -142,8 +146,24 @@ class MasterService:
         return self.price_repo.insert_one(doc)
 
     # ----------------- COMPANY -----------------
+    GSTIN_RE = re.compile(r"^[0-9A-Z]{15}$")
+    EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    PHONE_RE = re.compile(r"^[0-9+()\-\s,/]+$")
+    COMPANY_FIELDS = ("name", "address", "phone", "email", "gst_number", "terms_and_conditions", "signatory_label", "logo_url")
+
     def get_all_companies(self) -> List[Dict[str, Any]]:
         return self.company_repo.get_all()
+
+    def list_companies(self, query: str = "") -> List[Dict[str, Any]]:
+        q = (query or "").strip().lower()
+        rows = self.company_repo.get_all()
+        if not q:
+            return rows
+        return [c for c in rows if any(q in str(c.get(k, "")).lower() for k in ("company_id", "name", "phone", "email", "gst_number", "address"))]
+
+    def default_company_id(self) -> Optional[str]:
+        comp = self.company_repo.get_default_company()
+        return comp.get("company_id") if comp else None
 
     def get_company(self, company_id: Optional[str] = None) -> Dict[str, Any]:
         doc = None
@@ -165,11 +185,112 @@ class MasterService:
             }
         return doc
 
+    def _next_company_id(self) -> str:
+        nums = []
+        for c in self.company_repo.find({}, limit=0):
+            m = re.fullmatch(r"Company(\d+)", str(c.get("company_id", "")))
+            if m:
+                nums.append(int(m.group(1)))
+        return f"Company{(max(nums) + 1) if nums else 1:04d}"
+
+    def _clean_company(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        clean = {k: (str(data[k]).strip() if data.get(k) is not None else "") for k in self.COMPANY_FIELDS if k in data}
+        if "name" in clean and not clean["name"]:
+            raise ValueError("Company name is required")
+        if clean.get("gst_number"):
+            clean["gst_number"] = clean["gst_number"].upper()
+            if not self.GSTIN_RE.match(clean["gst_number"]):
+                raise ValueError("GSTIN must be 15 letters/digits (leave it blank if not applicable)")
+        if clean.get("email") and not self.EMAIL_RE.match(clean["email"]):
+            raise ValueError("Email address is not valid")
+        if clean.get("phone") and not self.PHONE_RE.match(clean["phone"]):
+            raise ValueError("Phone may only contain digits, spaces and + ( ) - , /")
+        return clean
+
     def save_company(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        company_id = data.get("company_id", "DEFAULT")
-        existing = self.company_repo.find_one({"company_id": company_id})
+        """Create (no company_id) or update (company_id given) a company. Names must be unique among active companies.
+        `is_default=True` makes it the default company (invoices use it when a bill names no company)."""
+        company_id = data.get("company_id")
+        existing = self.company_repo.find_one({"company_id": company_id}) if company_id else None
+        if company_id and not existing:
+            raise ValueError(f"Company '{company_id}' not found")
+        clean = self._clean_company(data if existing else {"name": "", **data})
+        name = clean.get("name", existing.get("name") if existing else "")
+        for c in self.company_repo.get_all():
+            if c.get("company_id") != company_id and str(c.get("name", "")).strip().lower() == name.lower():
+                raise ValueError(f"A company named '{name}' already exists")
+        now = datetime.now(timezone.utc)
         if existing:
-            self.company_repo.update_one({"company_id": company_id}, {"$set": data})
+            self.company_repo.update_one({"company_id": company_id}, {"$set": {**clean, "updated_at": now}})
+            saved_id = company_id
         else:
-            self.company_repo.insert_one(data)
-        return data
+            saved_id = self._next_company_id()
+            doc = {"company_id": saved_id, "terms_and_conditions": "", "signatory_label": "Authorized Signatory", "logo_url": "",
+                   **clean, "is_deleted": 0, "created_at": now, "created_by": data.get("created_by", "system")}
+            self.company_repo.insert_one(doc)
+        no_default_yet = not self.company_repo.find_one({"is_default": True, "is_deleted": {"$ne": 1}})
+        if data.get("is_default") or (no_default_yet and not existing and len(self.company_repo.get_all()) == 1):
+            self.set_default_company(saved_id)
+        return self.company_repo.find_one({"company_id": saved_id})
+
+    def set_default_company(self, company_id: str) -> None:
+        if not self.company_repo.find_one({"company_id": company_id, "is_deleted": {"$ne": 1}}):
+            raise ValueError(f"Company '{company_id}' not found")
+        self.db.collection("companies").update_many({"is_default": True}, {"$set": {"is_default": False}})
+        self.company_repo.update_one({"company_id": company_id}, {"$set": {"is_default": True}})
+
+    def company_usage(self, company_id: str) -> int:
+        """How many bills name this company (they keep working after a delete: the company is only hidden)."""
+        return self.db.collection("bills").count_documents({"company_id": company_id})
+
+    def delete_company(self, company_id: str) -> bool:
+        comp = self.company_repo.find_one({"company_id": company_id, "is_deleted": {"$ne": 1}})
+        if not comp:
+            raise ValueError(f"Company '{company_id}' not found")
+        if company_id == self.default_company_id():
+            raise ValueError("This is the default company. Make another company the default before deleting it.")
+        if len(self.company_repo.get_all()) <= 1:
+            raise ValueError("At least one company must remain")
+        self.company_repo.update_one({"company_id": company_id}, {"$set": {"is_deleted": 1, "deleted_at": datetime.now(timezone.utc)}})
+        return True
+
+    @staticmethod
+    def logo_data_uri(path: str, max_px: int = 256) -> str:
+        """Read an image file and return a small PNG data URI (kept small: it is stored inside the company document)."""
+        from PIL import Image
+        with Image.open(path) as im:
+            im = im.convert("RGBA")
+            im.thumbnail((max_px, max_px))
+            buf = io.BytesIO()
+            im.save(buf, format="PNG", optimize=True)
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+    CSV_COLUMNS = ("company_id", "name", "address", "phone", "email", "gst_number", "terms_and_conditions", "signatory_label")
+
+    def export_companies_csv(self, path: str) -> int:
+        rows = self.company_repo.get_all()
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=self.CSV_COLUMNS, extrasaction="ignore")
+            w.writeheader()
+            w.writerows(rows)
+        return len(rows)
+
+    def import_companies_csv(self, path: str, created_by: str = "import") -> Dict[str, Any]:
+        """Add companies from a CSV with a `name` column (other columns optional). Existing names are skipped, bad rows reported."""
+        added, skipped, errors = 0, 0, []
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            for n, row in enumerate(csv.DictReader(f), start=2):
+                row = {k.strip().lower(): (v or "").strip() for k, v in row.items() if k}
+                row.pop("company_id", None)                               # ids are always assigned here
+                if not row.get("name"):
+                    errors.append(f"line {n}: name is empty")
+                    continue
+                try:
+                    self.save_company({k: v for k, v in row.items() if k in self.COMPANY_FIELDS} | {"created_by": created_by})
+                    added += 1
+                except ValueError as exc:
+                    if "already exists" in str(exc):
+                        skipped += 1
+                    else:
+                        errors.append(f"line {n} ({row.get('name')}): {exc}")
+        return {"added": added, "skipped": skipped, "errors": errors}

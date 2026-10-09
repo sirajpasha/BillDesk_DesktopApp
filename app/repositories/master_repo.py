@@ -82,10 +82,13 @@ class CompanyRepository(BaseRepository):
         super().__init__(db, "companies")
 
     def get_default_company(self) -> Optional[Dict[str, Any]]:
-        return self.find_one()
+        """The company flagged is_default, else the first active company."""
+        return (self.find_one({"is_default": True, "is_deleted": {"$ne": 1}})
+                or self.find_one({"is_deleted": {"$ne": 1}}, sort=[("company_id", 1)]))
 
     def get_all(self) -> List[Dict[str, Any]]:
-        return self.find({})
+        """Active companies (soft-deleted ones stay in the database so old invoices still resolve their company)."""
+        return self.find({"is_deleted": {"$ne": 1}}, sort=[("company_id", 1)], limit=0)
 
     def get_by_id(self, company_id: str) -> Optional[Dict[str, Any]]:
         return self.find_one({"company_id": company_id})

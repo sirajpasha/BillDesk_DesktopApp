@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime, timedelta, timezone
@@ -200,7 +201,7 @@ class DashboardFrame(ttk.Frame):
                 try:
                     return datetime.fromisoformat(val[:10])
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).warning("Ignored error", exc_info=True)
             return None
 
         # Sales Buckets

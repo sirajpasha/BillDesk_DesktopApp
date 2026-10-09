@@ -4,6 +4,7 @@ Run with MONGODB_URL / DB_NAME pointing at a disposable DB.
 import sys, os, traceback
 from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.getcwd())
+os.environ.setdefault("PARKED_BILLS_FILE", os.path.join(os.environ.get("QA_SCRATCH", "."), "parked_bills_qa.json"))
 from app.config.settings import settings
 from app.database.connection import MongoDatabase
 from app.models.billing import BillCreate, BillItem

@@ -108,3 +108,11 @@ def amount_in_words(amount: float | int | None) -> str:
 
     res = f"{res} Only"
     return f"Minus {res}" if is_neg else res
+
+
+def format_balance(amount: float | int | None) -> str:
+    """Customer balance for people: what they owe as 'Dr', what we hold for them (advance) as 'Cr'."""
+    val = round(float(amount or 0.0), 2)
+    if val < 0:
+        return f"{format_inr(-val)} Cr"
+    return f"{format_inr(val)} Dr" if val else format_inr(0.0)

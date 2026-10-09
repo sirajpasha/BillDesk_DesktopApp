@@ -48,6 +48,19 @@ class AdminService:
         doc.pop("password_hash", None)
         return doc
 
+    def set_password(self, username: str, new_password: str) -> bool:
+        """Set a new password (used by scripts/reset_password.py); applies the same rules as create_user."""
+        if len(new_password) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        if len(new_password.encode("utf-8")) > 72:
+            raise ValueError("Password is too long (maximum 72 bytes)")
+        user = self.admin_repo.users.find_one({"username": username, "is_deleted": 0})
+        if not user:
+            raise ValueError(f"User '{username}' not found")
+        pw_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        self.admin_repo.users.update_one({"username": username}, {"$set": {"password_hash": pw_hash}})
+        return True
+
     def update_user_status(self, user_id: str, status: str) -> bool:
         return self.admin_repo.users.update_one({"user_id": user_id}, {"$set": {"status": status}})
 

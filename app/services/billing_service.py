@@ -2,11 +2,14 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 import uuid
-from app.models.billing import BillCreate, BillLine
+from app.models.billing import BillCreate, BillLine, BillItem
 from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import ItemRepository, CustomerRepository, FixedPriceRepository
 from app.repositories.inventory_repo import InventoryRepository
 from app.services.payment_service import PaymentService
+from app.services.ledger_service import LedgerService
+from app.services.parked_store import ParkedBillStore
+from app.database.connection import transactional
 from app.config.settings import settings
 from app.utils.currency import money
 
@@ -21,7 +24,8 @@ class BillingService:
         self.price_repo = FixedPriceRepository(db)
         self.inv_repo = InventoryRepository(db)
         self.payment_svc = PaymentService(db)
-        self.parked_bills: List[Dict[str, Any]] = []
+        self.ledger = LedgerService(db)
+        self._parked = ParkedBillStore(settings.parked_bills_file or None)
 
     def next_invoice_number(self) -> str:
         return self.bill_repo.next_invoice_number()
@@ -35,6 +39,7 @@ class BillingService:
     def fixed_rate(self, customer_id: str, item_id: str, when: datetime | None = None) -> Optional[Dict[str, Any]]:
         return self.price_repo.get_active_fixed_price(customer_id, item_id, when)
 
+    @transactional
     def create_bill(self, bill: BillCreate) -> Dict[str, Any]:
         if not bill.items:
             raise ValueError("At least one item is required")
@@ -110,20 +115,31 @@ class BillingService:
             "currency_code": "INR",
         })
 
-        session = None
-        if getattr(self.db, "client", None) is not None and getattr(self.db, "supports_transactions", False):
-            session = self.db.client.start_session()
-            try:
-                with session.start_transaction():
-                    self._write_bill(doc, customer, bill, session)
-            finally:
-                session.end_session()
-        else:
-            self._write_bill(doc, customer, bill, None)
+        self._write_bill(doc, customer, bill, None)         # (the whole method runs in one transaction - see @transactional)
+
+        # ---- general ledger: sale, cost of goods sold (and, below, the receipt)
+        cost = self._consume_cost(bill.items)
+        doc["cost_of_goods"] = cost
+        self.bill_repo.update_one({"invoice_no": bill.invoice_no}, {"$set": {"cost_of_goods": cost}})
+        self.ledger.post_sale(doc, received=received or 0.0, method=bill.payment_method, user_id=bill.created_by)
+        self.ledger.post_cogs(bill.invoice_no, cost, user_id=bill.created_by)
 
         if received is not None:
             self._apply_counter_payment(doc, bill, received)
         return doc
+
+    def _consume_cost(self, lines: List[BillItem]) -> float:
+        """Cost of the goods sold at the item's weighted-average cost; reduces the costed quantity."""
+        total = 0.0
+        for line in lines:
+            item = self.item_repo.find_one({"item_id": line.item_id})
+            if not item:
+                continue
+            qty = abs(line.qty)
+            total += float(item.get("avg_cost") or 0.0) * qty
+            self.item_repo.update_one({"item_id": line.item_id},
+                                      {"$set": {"cost_qty": max(0.0, float(item.get("cost_qty") or 0.0) - qty)}})
+        return round(total, 2)
 
     def _stock_shortfalls(self, bill: BillCreate) -> List[Dict[str, Any]]:
         required: Dict[str, float] = {}
@@ -227,6 +243,7 @@ class BillingService:
             "ip_address": "local",
         }, **kw)
 
+    @transactional
     def void_bill(self, invoice_no: str, user_id: str = "system") -> Dict[str, Any]:
         """Void bill and execute full financial, stock, and crate reversal."""
         bill = self.bill_repo.find_one({"invoice_no": invoice_no, "is_deleted": 0})
@@ -271,6 +288,11 @@ class BillingService:
                 notes=f"Reversal of voided bill {invoice_no}", created_by=user_id,
             )
 
+        # 4b. Reverse the general-ledger postings (sale + cost of goods) and put the costed quantity back
+        self.ledger.reverse_entries(invoice_no, ["sale", "cogs"], user_id)
+        for line in bill.get("items", []):
+            self.item_repo.update_one({"item_id": line["item_id"]}, {"$inc": {"cost_qty": float(line["qty"])}})
+
         # 5. Mark Bill Status Void
         self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {"status": "void", "balance_due": 0.0}})
 
@@ -306,18 +328,28 @@ class BillingService:
             }})
         return round(released, 2)
 
+    @property
+    def parked_bills(self) -> List[Dict[str, Any]]:
+        return self._parked.all()
+
     def park_bill(self, bill_data: Dict[str, Any]) -> int:
-        """Park bill in memory queue for fast recall (F6/F7)."""
-        self.parked_bills.append(bill_data)
-        return len(self.parked_bills)
+        """Park a bill for later recall (F6/F7). Persisted, so it survives closing or crashing the app."""
+        return self._parked.add(bill_data)
 
     def get_parked_bills(self) -> List[Dict[str, Any]]:
-        return self.parked_bills
+        return self._parked.all()
 
     def recall_parked_bill(self, index: int) -> Optional[Dict[str, Any]]:
-        if 0 <= index < len(self.parked_bills):
-            return self.parked_bills.pop(index)
+        """Remove and return a parked bill."""
+        items = self._parked.all()
+        if 0 <= index < len(items):
+            bill = items[index]
+            self._parked.discard(index)
+            return bill
         return None
+
+    def discard_parked_bill(self, index: int) -> bool:
+        return self._parked.discard(index)
 
     def search_bills(
         self,

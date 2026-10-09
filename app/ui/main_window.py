@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
@@ -16,6 +17,8 @@ from app.ui.finance_view import FinanceView
 from app.ui.admin_view import AdminView
 from app.ui.database_settings import DatabaseSettingsFrame
 from app.ui.consolidated_view import ConsolidatedReportFrame
+from app.ui.integrity_view import IntegrityView
+from app.ui.company_view import CompanyConfigView
 
 
 class MainWindow:
@@ -34,6 +37,7 @@ class MainWindow:
         "Finance": "finance", "Accounting Dashboard": "finance", "Trial Balance": "finance",
         "Profit & Loss": "finance", "Balance Sheet": "finance", "BRS": "finance",
         "Accounts Receivables": "finance", "Accounts Payables": "finance", "Handover & Settlement": "finance",
+        "Integrity Check": "finance", "Company Configuration": "settings",
         "Administration": "settings", "User Management": "settings", "Company Settings": "settings",
         "System Audit Logs": "settings", "DB Connection": "settings",
     }
@@ -73,7 +77,7 @@ class MainWindow:
                 self._icon_img = tk.PhotoImage(file=icon_path)
                 root.iconphoto(False, self._icon_img)
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         self._configure_style()
         self._build_shell()
@@ -86,7 +90,7 @@ class MainWindow:
             if comp and comp.get("name"):
                 return comp["name"].upper()
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
         return settings.default_company_name.upper()
 
     def _configure_style(self):
@@ -288,6 +292,7 @@ class MainWindow:
                 ("Balance Sheet", "Balance Sheet", ""),
                 ("BRS", "BRS", ""),
                 ("Handover & Settlement", "Handover & Settlement", ""),
+                ("Integrity Check", "Integrity Check", ""),
                 ("Accounts Receivables", "Accounts Receivables", ""),
                 ("Accounts Payables", "Accounts Payables", ""),
             ]
@@ -359,12 +364,17 @@ class MainWindow:
         self.frames["Accounts Receivables"] = self.finance_view
         self.frames["Accounts Payables"] = self.finance_view
 
+        self.integrity_view = IntegrityView(content, self.db, current_user=self.current_user)
+        self.frames["Integrity Check"] = self.integrity_view
+
         # 9. Administration
         self.admin_view = AdminView(content, self.db, current_user=self.current_user)
         self.frames["Administration"] = self.admin_view
         self.frames["Handover & Settlement"] = self.admin_view
         self.frames["User Management"] = self.admin_view
-        self.frames["Company Settings"] = self.admin_view
+        self.company_view = CompanyConfigView(content, self.db, current_user=self.current_user)
+        self.frames["Company Settings"] = self.company_view
+        self.frames["Company Configuration"] = self.company_view
         self.frames["System Audit Logs"] = self.admin_view
 
         # 10. Consolidated Billing Report
@@ -509,7 +519,7 @@ class MainWindow:
             try:
                 target_frame.refresh()
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         # Update contextual bottom function keys legend matching screenshots
         if name == "Dashboard":

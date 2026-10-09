@@ -3,12 +3,15 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from app.repositories.master_repo import ItemRepository
 from app.repositories.inventory_repo import InventoryRepository
+from app.services.ledger_service import LedgerService
+from app.database.connection import transactional
 
 class InventoryService:
     def __init__(self, db: Any):
         self.db = db
         self.item_repo = ItemRepository(db)
         self.inv_repo = InventoryRepository(db)
+        self.ledger = LedgerService(db)
 
     def get_stock_overview(self, category: Optional[str] = None, search: str = "") -> List[Dict[str, Any]]:
         filter_doc: Dict[str, Any] = {"is_deleted": 0}
@@ -22,6 +25,7 @@ class InventoryService:
             ]
         return self.item_repo.find(filter_doc, sort=[("name", 1)], limit=200)
 
+    @transactional
     def adjust_stock(self, item_id: str, delta_qty: float, reason: str, user_id: str = "system") -> Dict[str, Any]:
         """Manually adjust item stock (+ or -) with mandatory reason and immutable audit log."""
         item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
@@ -47,6 +51,7 @@ class InventoryService:
         )
         return {"item_id": item_id, "delta_qty": delta_qty, "new_stock": new_stock, "transaction_id": txn["transaction_id"]}
 
+    @transactional
     def record_waste(self, item_id: str, qty: float, rate: float, reason: str, user_id: str = "system") -> Dict[str, Any]:
         """Record produce spoilage/waste, decrement stock, and log financial loss."""
         item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
@@ -73,7 +78,7 @@ class InventoryService:
             notes=f"Waste: {reason}",
             created_by=user_id,
         )
-        return self.inv_repo.record_waste(
+        waste = self.inv_repo.record_waste(
             item_id=item_id,
             item_name=item["name"],
             qty=qty,
@@ -81,6 +86,8 @@ class InventoryService:
             reason=reason,
             created_by=user_id,
         )
+        self.ledger.post_waste(waste, user_id=user_id)
+        return waste
 
     def get_stock_transactions(self, item_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         filter_doc = {}

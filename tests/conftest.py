@@ -13,6 +13,13 @@ if os.path.exists(tcl_candidate) and "TCL_LIBRARY" not in os.environ:
 if os.path.exists(tk_candidate) and "TK_LIBRARY" not in os.environ:
     os.environ["TK_LIBRARY"] = tk_candidate
 
+@pytest.fixture(autouse=True)
+def _isolated_parked_bills_file(tmp_path, monkeypatch):
+    """Parked bills are persisted to a file; never let a test touch the real %APPDATA% one."""
+    from app.config.settings import settings
+    monkeypatch.setattr(settings, "parked_bills_file", str(tmp_path / "parked_bills.json"))
+
+
 @pytest.fixture(scope="session")
 def tk_root():
     import tkinter as tk
@@ -166,6 +173,10 @@ class MockMongoDatabase:
 
     def list_collection_names(self):
         return list(self._collections.keys())
+
+    def transaction(self):
+        import contextlib
+        return contextlib.nullcontext()
 
 class SeederDbAdapter:
     """Gives the in-memory mock the pymongo Database access styles (db.items / db['items']) the seeder uses."""

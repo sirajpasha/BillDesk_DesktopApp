@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 from datetime import datetime, timezone, timedelta
 from app.config.settings import settings
 from app.services.master_service import MasterService
-from app.utils.currency import format_inr
+from app.utils.currency import format_inr, format_balance
 from app.utils.formatters import format_date
 
 class MastersView(tk.Frame):
@@ -466,6 +466,7 @@ class MastersView(tk.Frame):
         act_bar = tk.Frame(card, bg="#f8fafc", padx=16, pady=6)
         act_bar.pack(fill="x", side="bottom")
         tk.Button(act_bar, text="✏ Edit Customer", font=("Segoe UI", 8, "bold"), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._on_edit_customer).pack(side="left", padx=4)
+        tk.Button(act_bar, text="📒 Statement", font=("Segoe UI", 8, "bold"), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._on_customer_statement).pack(side="left", padx=4)
         tk.Button(act_bar, text="🔄 Refresh", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self.load_customers).pack(side="right", padx=4)
 
     def _filter_customers(self):
@@ -500,7 +501,7 @@ class MastersView(tk.Frame):
                     c.get("name", ""),
                     phone,
                     addr,
-                    format_inr(c.get("current_balance", 0.0)),
+                    format_balance(c.get("current_balance", 0.0)),
                     "ACTIVE"
                 )
             )
@@ -520,6 +521,15 @@ class MastersView(tk.Frame):
 
     def _add_customer_dialog(self):
         self._customer_modal("Add New Customer", is_new=True)
+
+    def _on_customer_statement(self):
+        sel = self.cust_tree.selection()
+        if not sel:
+            messagebox.showinfo("Select Customer", "Please select a customer to open the statement.", parent=self)
+            return
+        from app.ui.statement_view import StatementWindow
+        cust = next((c for c in self._raw_customers if c.get("cust_id") == sel[0]), {})
+        StatementWindow(self, self.db, sel[0], cust.get("name", ""))
 
     def _on_edit_customer(self):
         sel = self.cust_tree.selection()

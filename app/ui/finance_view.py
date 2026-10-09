@@ -1,3 +1,4 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
@@ -198,28 +199,28 @@ class FinanceView(tk.Frame):
             total_ar = ar_data.get("summary", {}).get("total", 0.0)
             self.kpi_home_ar.config(text=format_inr(total_ar))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         try:
             pl = self.ledger_svc.get_profit_and_loss()
             self.kpi_home_profit.config(text=format_inr(pl.get("net_profit", 0.0)))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         try:
             accs = self.bank_svc.get_bank_accounts()
             tot_bank = sum(a.get("current_balance", 0.0) for a in accs)
             self.kpi_home_bank.config(text=format_inr(tot_bank))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
         try:
             # Payables count from purchases
-            purchases = list(self.db.collection("purchases").find({"balance_due": {"$gt": 0}}))
+            purchases = list(self.db.collection("purchase_bills").find({"balance_due": {"$gt": 0}, "is_deleted": 0}))
             tot_ap = sum(p.get("balance_due", 0.0) for p in purchases)
             self.kpi_home_ap.config(text=format_inr(tot_ap))
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # =========================================================================
     # 1. AR AGING & RECEIPTS TAB
@@ -245,6 +246,10 @@ class FinanceView(tk.Frame):
             cursor="hand2",
             command=self._record_payment_dialog
         ).pack(side="right")
+        tk.Button(
+            top_bar, text="Customer Statement", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155",
+            relief="solid", bd=1, padx=12, pady=4, cursor="hand2", command=self._open_statement
+        ).pack(side="right", padx=(0, 8))
 
         card = tk.Frame(self.ar_tab, bg="#ffffff", bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -264,6 +269,14 @@ class FinanceView(tk.Frame):
         self.ar_table = DataTable(card, columns=cols)
         self.ar_table.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
+    def _open_statement(self):
+        row = self.ar_table.get_selected()
+        if not row or not row.get("customer_id"):
+            messagebox.showinfo("Select Customer", "Select a customer in the list first.", parent=self)
+            return
+        from app.ui.statement_view import StatementWindow
+        StatementWindow(self, self.db, row["customer_id"], row.get("customer_name", ""))
+
     def load_ar(self):
         res = self.pay_svc.get_ar_aging()
         summary = res.get("summary", {})
@@ -271,7 +284,8 @@ class FinanceView(tk.Frame):
             text=f"Total AR Outstanding: {format_inr(summary.get('total', 0.0))}   |   "
                  f"Current: {format_inr(summary.get('current', 0.0))}   |   "
                  f"1-30 Days: {format_inr(summary.get('1_30', 0.0))}   |   "
-                 f"90+ Overdue: {format_inr(summary.get('90_plus', 0.0))}"
+                 f"90+ Overdue: {format_inr(summary.get('90_plus', 0.0))}   |   "
+                 f"Advances held (not counted): {format_inr(summary.get('advances', 0.0))}"
         )
         formatted = []
         for c in res.get("customers", []):
@@ -384,10 +398,13 @@ class FinanceView(tk.Frame):
         self.ap_table.pack(fill="both", expand=True, padx=12, pady=12)
 
     def load_ap(self):
-        purchases = list(self.db.collection("purchases").find().sort("date", -1).limit(100))
+        purchases = list(self.db.collection("purchase_bills").find({"is_deleted": 0}).sort("bill_date", -1).limit(200))
         formatted = []
         for p in purchases:
             d = dict(p)
+            due = float(d.get("balance_due", 0.0) or 0.0)
+            paid = due <= 0.005
+            d["status"] = "paid" if paid else ("partial" if due < float(d.get("payable_amount", 0.0) or 0.0) - 0.005 else "unpaid")
             d["payable_amount"] = format_inr(d.get("payable_amount", 0.0), symbol=False)
             d["balance_due"] = format_inr(d.get("balance_due", 0.0), symbol=False)
             formatted.append(d)
@@ -593,40 +610,82 @@ class FinanceView(tk.Frame):
         accs = self.ledger_svc.get_accounts()
         self.gl_table.set_data(accs)
 
-    def _view_trial_balance(self):
+    # ---------------- Financial statements (rendered from the general ledger) ----------------
+    @staticmethod
+    def _fmt(v: float) -> str:
+        return format_inr(v, symbol=False)
+
+    def trial_balance_text(self) -> str:
         tb = self.ledger_svc.get_trial_balance()
-        status_txt = "BALANCED (Debits == Credits)" if tb["is_balanced"] else "UNBALANCED!"
-        msg = (
-            f"=== TRIAL BALANCE ===\n\n"
-            f"Total Debits:  {format_inr(tb['total_debit'])}\n"
-            f"Total Credits: {format_inr(tb['total_credit'])}\n\n"
-            f"Integrity Status: {status_txt}\n"
-            f"Active Accounts: {len(tb['rows'])}"
-        )
-        messagebox.showinfo("Trial Balance", msg, parent=self)
+        w = 70
+        out = ["TRIAL BALANCE", "=" * w, f"{'Code':<6}{'Account':<36}{'Debit':>14}{'Credit':>14}", "-" * w]
+        for r in tb["rows"]:
+            out.append(f"{r['account_code']:<6}{r['account_name'][:35]:<36}"
+                       f"{self._fmt(r['debit']) if r['debit'] else '':>14}{self._fmt(r['credit']) if r['credit'] else '':>14}")
+        if not tb["rows"]:
+            out.append("(no postings yet)")
+        out += ["-" * w, f"{'TOTAL':<42}{self._fmt(tb['total_debit']):>14}{self._fmt(tb['total_credit']):>14}",
+                "", "Debits equal credits: " + ("YES - ledger is balanced" if tb["is_balanced"] else "NO - LEDGER IS OUT OF BALANCE")]
+        return "\n".join(out)
+
+    def profit_and_loss_text(self) -> str:
+        pl = self.ledger_svc.get_profit_and_loss()
+        w = 60
+
+        def row(label, val, bold=False):
+            return f"{('' if not bold else '')}{label:<40}{self._fmt(val):>18}"
+
+        out = ["PROFIT & LOSS STATEMENT", "=" * w,
+               row("Sales revenue", pl["total_sales"]),
+               row("Commission & fee income", pl["fee_income"])]
+        if pl["other_income"]:
+            out.append(row("Other income", pl["other_income"]))
+        out += [row("Total revenue", pl["total_revenue"]), "",
+                row("Less: Cost of goods sold", pl["cost_of_goods_sold"])]
+        if pl["total_purchases"]:
+            out.append(row("Less: Purchases expensed directly", pl["total_purchases"]))
+        out += ["-" * w, row("GROSS PROFIT", pl["gross_profit"]), "",
+                row("Less: Spoilage & waste", pl["total_waste"]),
+                row("Less: Operating expenses", pl["operating_expenses"]),
+                "=" * w, row("NET PROFIT / (LOSS)", pl["net_profit"])]
+        return "\n".join(out)
+
+    def balance_sheet_text(self) -> str:
+        bs = self.ledger_svc.get_balance_sheet()
+        w = 60
+        out = ["BALANCE SHEET", "=" * w, "ASSETS"]
+        out += [f"  {r['account_name']:<44}{self._fmt(r['amount']):>14}" for r in bs["assets"]] or ["  (none)"]
+        out += [f"{'Total assets':<46}{self._fmt(bs['total_assets']):>14}", "", "LIABILITIES"]
+        out += [f"  {r['account_name']:<44}{self._fmt(r['amount']):>14}" for r in bs["liabilities"]] or ["  (none)"]
+        out += [f"{'Total liabilities':<46}{self._fmt(bs['total_liabilities']):>14}", "", "EQUITY"]
+        out += [f"  {r['account_name']:<44}{self._fmt(r['amount']):>14}" for r in bs["equity"]]
+        out += [f"{'Total equity':<46}{self._fmt(bs['total_equity']):>14}", "-" * w,
+                f"{'Liabilities + Equity':<46}{self._fmt(bs['total_liabilities'] + bs['total_equity']):>14}", "",
+                "Assets = Liabilities + Equity: " + ("YES - balance sheet balances" if bs["is_balanced"] else "NO - DOES NOT BALANCE")]
+        return "\n".join(out)
+
+    def _show_report(self, title: str, text: str):
+        self.last_report = (title, text)
+        dlg = tk.Toplevel(self)
+        dlg.title(title)
+        dlg.geometry("640x560")
+        dlg.transient(self.winfo_toplevel())
+        dlg.configure(bg="#ffffff")
+        box = tk.Text(dlg, font=("Consolas", 10), bg="#ffffff", fg="#0f172a", relief="flat", padx=16, pady=14, wrap="none")
+        box.insert("1.0", text)
+        box.config(state="disabled")
+        box.pack(fill="both", expand=True)
+        tk.Button(dlg, text="Close", command=dlg.destroy, relief="flat", bg="#4f46e5", fg="#ffffff",
+                  font=("Segoe UI", 9, "bold"), padx=16, pady=5).pack(side="bottom", pady=8)
+
+    def _view_trial_balance(self):
+        self._show_report("Trial Balance", self.trial_balance_text())
 
     def _view_pl(self):
-        pl = self.ledger_svc.get_profit_and_loss()
-        msg = (
-            f"=== PROFIT & LOSS STATEMENT ===\n\n"
-            f"Total Sales Revenue:      {format_inr(pl['total_sales'])}\n"
-            f"Less: Produce Purchases:  {format_inr(pl['total_purchases'])}\n"
-            f"-----------------------------------------\n"
-            f"Gross Trading Profit:     {format_inr(pl['gross_profit'])}\n"
-            f"Less: Spoilage & Waste:   {format_inr(pl['total_waste'])}\n"
-            f"-----------------------------------------\n"
-            f"Net Operating Profit:     {format_inr(pl['net_profit'])}\n"
-        )
-        messagebox.showinfo("Profit & Loss", msg, parent=self)
+        self._show_report("Profit & Loss", self.profit_and_loss_text())
 
     def _view_balance_sheet(self):
-        messagebox.showinfo(
-            "Balance Sheet",
-            "=== BALANCE SHEET ===\n\n"
-            "Assets = Liabilities + Equity\n"
-            "Real-time financial position verified against double-entry General Ledger.",
-            parent=self
-        )
+        self._show_report("Balance Sheet", self.balance_sheet_text())
 
     def _post_journal_dialog(self):
         dlg = tk.Toplevel(self)

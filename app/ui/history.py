@@ -1,6 +1,8 @@
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os
+from app import paths
 import subprocess
 import platform
 import math
@@ -220,8 +222,16 @@ class BillHistoryFrame(tk.Frame):
             relief="solid",
             bd=1
         )
-        self.search_ent.pack(side="left", fill="x", expand=True)
+        self.search_ent.pack(side="left", fill="x", expand=True, ipady=3)
         self.search_var.trace_add("write", lambda *_: self._apply_filter(reset_page=True))
+
+        self.status_filter_var = tk.StringVar(value="All")
+        self.status_filter_cb = ttk.Combobox(
+            search_input_f, textvariable=self.status_filter_var, width=10, state="readonly",
+            values=["All", "Unpaid", "Partial", "Paid", "Void", "Legacy"],
+        )
+        self.status_filter_cb.pack(side="left", padx=(8, 0))
+        self.status_filter_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter(reset_page=True))
 
         # 4. Main Table Card Container
         main_card = tk.Frame(self, bg="#ffffff", bd=1, relief="solid", highlightthickness=0)
@@ -319,6 +329,7 @@ class BillHistoryFrame(tk.Frame):
         self.tree.tag_configure("unpaid", foreground="#dc2626", background="#fef2f2")
         self.tree.tag_configure("partial", foreground="#d97706", background="#fffbeb")
         self.tree.tag_configure("void", foreground="#9ca3af", background="#f9fafb")
+        self.tree.tag_configure("legacy", foreground="#64748b")
 
         # Scrollbar
         vsb = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
@@ -531,6 +542,13 @@ class BillHistoryFrame(tk.Frame):
             self.current_page += 1
             self._render_current_page()
 
+    @staticmethod
+    def display_status(raw: Any) -> str:
+        """paid / unpaid / partial / void as recorded; anything else (older bills carry the word "active" and no
+        payment tracking, their money sits in the customer balance) is shown as "legacy"."""
+        st = str(raw or "unpaid").lower()
+        return st if st in ("paid", "unpaid", "partial", "void") else "legacy"
+
     def refresh(self):
         bills = self.billing.search_bills(limit=self.MAX_BILLS)
         self._all_bills = []
@@ -551,7 +569,7 @@ class BillHistoryFrame(tk.Frame):
             amt = float(d.get("total_amount", 0.0))
             d["amount_display"] = format_inr(amt)
             d["company_display"] = d.get("company_name") or company_names.get(d.get("company_id")) or "-"
-            d["status_display"] = str(d.get("status", "unpaid")).lower()
+            d["status_display"] = self.display_status(d.get("status"))
 
             if d["status_display"] != "void":
                 total_rev += amt
@@ -584,6 +602,7 @@ class BillHistoryFrame(tk.Frame):
 
         q = self.search_var.get().strip().lower()
         d_filter = self.date_var.get().strip().lower()
+        status_filter = self.status_filter_var.get().strip().lower()
 
         self._filtered_bills = []
         for b in self._all_bills:
@@ -592,6 +611,8 @@ class BillHistoryFrame(tk.Frame):
             date_str = str(b.get("date_display", "")).lower()
 
             if q and (q not in inv and q not in cust):
+                continue
+            if status_filter != "all" and b.get("status_display") != status_filter:
                 continue
             if d_filter and (d_filter not in date_str and d_filter not in str(b.get("invoice_date", "")).lower()):
                 continue
@@ -660,10 +681,10 @@ class BillHistoryFrame(tk.Frame):
         if row_id:
             self.tree.selection_set(row_id)
             menu = tk.Menu(self, tearoff=0)
-            menu.add_command(label="👁️ Preview Tax Invoice (PDF)", command=self._preview_invoice_selected)
+            menu.add_command(label="👁️ Preview Invoice (PDF)", command=self._preview_invoice_selected)
             menu.add_command(label="🚚 Preview Delivery Challan (DC PDF)", command=self._preview_dc_selected)
             menu.add_separator()
-            menu.add_command(label="📥 Download Tax Invoice (PDF)", command=self._download_invoice_selected)
+            menu.add_command(label="📥 Download Invoice (PDF)", command=self._download_invoice_selected)
             menu.add_command(label="🚚 Download Delivery Challan (DC PDF)", command=self._download_dc_selected)
             menu.add_separator()
             menu.add_command(label="📝 View Bill Details", command=self._view_details)
@@ -683,7 +704,7 @@ class BillHistoryFrame(tk.Frame):
             return
 
         try:
-            out_dir = os.path.abspath("Docs/Output")
+            out_dir = str(paths.output_dir())
             os.makedirs(out_dir, exist_ok=True)
             file_path = os.path.join(out_dir, f"Inv- {inv_no}.pdf")
 
@@ -697,7 +718,7 @@ class BillHistoryFrame(tk.Frame):
             show_print_preview(
                 self,
                 file_path,
-                title=f"Tax Invoice — {inv_no}",
+                title=f"Invoice — {inv_no}",
                 default_filename=f"Inv- {inv_no}.pdf"
             )
         except Exception as ex:
@@ -716,7 +737,7 @@ class BillHistoryFrame(tk.Frame):
             return
 
         try:
-            out_dir = os.path.abspath("Docs/Output")
+            out_dir = str(paths.output_dir())
             os.makedirs(out_dir, exist_ok=True)
             file_path = os.path.join(out_dir, f"DC- {inv_no}.pdf")
 
@@ -754,7 +775,7 @@ class BillHistoryFrame(tk.Frame):
             defaultextension=".pdf",
             filetypes=[("PDF Documents", "*.pdf")],
             initialfile=f"Inv- {inv_no}.pdf",
-            title="Save Tax Invoice PDF"
+            title="Save Invoice PDF"
         )
         if file_path:
             try:
@@ -813,7 +834,7 @@ class BillHistoryFrame(tk.Frame):
             else:
                 subprocess.call(["xdg-open", file_path])
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     def _void_selected(self):
         bill = self._get_selected_bill()
@@ -862,13 +883,13 @@ class BillHistoryFrame(tk.Frame):
         top_header.pack(fill="x")
         tk.Label(
             top_header,
-            text=f"Tax Invoice: {inv_no}",
+            text=f"Invoice: {inv_no}",
             font=("Segoe UI", 12, "bold"),
             fg="#ffffff",
             bg="#4f46e5"
         ).pack(side="left")
 
-        status_str = str(db_bill.get("status", "unpaid")).upper()
+        status_str = self.display_status(db_bill.get("status")).upper()
         tk.Label(
             top_header,
             text=f"Status: {status_str}",

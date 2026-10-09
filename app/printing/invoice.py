@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import os
 import sys
 import subprocess
@@ -43,7 +44,7 @@ def _get_logo_base64(filename: str = "logo.png") -> str:
                 with open(p, "rb") as f:
                     return f"data:{mime};base64," + base64.b64encode(f.read()).decode("utf-8")
             except Exception:
-                pass
+                logging.getLogger(__name__).warning("Ignored error", exc_info=True)
     if filename != "logo.png":
         return _get_logo_base64("logo.png")
     return ""
@@ -80,7 +81,7 @@ def _resolve_company_and_customer(
                     if k not in cust or not cust[k]:
                         cust[k] = v
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # Resolve company based on DC vs Invoice
     target_comp_id = None
@@ -100,7 +101,7 @@ def _resolve_company_and_customer(
             if db_comp:
                 comp = db_comp
         except Exception:
-            pass
+            logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     if not comp:
         comp = {
