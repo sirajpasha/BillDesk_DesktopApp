@@ -25,9 +25,12 @@ def db():
     return d
 
 
+_BILL_NO = iter(range(1, 10_000))
+
+
 def _buy(db, qty=100.0, rate=10.0, grn=None):
     items = [{"item_id": "I1", "name": "Tomato", "qty": qty, "unit": "kg", "rate": rate, "amount": qty * rate}]
-    bill = ProcurementService(db).create_purchase_bill("S1", "VB-1", items, grn_id=grn, user_id="t")
+    bill = ProcurementService(db).create_purchase_bill("S1", f"VB-{next(_BILL_NO)}", items, grn_id=grn, user_id="t")
     return bill["purchase_id"]
 
 

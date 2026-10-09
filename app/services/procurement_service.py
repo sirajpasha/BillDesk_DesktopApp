@@ -1,4 +1,6 @@
 from __future__ import annotations
+import re
+from app.utils import validation as V
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from app.repositories.procurement_repo import ProcurementRepository
@@ -30,6 +32,7 @@ class ProcurementService:
             raise ValueError(f"Supplier '{supplier_id}' not found")
         if not items:
             raise ValueError("PO must contain at least one item")
+        items = self._clean_lines(items)
 
         total = sum(float(i["qty"]) * float(i["rate"]) for i in items)
         po_id = self.proc_repo.next_po_number()
@@ -144,6 +147,14 @@ class ProcurementService:
         supplier = self.supp_repo.find_one({"supplier_id": supplier_id})
         if not supplier:
             raise ValueError(f"Supplier '{supplier_id}' not found")
+        supplier_bill_no = V.text(supplier_bill_no, "Vendor invoice number", max_len=40)
+        if not items:
+            raise ValueError("A vendor bill needs at least one item.")
+        items = self._clean_lines(items)
+        again = self.proc_repo.bills.find_one({"supplier_id": supplier_id, "is_deleted": {"$ne": 1},
+                                               "supplier_bill_no": {"$regex": f"^{re.escape(supplier_bill_no)}$", "$options": "i"}})
+        if again:
+            raise ValueError(f"Vendor invoice '{supplier_bill_no}' from this supplier is already recorded as {again.get('purchase_id')}.")
 
         subtotal = sum(float(i["qty"]) * float(i["rate"]) for i in items)
         tds_amount = 0.0
@@ -186,6 +197,20 @@ class ProcurementService:
         # Update supplier AP balance
         self.supp_repo.update_balance(supplier_id, payable_amount)
         return doc
+
+    def _clean_lines(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Each line: a real item from the master (id or code), quantity > 0, rate > 0, both finite numbers."""
+        clean = []
+        for n, it in enumerate(items, start=1):
+            master = self.item_repo.find_by_alias_or_id(str(it.get("item_id", "")).strip())
+            if not master:
+                raise ValueError(f"Line {n}: item '{it.get('item_id', '')}' is not in the item master.")
+            label = master.get("name") or it.get("name") or f"line {n}"
+            qty = V.number(it.get("qty"), f"{label}: quantity", greater_than=0, maximum=10_000_000)
+            rate = V.number(it.get("rate"), f"{label}: rate", greater_than=0, maximum=1_000_000)
+            clean.append({**it, "item_id": master["item_id"], "name": it.get("name") or master.get("name", ""),
+                          "qty": qty, "rate": rate, "amount": round(qty * rate, 2)})
+        return clean
 
     def _update_item_costs(self, items: List[Dict[str, Any]]) -> None:
         """Weighted-average cost: avg_cost over the costed quantity (cost_qty), updated by each vendor bill."""

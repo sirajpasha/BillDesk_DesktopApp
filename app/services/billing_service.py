@@ -12,6 +12,8 @@ from app.services.parked_store import ParkedBillStore
 from app.database.connection import transactional
 from app.config.settings import settings
 from app.utils.currency import money
+from app.utils import validation as V
+import math
 
 CASH_CUSTOMER_ID = "CASH"
 
@@ -44,10 +46,24 @@ class BillingService:
         if not bill.items:
             raise ValueError("At least one item is required")
         for item in bill.items:
+            if not (math.isfinite(item.qty) and math.isfinite(item.rate)):
+                raise ValueError(f"{item.name or item.item_id}: quantity and rate must be numbers.")
             if item.qty <= 0:
                 raise ValueError("Item quantity must be greater than zero")
             if item.rate < 0:
                 raise ValueError("Item rate cannot be negative")
+            if item.qty > 10_000_000 or item.rate > 1_000_000:
+                raise ValueError(f"{item.name or item.item_id}: quantity or rate is unreasonably large - check for a typing mistake.")
+        for field, label in (("commission_amt", "Commission"), ("mandi_fee_amt", "Mandi fee"), ("other_charges", "Other charges")):
+            V.number(getattr(bill, field), label, minimum=0, maximum=1_000_000_000)
+        for field, label in (("crates_issued", "Crates issued"), ("crates_returned", "Crates returned")):
+            V.number(getattr(bill, field), label, minimum=0, maximum=1_000_000)
+        try:
+            bill_day = datetime.strptime((bill.invoice_date or "")[:10], "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("The invoice date is not a valid date.") from None
+        if bill_day > datetime.now().date():
+            raise ValueError("The invoice date cannot be in the future.")
 
         # The service owns the arithmetic: never trust amounts computed by the caller.
         for item in bill.items:

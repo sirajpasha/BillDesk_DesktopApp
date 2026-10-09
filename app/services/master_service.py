@@ -1,5 +1,6 @@
 from __future__ import annotations
 import base64
+from app.utils import validation as V
 import csv
 import io
 import re
@@ -27,14 +28,27 @@ class MasterService:
     def get_item(self, item_id: str) -> Optional[Dict[str, Any]]:
         return self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
 
+    @staticmethod
+    def _same_name(repo, field: str, name: str, extra: Dict[str, Any]) -> bool:
+        """True when another active record already has this name (case-insensitive)."""
+        return repo.find_one({field: {"$regex": f"^{re.escape(name)}$", "$options": "i"}, "is_deleted": {"$ne": 1}, **extra}) is not None
+
     def save_item(self, item_data: Dict[str, Any], is_new: bool = False) -> Dict[str, Any]:
-        item_id = item_data.get("item_id", "").strip()
-        alias = item_data.get("item_alias", "").strip()
-        if not item_id or not item_data.get("name", "").strip():
-            raise ValueError("Item ID and Name are required")
+        item_id = V.text(item_data.get("item_id"), "Item ID", max_len=40)
+        item_data["name"] = name = V.text(item_data.get("name"), "Item name", max_len=80)
+        alias = V.text(item_data.get("item_alias"), "Item code", required=False, max_len=20)
+        if " " in alias:
+            raise ValueError("Item code cannot contain spaces.")
+        item_data["item_alias"] = alias
+        if item_data.get("unit"):
+            item_data["unit"] = V.text(item_data["unit"], "Unit", max_len=15)
         for rate_field in ("standard_rate", "rate", "default_rate"):
-            if item_data.get(rate_field) is not None and float(item_data[rate_field]) < 0:
-                raise ValueError("Item rate cannot be negative")
+            if item_data.get(rate_field) is not None:
+                item_data[rate_field] = V.number(item_data[rate_field], "Item rate", minimum=0, maximum=1_000_000)
+        if item_data.get("stock") is not None:
+            item_data["stock"] = V.number(item_data["stock"], "Stock quantity", minimum=0 if is_new else None, maximum=10_000_000)
+        if self._same_name(self.item_repo, "name", name, {} if is_new else {"item_id": {"$ne": item_id}}):
+            raise ValueError(f"An item named '{name}' already exists.")
 
         if is_new:
             if self.item_repo.find_one({"item_id": item_id}):
@@ -64,12 +78,24 @@ class MasterService:
         return self.cust_repo.find_one({"cust_id": cust_id, "is_deleted": 0})
 
     def save_customer(self, cust_data: Dict[str, Any], is_new: bool = False) -> Dict[str, Any]:
-        cust_id = cust_data.get("cust_id", "").strip()
-        name = cust_data.get("name", "").strip()
-        if not cust_id or not name:
-            raise ValueError("Customer ID and Name are required")
-        if cust_data.get("credit_limit") is not None and float(cust_data["credit_limit"]) < 0:
-            raise ValueError("Credit limit cannot be negative")
+        cust_id = V.text(cust_data.get("cust_id"), "Customer ID", max_len=40)
+        cust_data["name"] = name = V.text(cust_data.get("name"), "Customer name", max_len=80)
+        for key, label in (("phone", "Phone"), ("contact_person_phone", "Contact phone"), ("bill_to_phone", "Bill-to phone"), ("contact_person_whatsapp", "WhatsApp number")):
+            if key in cust_data:
+                cust_data[key] = V.phone(cust_data[key], label)
+        for key, label in (("email", "Email"), ("bill_to_email", "Bill-to email"), ("contact_person_email", "Contact email")):
+            if key in cust_data:
+                cust_data[key] = V.email(cust_data[key], label)
+        if "gst_number" in cust_data:
+            cust_data["gst_number"] = V.gstin(cust_data["gst_number"])
+        if cust_data.get("credit_limit") is not None:
+            cust_data["credit_limit"] = V.number(cust_data["credit_limit"], "Credit limit", minimum=0, maximum=1_000_000_000)
+        if is_new and cust_data.get("current_balance") is not None:
+            cust_data["current_balance"] = V.number(cust_data["current_balance"], "Opening balance", minimum=-1_000_000_000, maximum=1_000_000_000)
+        old = None if is_new else self.cust_repo.find_one({"cust_id": cust_id})
+        if (is_new or (old and str(old.get("name", "")).strip().lower() != name.lower())) and \
+                self._same_name(self.cust_repo, "name", name, {"cust_id": {"$ne": cust_id}}):
+            raise ValueError(f"A customer named '{name}' already exists.")
 
         if is_new:
             if self.cust_repo.find_one({"cust_id": cust_id}):
@@ -99,10 +125,20 @@ class MasterService:
         return self.supp_repo.find_one({"supplier_id": supplier_id, "is_deleted": 0})
 
     def save_supplier(self, supp_data: Dict[str, Any], is_new: bool = False) -> Dict[str, Any]:
-        supplier_id = supp_data.get("supplier_id", "").strip()
-        name = supp_data.get("name", "").strip()
-        if not supplier_id or not name:
-            raise ValueError("Supplier ID and Name are required")
+        supplier_id = V.text(supp_data.get("supplier_id"), "Supplier ID", max_len=40)
+        supp_data["name"] = name = V.text(supp_data.get("name"), "Supplier name", max_len=80)
+        if "phone" in supp_data:
+            supp_data["phone"] = V.phone(supp_data["phone"])
+        if "email" in supp_data:
+            supp_data["email"] = V.email(supp_data["email"])
+        if "gst_number" in supp_data:
+            supp_data["gst_number"] = V.gstin(supp_data["gst_number"])
+        if supp_data.get("tds_rate") is not None:
+            supp_data["tds_rate"] = V.number(supp_data["tds_rate"], "TDS rate", minimum=0, maximum=100)
+        old = None if is_new else self.supp_repo.find_one({"supplier_id": supplier_id})
+        if (is_new or (old and str(old.get("name", "")).strip().lower() != name.lower())) and \
+                self._same_name(self.supp_repo, "name", name, {"supplier_id": {"$ne": supplier_id}}):
+            raise ValueError(f"A supplier named '{name}' already exists.")
 
         if is_new:
             if self.supp_repo.find_one({"supplier_id": supplier_id}):
@@ -122,8 +158,11 @@ class MasterService:
         return self.price_repo.find(filter_doc, sort=[("start_date", -1)])
 
     def save_fixed_price(self, customer_id: str, item_id: str, rate: float, start_date: datetime, end_date: datetime, created_by: str = "system") -> Dict[str, Any]:
-        if rate <= 0:
-            raise ValueError("Fixed rate must be greater than zero")
+        rate = V.number(rate, "Fixed rate", greater_than=0, maximum=1_000_000)
+        if not self.cust_repo.find_one({"cust_id": customer_id, "is_deleted": {"$ne": 1}}):
+            raise ValueError(f"Customer '{customer_id}' is not in the customer master.")
+        if not self.item_repo.find_by_alias_or_id(item_id):
+            raise ValueError(f"Item '{item_id}' is not in the item master.")
         if start_date > end_date:
             raise ValueError("Start date must be before end date")
 

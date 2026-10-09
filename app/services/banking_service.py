@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import uuid
 from app.repositories.accounting_repo import AccountingRepository
+from app.utils import validation as V
 
 class BankingService:
     def __init__(self, db: Any):
@@ -13,6 +14,16 @@ class BankingService:
         return self.acc_repo.bank_accounts.find({"status": "active"})
 
     def save_bank_account(self, account_data: Dict[str, Any]) -> Dict[str, Any]:
+        account_data["bank_name"] = V.text(account_data.get("bank_name"), "Bank name", max_len=60)
+        account_data["account_number"] = number = V.account_number(account_data.get("account_number"))
+        if account_data.get("ifsc") is not None:
+            account_data["ifsc"] = V.ifsc(account_data["ifsc"])
+        account_data["account_type"] = V.choice(account_data.get("account_type") or "Current", "Account type", ("Current", "Savings", "OD"))
+        if account_data.get("current_balance") is not None:
+            account_data["current_balance"] = V.number(account_data["current_balance"], "Opening balance", minimum=-1_000_000_000, maximum=1_000_000_000)
+        if self.acc_repo.bank_accounts.find_one({"account_number": number, "status": "active"}):
+            raise ValueError(f"A bank account with number {number} is already registered.")
+        account_data.setdefault("status", "active")
         acc_id = account_data.get("account_id") or f"BNK-{uuid.uuid4().hex[:6].upper()}"
         account_data["account_id"] = acc_id
         if "created_at" not in account_data:

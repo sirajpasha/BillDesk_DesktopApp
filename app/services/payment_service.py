@@ -7,8 +7,11 @@ from app.repositories.master_repo import CustomerRepository, SupplierRepository
 from app.repositories.procurement_repo import ProcurementRepository
 from app.services.ledger_service import LedgerService
 from app.database.connection import transactional
+from app.utils import validation as V
 
 class PaymentService:
+    PAY_METHODS = ("Cash", "UPI", "Cheque", "NEFT", "RTGS", "NEFT/RTGS", "Bank", "Card", "Credit/Due")
+
     def __init__(self, db: Any):
         self.db = db
         self.acc_repo = AccountingRepository(db)
@@ -31,8 +34,9 @@ class PaymentService:
         user_id: str = "system"
     ) -> Dict[str, Any]:
         """Record customer payment receipt, allocate to invoices (FIFO or specific), and reduce AR balance."""
-        if amount <= 0:
-            raise ValueError("Payment amount must be greater than zero")
+        amount = V.number(amount, "Payment amount", greater_than=0, maximum=100_000_000)
+        payment_method = V.choice(payment_method, "Payment mode", self.PAY_METHODS)
+        reference_no = V.text(reference_no, "Reference", required=False, max_len=60) or None
 
         customer = self.cust_repo.find_one({"cust_id": customer_id})
         if not customer:
@@ -128,8 +132,9 @@ class PaymentService:
         user_id: str = "system"
     ) -> Dict[str, Any]:
         """Disburse payment to supplier, reducing AP balance and bill balance due."""
-        if amount <= 0:
-            raise ValueError("Payment amount must be greater than zero")
+        amount = V.number(amount, "Payment amount", greater_than=0, maximum=100_000_000)
+        payment_method = V.choice(payment_method, "Payment mode", self.PAY_METHODS)
+        reference_no = V.text(reference_no, "Reference", required=False, max_len=60) or None
 
         bill = self.proc_repo.bills.find_one({"purchase_id": purchase_id})
         if not bill:

@@ -1,5 +1,6 @@
 import logging
 import tkinter as tk
+from app.utils import validation as V
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
 from app.services.payment_service import PaymentService
@@ -314,7 +315,7 @@ class FinanceView(tk.Frame):
         fields = [
             ("Customer ID *", "customer_id", ""),
             ("Payment Amount (₹) *", "amount", ""),
-            ("Payment Mode (Cash/UPI/NEFT/Cheque)", "payment_method", "Cash"),
+            ("Payment Mode", "payment_method", "Cash"),
             ("Invoice No (Leave blank for FIFO)", "invoice_no", ""),
             ("UTR / Cheque Ref No", "reference_no", ""),
             ("Notes", "notes", ""),
@@ -322,15 +323,19 @@ class FinanceView(tk.Frame):
 
         for idx, (label, key, val) in enumerate(fields):
             tk.Label(body, text=label, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=idx, column=0, padx=6, pady=4, sticky="w")
-            ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=28)
-            ent.insert(0, val)
+            if key == "payment_method":
+                ent = ttk.Combobox(body, values=list(PaymentService.PAY_METHODS[:-1]), state="readonly", width=26)
+                ent.set(val)
+            else:
+                ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=28)
+                ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=6, pady=4, sticky="ew")
             entries[key] = ent
 
         def on_save():
             try:
                 c_id = entries["customer_id"].get().strip()
-                amt = float(entries["amount"].get().strip())
+                amt = V.number(entries["amount"].get(), "Payment amount", greater_than=0, maximum=100_000_000)
                 mode = entries["payment_method"].get().strip()
                 inv_no = entries["invoice_no"].get().strip() or None
                 ref = entries["reference_no"].get().strip() or None
@@ -430,14 +435,18 @@ class FinanceView(tk.Frame):
             ("Purchase ID *", "purchase_id", ""),
             ("Supplier ID *", "supplier_id", ""),
             ("Payment Amount (₹) *", "amount", ""),
-            ("Method (NEFT/RTGS/UPI/Cheque)", "payment_method", "NEFT"),
+            ("Payment Mode", "payment_method", "NEFT"),
             ("Reference / UTR", "reference_no", ""),
         ]
 
         for idx, (label, key, val) in enumerate(fields):
             tk.Label(body, text=label, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=idx, column=0, padx=6, pady=4, sticky="w")
-            ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=26)
-            ent.insert(0, val)
+            if key == "payment_method":
+                ent = ttk.Combobox(body, values=list(PaymentService.PAY_METHODS[:-1]), state="readonly", width=24)
+                ent.set(val)
+            else:
+                ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=26)
+                ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=6, pady=4, sticky="ew")
             entries[key] = ent
 
@@ -445,7 +454,9 @@ class FinanceView(tk.Frame):
             try:
                 p_id = entries["purchase_id"].get().strip()
                 s_id = entries["supplier_id"].get().strip()
-                amt = float(entries["amount"].get().strip())
+                if not p_id or not s_id:
+                    raise ValueError("Purchase ID and Supplier ID are required.")
+                amt = V.number(entries["amount"].get(), "Payment amount", greater_than=0, maximum=100_000_000)
                 mode = entries["payment_method"].get().strip()
                 ref = entries["reference_no"].get().strip() or None
                 res = self.pay_svc.record_supplier_payment(p_id, s_id, amt, mode, ref, user_id=self.current_user.username)
@@ -521,24 +532,27 @@ class FinanceView(tk.Frame):
         fields = [
             ("Bank Name *", "bank_name", ""),
             ("Account Number *", "account_number", ""),
-            ("Account Type (Current/Savings/OD)", "account_type", "Current"),
+            ("IFSC (optional)", "ifsc", ""),
+            ("Account Type", "account_type", "Current"),
             ("Opening Balance", "current_balance", "0.0"),
         ]
 
         for idx, (label, key, val) in enumerate(fields):
             tk.Label(body, text=label, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=idx, column=0, padx=6, pady=4, sticky="w")
-            ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
-            ent.insert(0, val)
+            if key == "account_type":
+                ent = ttk.Combobox(body, values=["Current", "Savings", "OD"], state="readonly", width=20)
+                ent.set(val)
+            else:
+                ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1, width=22)
+                ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=6, pady=4, sticky="ew")
             entries[key] = ent
 
         def on_save():
             try:
-                name = entries["bank_name"].get().strip()
-                num = entries["account_number"].get().strip()
-                typ = entries["account_type"].get().strip()
-                bal = float(entries["current_balance"].get().strip())
-                self.bank_svc.save_bank_account({"bank_name": name, "account_number": num, "account_type": typ, "current_balance": bal})
+                bal = V.number(entries["current_balance"].get(), "Opening balance", minimum=-1_000_000_000, maximum=1_000_000_000, required=False, default=0.0)
+                self.bank_svc.save_bank_account({"bank_name": entries["bank_name"].get(), "account_number": entries["account_number"].get(),
+                                                 "ifsc": entries["ifsc"].get(), "account_type": entries["account_type"].get(), "current_balance": bal})
                 self.load_bank()
                 self.load_home_kpis()
                 dlg.destroy()
@@ -726,11 +740,15 @@ class FinanceView(tk.Frame):
 
         def on_post():
             try:
-                ref = ref_ent.get().strip()
-                d_acc = dr_acc.get().strip()
-                c_acc = cr_acc.get().strip()
-                d_val = float(dr_amt.get().strip())
-                c_val = float(cr_amt.get().strip())
+                ref = V.text(ref_ent.get(), "Reference", max_len=40)
+                d_acc = V.text(dr_acc.get(), "Debit account code", max_len=10)
+                c_acc = V.text(cr_acc.get(), "Credit account code", max_len=10)
+                d_val = V.number(dr_amt.get(), "Debit amount", greater_than=0, maximum=1_000_000_000)
+                c_val = V.number(cr_amt.get(), "Credit amount", greater_than=0, maximum=1_000_000_000)
+                if d_acc == c_acc:
+                    raise ValueError("The debit and credit accounts must be different.")
+                if abs(d_val - c_val) > 0.005:
+                    raise ValueError(f"The entry does not balance: debit {d_val:,.2f} but credit {c_val:,.2f}.")
                 lines = [
                     {"account_id": d_acc, "debit": d_val, "credit": 0.0},
                     {"account_id": c_acc, "debit": 0.0, "credit": c_val},

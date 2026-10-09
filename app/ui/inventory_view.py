@@ -1,4 +1,5 @@
 import tkinter as tk
+from app.utils import validation as V
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
 from app.services.inventory_service import InventoryService
@@ -96,10 +97,10 @@ class InventoryView(ttk.Frame):
         def on_adjust():
             try:
                 i_id = id_ent.get().strip()
-                delta = float(qty_ent.get().strip())
+                delta = V.number(qty_ent.get(), "Adjustment quantity", minimum=-10_000_000, maximum=10_000_000)
                 reason = reason_ent.get().strip()
                 if not i_id or not reason:
-                    messagebox.showwarning("Input Required", "Item ID and Reason are required", parent=dlg)
+                    messagebox.showwarning("Input Required", "Item ID (or code) and Reason are required", parent=dlg)
                     return
                 res = self.inv_svc.adjust_stock(i_id, delta, reason, user_id=self.current_user.username)
                 messagebox.showinfo("Success", f"Stock adjusted!\nNew Live Stock: {res['new_stock']:.2f}")
@@ -145,11 +146,11 @@ class InventoryView(ttk.Frame):
         def on_waste():
             try:
                 i_id = id_ent.get().strip()
-                qty = float(qty_ent.get().strip())
-                rate = float(rate_ent.get().strip())
+                qty = V.number(qty_ent.get(), "Waste quantity", greater_than=0, maximum=10_000_000)
+                rate = V.number(rate_ent.get(), "Estimated cost rate", minimum=0, maximum=1_000_000, required=False, default=0.0)
                 reason = reason_ent.get().strip()
                 if not i_id or not reason:
-                    messagebox.showwarning("Input Required", "Item ID and Reason are required", parent=dlg)
+                    messagebox.showwarning("Input Required", "Item ID (or code) and Reason are required", parent=dlg)
                     return
                 self.inv_svc.record_waste(i_id, qty, rate, reason, user_id=self.current_user.username)
                 messagebox.showinfo("Success", "Waste recorded and stock decremented successfully.")

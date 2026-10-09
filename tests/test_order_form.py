@@ -96,6 +96,7 @@ def test_order_form_smart_importer_and_recalc(tk_root, db, mock_user):
 def test_order_form_load_order_for_edit(tk_root, db, mock_user):
     """Test editing an existing order matches 49-order-detail.png."""
     order_svc = OrderService(db)
+    db.collection("customers").insert_one({"cust_id": "CUST-TEST", "name": "Green Leaf Restaurant", "status": "active", "is_deleted": 0})
     test_req = OrderCreate(
         customer_id="CUST-TEST",
         customer_name="Green Leaf Restaurant",

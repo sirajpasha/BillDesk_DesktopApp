@@ -1,4 +1,5 @@
 import tkinter as tk
+from app.utils import validation as V
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
 from app.services.procurement_service import ProcurementService
@@ -112,8 +113,8 @@ class ProcurementView(ttk.Frame):
                 b_no = entries["supplier_bill_no"].get().strip()
                 i_id = entries["item_id"].get().strip()
                 name = entries["name"].get().strip()
-                qty = float(entries["qty"].get().strip())
-                rate = float(entries["rate"].get().strip())
+                qty = V.number(entries["qty"].get(), "Quantity received", greater_than=0, maximum=10_000_000)
+                rate = V.number(entries["rate"].get(), "Purchase rate", greater_than=0, maximum=1_000_000)
                 if not s_id or not b_no or not i_id:
                     messagebox.showwarning("Required", "Supplier, Invoice #, and Item ID are required", parent=dlg)
                     return

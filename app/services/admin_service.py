@@ -1,4 +1,6 @@
 from __future__ import annotations
+import re
+from app.utils import validation as V
 from typing import Any, Dict, List, Optional
 import bcrypt
 import uuid
@@ -19,17 +21,25 @@ class AdminService:
         return users
 
     def create_user(self, username: str, password: str, roles: List[str], email: str = "", phone: str = "") -> Dict[str, Any]:
-        if not username or not password:
-            raise ValueError("Username and password are required")
+        username = V.username(username)
+        if not password:
+            raise ValueError("Password is required.")
         if len(password) < 6:
             raise ValueError("Password must be at least 6 characters")
+        if password.strip().lower() == username.lower():
+            raise ValueError("The password cannot be the same as the username.")
+        roles = [r.strip() for r in roles if r and r.strip()]
+        if not roles:
+            raise ValueError("Choose a role for the user.")
+        email = V.email(email)
+        phone = V.phone(phone)
         if len(password.encode("utf-8")) > 72:
             raise ValueError("Password is too long (maximum 72 bytes)")
         known_roles = {r.get("name") for r in self.admin_repo.roles.find({}, limit=0)}
         unknown = [r for r in roles if r not in known_roles]
         if unknown:
             raise ValueError(f"Unknown role(s): {', '.join(unknown)}")
-        if self.admin_repo.users.find_one({"username": username, "is_deleted": 0}):
+        if self.admin_repo.users.find_one({"username": {"$regex": f"^{re.escape(username)}$", "$options": "i"}, "is_deleted": 0}):
             raise ValueError(f"User '{username}' already exists")
 
         pw_hash = bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
