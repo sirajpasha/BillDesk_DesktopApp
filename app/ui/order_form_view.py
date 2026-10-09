@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from app.config.settings import settings
 from app.ui.components.customer_picker import open_customer_picker
+from app.ui.components.calendar_popup import attach_date_picker
 from app.ui.smart_import_dialog import SmartImportDialog
 from app.utils.currency import money
 from app.models.order import OrderCreate, OrderItem
@@ -167,7 +168,11 @@ class OrderFormView(tk.Frame):
         self.date_var = tk.StringVar(value=date.today().strftime("%d - %m - %Y"))
         self.date_ent = tk.Entry(date_box, textvariable=self.date_var, font=("Segoe UI", 9), width=14, relief="flat", bd=0, justify="center")
         self.date_ent.pack(side="left", ipady=3, padx=3)
-        tk.Label(date_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2").pack(side="left", padx=(0, 4))
+        self.date_picker = attach_date_picker(self.date_ent, "%d - %m - %Y", on_selected=lambda _d: self.after(60, lambda: self.delivery_ent.focus_set()),
+                                              allow_future=False, allow_blank=False, label="The order date")
+        cal1 = tk.Label(date_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2")
+        cal1.pack(side="left", padx=(0, 4))
+        cal1.bind("<Button-1>", lambda _e: (self.date_ent.focus_set(), self.date_picker.open()))
 
         # Status Combobox (visible in edit mode)
         self.status_container = tk.Frame(meta_bar, bg="#ffffff")
@@ -186,7 +191,11 @@ class OrderFormView(tk.Frame):
         self.delivery_var = tk.StringVar(value=tomorrow.strftime("%d - %m - %Y"))
         self.delivery_ent = tk.Entry(deliv_box, textvariable=self.delivery_var, font=("Segoe UI", 9), width=14, relief="flat", bd=0, justify="center")
         self.delivery_ent.pack(side="left", ipady=3, padx=3)
-        tk.Label(deliv_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2").pack(side="left", padx=(0, 4))
+        self.delivery_picker = attach_date_picker(self.delivery_ent, "%d - %m - %Y", on_selected=lambda _d: self.after(60, self.focus_first_empty_row),
+                                                  allow_blank=False, not_before=lambda: self.date_picker.value(), label="The delivery date")
+        cal2 = tk.Label(deliv_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2")
+        cal2.pack(side="left", padx=(0, 4))
+        cal2.bind("<Button-1>", lambda _e: (self.delivery_ent.focus_set(), self.delivery_picker.open()))
 
         # ---------------- 3. ITEM SECTION (EXACT LOOK & FEEL AS BILLING FORM) ----------------
         grid_container = tk.Frame(self, bg="#ffffff", highlightbackground="#cbd5e1", highlightthickness=1)
@@ -1117,7 +1126,7 @@ class OrderFormView(tk.Frame):
                     res_rate, _ = self.pricing_svc.resolve_rate(matched.get("cust_id"), item_id, default_rate=settings.default_rate)
                     row["rate_var"].set(f"{res_rate:.2f}")
                     self._recalculate_row(r_idx)
-        self.after(60, self.focus_first_empty_row)
+        self.after(60, lambda: (self.date_ent.focus_set(), self.date_ent.select_range(0, tk.END)))      # customer -> order date -> delivery date -> items
 
     def focus_first_empty_row(self) -> int:
         idx = next((i for i in range(len(self.row_widgets)) if self._is_row_empty(i)), None)
@@ -1195,21 +1204,18 @@ class OrderFormView(tk.Frame):
         deliv_str = self.delivery_var.get().strip()
         order_date_str = self.date_var.get().strip()
 
-        try:
-            deliv_dt = datetime.strptime(deliv_str.replace(" ", ""), "%d-%m-%Y")
-        except ValueError:
-            messagebox.showwarning("Invalid Delivery Date", "Please enter a valid delivery date (DD - MM - YYYY).", parent=self)
+        problem = self.date_picker.error()
+        if problem:
+            messagebox.showwarning("Invalid Order Date", problem, parent=self)
+            self.date_ent.focus_set()
+            return
+        problem = self.delivery_picker.error()
+        if problem:
+            messagebox.showwarning("Invalid Delivery Date", problem, parent=self)
             self.delivery_ent.focus_set()
             return
-
-        try:
-            ord_dt = datetime.strptime(order_date_str.replace(" ", ""), "%d-%m-%Y")
-        except ValueError:
-            ord_dt = datetime.now()
-
-        if deliv_dt.date() < ord_dt.date():
-            messagebox.showwarning("Invalid Date Range", f"Delivery date ({deliv_str}) cannot be before order date ({order_date_str}).", parent=self)
-            return
+        ord_dt = datetime.combine(self.date_picker.value(), datetime.min.time())
+        deliv_dt = datetime.combine(self.delivery_picker.value(), datetime.min.time())
 
         deliv_formatted = deliv_dt.strftime("%A, %d %B %Y")
         confirm = messagebox.askyesno(

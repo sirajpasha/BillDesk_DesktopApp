@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 from app.services.payment_service import PaymentService
 from app.utils.currency import format_inr, format_balance
 from app.utils.formatters import format_date
+from app.ui.components.calendar_popup import attach_date_picker
 
 log = logging.getLogger(__name__)
 
@@ -35,18 +36,19 @@ class StatementWindow(tk.Toplevel):
 
         bar = tk.Frame(self, bg="#f8fafc", padx=16, pady=10)
         bar.pack(fill="x")
-        tk.Label(bar, text="From (YYYY-MM-DD)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left")
+        tk.Label(bar, text="From", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left")
         self.from_var = tk.StringVar()
         self.from_ent = tk.Entry(bar, textvariable=self.from_var, width=12, relief="solid", bd=1)
         self.from_ent.pack(side="left", padx=(4, 12), ipady=3)
+        self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The From date")
         tk.Label(bar, text="To", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left")
         self.to_var = tk.StringVar()
         self.to_ent = tk.Entry(bar, textvariable=self.to_var, width=12, relief="solid", bd=1)
         self.to_ent.pack(side="left", padx=(4, 12), ipady=3)
+        self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The To date",
+                                            not_before=lambda: self.from_picker.value())
         tk.Button(bar, text="Show", bg="#4f46e5", fg="#ffffff", relief="flat", padx=14, pady=3, command=self.refresh).pack(side="left")
         tk.Button(bar, text="Export CSV", bg="#ffffff", relief="solid", bd=1, padx=10, pady=2, command=self.export_csv).pack(side="right")
-        self.from_ent.bind("<Return>", lambda _e: self.refresh())
-        self.to_ent.bind("<Return>", lambda _e: self.refresh())
 
         cols = ("date", "type", "ref", "note", "debit", "credit", "balance")
         frame = tk.Frame(self, bg="#ffffff", bd=1, relief="solid")
@@ -67,19 +69,15 @@ class StatementWindow(tk.Toplevel):
         self.summary.pack(fill="x", padx=16, pady=(0, 12))
         self.refresh()
 
-    @staticmethod
-    def _parse(text: str) -> Optional[datetime]:
-        text = (text or "").strip()
-        if not text:
-            return None
-        return datetime.strptime(text, "%Y-%m-%d")
-
     def refresh(self) -> None:
-        try:
-            lo, hi = self._parse(self.from_var.get()), self._parse(self.to_var.get())
-        except ValueError:
-            messagebox.showwarning("Date", "Enter dates as YYYY-MM-DD (e.g. 2026-04-01), or leave blank.", parent=self)
-            return
+        for picker, entry in ((self.from_picker, self.from_ent), (self.to_picker, self.to_ent)):
+            problem = picker.error()
+            if problem:
+                messagebox.showwarning("Date", problem, parent=self)
+                entry.focus_set()
+                return
+        lo = datetime.combine(self.from_picker.value(), datetime.min.time()) if self.from_picker.value() else None
+        hi = datetime.combine(self.to_picker.value(), datetime.min.time()) if self.to_picker.value() else None
         try:
             res = self.pay_svc.customer_statement(self.customer_id, lo, hi)
         except Exception as exc:

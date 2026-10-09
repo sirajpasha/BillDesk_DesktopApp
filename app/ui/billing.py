@@ -81,7 +81,7 @@ class BillingFrame(ttk.Frame):
         self.date_ent = tk.Entry(date_box, font=("Segoe UI", 9), width=12, relief="flat", bd=0)
         self.date_ent.insert(0, date.today().strftime("%d/%m/%Y"))
         self.date_ent.pack(side="left", ipady=3, padx=4)
-        attach_date_picker(self.date_ent, "%d/%m/%Y", on_selected=self._on_date_chosen)
+        attach_date_picker(self.date_ent, "%d/%m/%Y", on_selected=self._on_date_chosen, allow_future=False, allow_blank=False, label="The bill date")
         tk.Label(date_box, text="📅", bg="#ffffff", fg="#64748b", font=("Segoe UI", 9), cursor="hand2").pack(side="left", padx=(0, 4))
 
         # Invoice No Tag
@@ -874,12 +874,11 @@ class BillingFrame(ttk.Frame):
 
     def _invoice_date_iso(self) -> str:
         """The bill date from the Date box as YYYY-MM-DD; raises ValueError (with a message to show) when it cannot be used."""
-        d = parse_date(self.date_ent.get(), "%d/%m/%Y")
-        if d is None:
-            raise ValueError("The bill date is not valid. Use DD/MM/YYYY, or pick it from the calendar.")
-        if d > date.today():
-            raise ValueError("The bill date cannot be in the future.")
-        return d.strftime("%Y-%m-%d")
+        picker = self.date_ent._date_picker
+        problem = picker.error()
+        if problem:
+            raise ValueError(problem)
+        return picker.value().strftime("%Y-%m-%d")
 
     # ---------------- BILL SAVING & PAYMENT RECEIPT MODAL (F2 / F3) ----------------
     # Matches 07-billing-payment.png
@@ -953,7 +952,7 @@ class BillingFrame(ttk.Frame):
         right_box.pack(side="left", fill="both", expand=True, padx=(8, 0))
 
         tk.Label(right_box, text="Amount Received", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=0, column=0, sticky="w")
-        tk.Label(right_box, text="Payment Date", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=0, column=1, sticky="w", padx=(10, 0))
+        tk.Label(right_box, text="Payment Date (bill date)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=0, column=1, sticky="w", padx=(10, 0))
 
         amt_box = tk.Frame(right_box, bg="#cbd5e1", padx=1, pady=1)
         amt_box.grid(row=1, column=0, sticky="ew", pady=(2, 10))
@@ -963,8 +962,10 @@ class BillingFrame(ttk.Frame):
 
         date_box = tk.Frame(right_box, bg="#cbd5e1", padx=1, pady=1)
         date_box.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(2, 10))
-        pay_date_ent = tk.Entry(date_box, font=("Segoe UI", 10), width=12, relief="flat", bd=0)
-        pay_date_ent.insert(0, date.today().strftime("%d - %m - %Y"))
+        # The counter payment is recorded on the bill's own date, so this is shown, not typed (it used to look editable and was ignored).
+        pay_date_ent = tk.Entry(date_box, font=("Segoe UI", 10), width=12, relief="flat", bd=0, readonlybackground="#f1f5f9")
+        pay_date_ent.insert(0, datetime.strptime(invoice_date_iso, "%Y-%m-%d").strftime("%d/%m/%Y"))
+        pay_date_ent.config(state="readonly")
         pay_date_ent.pack(fill="both", ipady=4, padx=4)
 
         tk.Label(right_box, text="Payment Method", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").grid(row=2, column=0, sticky="w")

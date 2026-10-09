@@ -29,9 +29,11 @@ def parse_date(text: str, fmt: str = "%d/%m/%Y") -> Optional[date]:
 
 
 class CalendarPopup(tk.Toplevel):
-    def __init__(self, anchor: tk.Widget, initial: date, on_pick: Callable[[date], None], on_close: Optional[Callable[[], None]] = None):
+    def __init__(self, anchor: tk.Widget, initial: date, on_pick: Callable[[date], None], on_close: Optional[Callable[[], None]] = None,
+                 allowed: Optional[Callable[[date], bool]] = None):
         super().__init__(anchor)
         self.anchor, self.on_pick, self.on_close = anchor, on_pick, on_close
+        self.allowed = allowed or (lambda _d: True)
         self.selected = initial
         self.view = initial.replace(day=1)
         self.overrideredirect(True)
@@ -59,6 +61,7 @@ class CalendarPopup(tk.Toplevel):
                 self._cells[(r, c)] = lbl
         tk.Button(body, text="Today", relief="flat", bg="#f1f5f9", bd=0, cursor="hand2", pady=3,
                   command=lambda: self._pick(date.today())).pack(fill="x")
+        self.today_btn = body.winfo_children()[-1]
 
         for seq, fn in (("<Left>", -1), ("<Right>", 1), ("<Up>", -7), ("<Down>", 7)):
             self.bind(seq, lambda _e, d=fn: self._move(d))
@@ -71,8 +74,12 @@ class CalendarPopup(tk.Toplevel):
         self.update_idletasks()
         x = anchor.winfo_rootx()
         y = anchor.winfo_rooty() + anchor.winfo_height() + 2
-        self.geometry(f"+{x}+{y}")
+        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+        if y + h > self.winfo_screenheight() - 40:                  # no room below the box: open above it
+            y = max(0, anchor.winfo_rooty() - h - 2)
+        x = max(0, min(x, self.winfo_screenwidth() - w - 8))
         self.attributes("-topmost", True)        # without this the main window can cover the drop-down on Windows
+        self.geometry(f"+{x}+{y}")               # (after the attribute: setting it afterwards resets the position to 0,0)
         self.lift()
         self.after(10, self._take_focus)
 
@@ -129,7 +136,9 @@ class CalendarPopup(tk.Toplevel):
                     lbl.config(text="", bg=BG)
                     continue
                 inside = d.month == self.view.month
-                if d == self.selected:
+                if not self.allowed(d):
+                    lbl.config(text=str(d.day), bg=BG, fg="#e2e8f0", cursor="arrow")
+                elif d == self.selected:
                     lbl.config(text=str(d.day), bg=PRIMARY, fg="#ffffff")
                 elif d == today:
                     lbl.config(text=str(d.day), bg="#e0e7ff", fg="#1e293b")
@@ -142,49 +151,114 @@ class CalendarPopup(tk.Toplevel):
             self._pick(d)
 
     def _pick(self, d: date):
+        if not self.allowed(d):
+            return
         cb = self.on_pick
         self.close()
         cb(d)
 
 
 class DatePickerController:
-    def __init__(self, entry: tk.Entry, fmt: str, on_selected: Optional[Callable[[date], None]]):
+    """Calendar drop-down plus validation for one date box.
+
+    allow_future=False refuses dates after today; allow_blank=False makes the box required; `not_before` returns another box's
+    date (a "to" box must not be earlier than its "from" box). `error()` gives the sentence to show the user, or None."""
+
+    def __init__(self, entry: tk.Entry, fmt: str, on_selected: Optional[Callable[[date], None]], allow_future: bool = True,
+                 allow_blank: bool = True, not_before: Optional[Callable[[], Optional[date]]] = None, label: str = "Date", partial_ok: bool = False):
         self.entry, self.fmt, self.on_selected = entry, fmt, on_selected
+        self.allow_future, self.allow_blank, self.not_before, self.label = allow_future, allow_blank, not_before, label
+        self.partial_ok = partial_ok                # a search box: "09/2026" is a fine thing to type, not an error
         self.popup: Optional[CalendarPopup] = None
         self._suppress = False
+        self._normal_fg = entry.cget("fg")
         entry.bind("<FocusIn>", lambda _e: self.open(), add="+")
         entry.bind("<Button-1>", lambda _e: self.open(), add="+")
         entry.bind("<Down>", lambda _e: self.open(), add="+")
         entry.bind("<Return>", self._typed, add="+")
+        entry.bind("<FocusOut>", lambda _e: entry.after(200, self.flag), add="+")
+        entry.bind("<KeyRelease>", lambda _e: self.flag(), add="+")
+        entry.bind("<Unmap>", lambda _e: self._close_popup(), add="+")      # the screen was switched: do not leave the calendar floating
 
+    def _close_popup(self) -> None:
+        if self.popup is not None and self.popup.winfo_exists():
+            self.popup.close()
+
+    # ---- value and validation
+    def value(self) -> Optional[date]:
+        return parse_date(self.entry.get(), self.fmt)
+
+    def allowed(self, d: date) -> bool:
+        if not self.allow_future and d > date.today():
+            return False
+        floor = self.not_before() if self.not_before else None
+        return not (floor and d < floor)
+
+    def error(self) -> Optional[str]:
+        text = self.entry.get().strip()
+        if not text:
+            return None if self.allow_blank else f"{self.label} is required."
+        d = parse_date(text, self.fmt)
+        if d is None and self.partial_ok:
+            return None
+        if d is None:
+            return f"{self.label} is not a valid date. Use {self.hint()}, or pick it from the calendar."
+        if not self.allow_future and d > date.today():
+            return f"{self.label} cannot be in the future."
+        floor = self.not_before() if self.not_before else None
+        if floor and d < floor:
+            return f"{self.label} cannot be before {floor.strftime(self.fmt)}."
+        return None
+
+    def hint(self) -> str:
+        return self.fmt.replace("%d", "DD").replace("%m", "MM").replace("%Y", "YYYY")
+
+    def flag(self) -> None:
+        """Red text while the box holds something that cannot be used."""
+        try:
+            self.entry.config(fg="#dc2626" if self.error() else self._normal_fg)
+        except tk.TclError:
+            pass
+
+    def set(self, d: Optional[date]) -> None:
+        self.entry.delete(0, tk.END)
+        if d:
+            self.entry.insert(0, d.strftime(self.fmt))
+        self.flag()
+
+    # ---- the drop-down
     def current(self) -> date:
-        return parse_date(self.entry.get(), self.fmt) or date.today()
+        return self.value() or date.today()
 
     def open(self):
         if self._suppress or (self.popup is not None and self.popup.winfo_exists()):
             return
-        self.popup = CalendarPopup(self.entry, self.current(), self._picked, on_close=self._closed)
+        self.popup = CalendarPopup(self.entry, self.current(), self._picked, on_close=self._closed, allowed=self.allowed)
 
     def _closed(self):
         self.popup = None
 
     def _picked(self, d: date):
-        self.entry.delete(0, tk.END)
-        self.entry.insert(0, d.strftime(self.fmt))
+        self.set(d)
         self._finish(d)
 
     def _typed(self, _event=None):
-        d = parse_date(self.entry.get(), self.fmt)
-        if d is None:
+        d = self.value()
+        if d is None and not self.entry.get().strip() and self.allow_blank:
+            if self.popup is not None and self.popup.winfo_exists():
+                self.popup.close()
+            self._finish(None)
+            return "break"
+        if d is None or not self.allowed(d):
+            self.flag()
             return "break"
         if self.popup is not None and self.popup.winfo_exists():
             self.popup.close()
-        self.entry.delete(0, tk.END)
-        self.entry.insert(0, d.strftime(self.fmt))
+        self.set(d)
         self._finish(d)
         return "break"
 
-    def _finish(self, d: date):
+    def _finish(self, d: Optional[date]):
         self._suppress = True                       # moving the focus on must not pop the calendar open again
         try:
             if self.on_selected:
@@ -193,7 +267,9 @@ class DatePickerController:
             self.entry.after(300, lambda: setattr(self, "_suppress", False))
 
 
-def attach_date_picker(entry: tk.Entry, fmt: str = "%d/%m/%Y", on_selected: Optional[Callable[[date], None]] = None) -> DatePickerController:
-    ctrl = DatePickerController(entry, fmt, on_selected)
+def attach_date_picker(entry: tk.Entry, fmt: str = "%d/%m/%Y", on_selected: Optional[Callable[[date], None]] = None, *, allow_future: bool = True,
+                       allow_blank: bool = True, not_before: Optional[Callable[[], Optional[date]]] = None, label: str = "Date",
+                       partial_ok: bool = False) -> DatePickerController:
+    ctrl = DatePickerController(entry, fmt, on_selected, allow_future, allow_blank, not_before, label, partial_ok)
     entry._date_picker = ctrl            # keep a reference (and let tests reach it)
     return ctrl

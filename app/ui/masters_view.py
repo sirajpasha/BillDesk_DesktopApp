@@ -5,6 +5,7 @@ from app.config.settings import settings
 from app.services.master_service import MasterService
 from app.utils.currency import format_inr, format_balance
 from app.utils.formatters import format_date
+from app.ui.components.calendar_popup import attach_date_picker
 
 class MastersView(tk.Frame):
     """
@@ -1144,23 +1145,29 @@ class MastersView(tk.Frame):
         rate_ent.pack(fill="x", pady=(2, 6))
 
         now = datetime.now()
-        tk.Label(body, text="Start Date (YYYY-MM-DD)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+        tk.Label(body, text="Start Date *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
         sdate_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
         sdate_ent.pack(fill="x", pady=(2, 6))
-        sdate_ent.insert(0, now.strftime("%Y-%m-%d"))
+        sdate_ent.insert(0, now.strftime("%d/%m/%Y"))
+        s_picker = attach_date_picker(sdate_ent, "%d/%m/%Y", allow_blank=False, label="The start date")
 
-        tk.Label(body, text="End Date (YYYY-MM-DD)", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+        tk.Label(body, text="End Date *", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
         edate_ent = tk.Entry(body, font=("Segoe UI", 9), relief="solid", bd=1)
         edate_ent.pack(fill="x", pady=(2, 10))
-        edate_ent.insert(0, (now + timedelta(days=30)).strftime("%Y-%m-%d"))
+        edate_ent.insert(0, (now + timedelta(days=30)).strftime("%d/%m/%Y"))
+        e_picker = attach_date_picker(edate_ent, "%d/%m/%Y", allow_blank=False, label="The end date", not_before=lambda: s_picker.value())
 
         def on_save():
             try:
                 c_id = cust_ent.get().strip()
                 i_id = item_ent.get().strip()
                 r_val = float(rate_ent.get().strip())
-                s_dt = datetime.strptime(sdate_ent.get().strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                e_dt = datetime.strptime(edate_ent.get().strip(), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                for picker, entry in ((s_picker, sdate_ent), (e_picker, edate_ent)):
+                    if picker.error():
+                        entry.focus_set()
+                        raise ValueError(picker.error())
+                s_dt = datetime.combine(s_picker.value(), datetime.min.time()).replace(tzinfo=timezone.utc)
+                e_dt = datetime.combine(e_picker.value(), datetime.min.time()).replace(tzinfo=timezone.utc)
                 self.master_svc.save_fixed_price(c_id, i_id, r_val, s_dt, e_dt)
                 self.load_fixed_prices()
                 dlg.destroy()

@@ -133,7 +133,7 @@ def test_the_bill_date_comes_from_the_date_box(billing, fake_db):
         billing._invoice_date_iso()
     billing.date_ent.delete(0, tk.END)
     billing.date_ent.insert(0, "nonsense")
-    with pytest.raises(ValueError, match="not valid"):
+    with pytest.raises(ValueError, match="not a valid"):
         billing._invoice_date_iso()
 
 

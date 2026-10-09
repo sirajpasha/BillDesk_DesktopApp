@@ -13,6 +13,7 @@ from app.ui.print_preview import show_print_preview
 from app.services.master_service import MasterService
 from app.utils.currency import format_inr
 from app.utils.formatters import format_date
+from app.ui.components.calendar_popup import attach_date_picker
 
 class BillHistoryFrame(tk.Frame):
     """
@@ -165,6 +166,7 @@ class BillHistoryFrame(tk.Frame):
             bd=1
         )
         self.date_ent.pack(side="left", padx=(0, 6), ipady=4)
+        attach_date_picker(self.date_ent, "%d/%m/%Y", label="The invoice date filter", partial_ok=True)
         self.date_var.trace_add("write", lambda *_: self._on_date_changed())
 
         self.reset_date_btn = tk.Button(
