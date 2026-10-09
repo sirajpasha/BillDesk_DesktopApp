@@ -192,4 +192,5 @@ def test_window_icon_is_a_real_png_that_tk_can_load(tk_root):
     from pathlib import Path
     p = Path(__file__).resolve().parent.parent / "app" / "assets" / "icon.png"
     assert p.read_bytes()[:4] == b"\x89PNG"
+    tk_root.update()                                        # a brand-new Tk root needs one event-loop pass before it can create images
     tk.PhotoImage(master=tk_root, file=str(p))             # raises TclError if the format is not recognised
