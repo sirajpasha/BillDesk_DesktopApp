@@ -174,6 +174,10 @@ class MockMongoDatabase:
     def list_collection_names(self):
         return list(self._collections.keys())
 
+    def transaction(self):
+        import contextlib
+        return contextlib.nullcontext()
+
 class SeederDbAdapter:
     """Gives the in-memory mock the pymongo Database access styles (db.items / db['items']) the seeder uses."""
     def __init__(self, fake): self._f = fake

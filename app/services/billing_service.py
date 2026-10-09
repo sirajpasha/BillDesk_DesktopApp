@@ -9,6 +9,7 @@ from app.repositories.inventory_repo import InventoryRepository
 from app.services.payment_service import PaymentService
 from app.services.ledger_service import LedgerService
 from app.services.parked_store import ParkedBillStore
+from app.database.connection import transactional
 from app.config.settings import settings
 from app.utils.currency import money
 
@@ -38,6 +39,7 @@ class BillingService:
     def fixed_rate(self, customer_id: str, item_id: str, when: datetime | None = None) -> Optional[Dict[str, Any]]:
         return self.price_repo.get_active_fixed_price(customer_id, item_id, when)
 
+    @transactional
     def create_bill(self, bill: BillCreate) -> Dict[str, Any]:
         if not bill.items:
             raise ValueError("At least one item is required")
@@ -113,16 +115,7 @@ class BillingService:
             "currency_code": "INR",
         })
 
-        session = None
-        if getattr(self.db, "client", None) is not None and getattr(self.db, "supports_transactions", False):
-            session = self.db.client.start_session()
-            try:
-                with session.start_transaction():
-                    self._write_bill(doc, customer, bill, session)
-            finally:
-                session.end_session()
-        else:
-            self._write_bill(doc, customer, bill, None)
+        self._write_bill(doc, customer, bill, None)         # (the whole method runs in one transaction - see @transactional)
 
         # ---- general ledger: sale, cost of goods sold (and, below, the receipt)
         cost = self._consume_cost(bill.items)
@@ -250,6 +243,7 @@ class BillingService:
             "ip_address": "local",
         }, **kw)
 
+    @transactional
     def void_bill(self, invoice_no: str, user_id: str = "system") -> Dict[str, Any]:
         """Void bill and execute full financial, stock, and crate reversal."""
         bill = self.bill_repo.find_one({"invoice_no": invoice_no, "is_deleted": 0})

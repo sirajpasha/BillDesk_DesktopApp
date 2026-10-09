@@ -1,7 +1,65 @@
 from __future__ import annotations
+import contextlib
+import contextvars
+import functools
 import logging
-from pymongo import MongoClient, ASCENDING, DESCENDING
+from typing import Any, Callable, Iterator, Optional
+
 import certifi
+from pymongo import MongoClient, ASCENDING, DESCENDING
+from pymongo.errors import PyMongoError
+
+log = logging.getLogger(__name__)
+
+# The transaction (ClientSession) the current thread/context is running in, if any.
+_active_session: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar("billdesk_active_session", default=None)
+
+# Collection methods that must take part in an ambient transaction.
+_SESSION_METHODS = frozenset({
+    "find", "find_one", "count_documents", "aggregate", "distinct",
+    "insert_one", "insert_many", "update_one", "update_many", "replace_one", "delete_one", "delete_many",
+    "find_one_and_update", "find_one_and_delete", "find_one_and_replace",
+})
+
+
+class _SessionCollection:
+    """Thin proxy over a pymongo Collection: while a transaction is active every operation joins it automatically,
+    so services can be made atomic with a single `with db.transaction():` without threading `session=` everywhere."""
+
+    __slots__ = ("_coll",)
+
+    def __init__(self, coll):
+        object.__setattr__(self, "_coll", coll)
+
+    def __getattr__(self, name: str):
+        attr = getattr(self._coll, name)
+        if name in _SESSION_METHODS and callable(attr):
+            @functools.wraps(attr)
+            def with_session(*args, **kwargs):
+                session = _active_session.get()
+                if session is not None and kwargs.get("session") is None:
+                    kwargs["session"] = session
+                return attr(*args, **kwargs)
+            return with_session
+        return attr
+
+    def __getitem__(self, name):
+        return _SessionCollection(self._coll[name])
+
+    def __repr__(self) -> str:
+        return f"<session-aware {self._coll!r}>"
+
+
+def transactional(fn: Callable) -> Callable:
+    """Decorator for service methods: run the whole method in one database transaction (when the server supports
+    them; on a standalone MongoDB it simply runs). Nested calls join the outer transaction."""
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        tx = getattr(self.db, "transaction", None)
+        with (tx() if tx else contextlib.nullcontext()):
+            return fn(self, *args, **kwargs)
+    return wrapper
+
 
 class MongoDatabase:
     def __init__(self, settings):
@@ -95,4 +153,39 @@ class MongoDatabase:
     def collection(self, name: str):
         if self.db is None:
             raise RuntimeError("MongoDB is not connected")
-        return self.db[name]
+        return _SessionCollection(self.db[name])
+
+    @contextlib.contextmanager
+    def transaction(self) -> Iterator[Optional[Any]]:
+        """All-or-nothing block. Needs a replica set (check `supports_transactions`); on a standalone server it runs
+        the block without atomicity. Re-entrant: a nested block joins the transaction that is already open."""
+        outer = _active_session.get()
+        if outer is not None or not self.supports_transactions or self.client is None:
+            yield outer
+            return
+        session = self.client.start_session()
+        token = _active_session.set(session)
+        try:
+            session.start_transaction()
+            yield session
+            self._commit(session)
+        except BaseException:
+            try:
+                session.abort_transaction()
+            except PyMongoError:
+                log.warning("Could not abort the transaction cleanly", exc_info=True)
+            raise
+        finally:
+            _active_session.reset(token)
+            session.end_session()
+
+    @staticmethod
+    def _commit(session) -> None:
+        for attempt in range(5):
+            try:
+                session.commit_transaction()
+                return
+            except PyMongoError as exc:
+                if exc.has_error_label("UnknownTransactionCommitResult") and attempt < 4:
+                    continue                    # the commit may or may not have happened: committing again is safe
+                raise

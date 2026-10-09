@@ -21,7 +21,8 @@ def log_dir() -> Path:
     override = os.getenv("BILLDESK_LOG_DIR")
     if override:
         return Path(override)
-    return Path(os.getenv("APPDATA") or Path.home()) / "BillDesk" / "logs"
+    from app import paths
+    return paths.user_data_dir() / "logs"
 
 
 def log_path() -> Path:

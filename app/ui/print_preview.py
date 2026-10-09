@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from app import paths
 import shutil
 import subprocess
 import platform
@@ -431,7 +432,7 @@ class PrintPreviewDialog(tk.Toplevel):
 
     def _on_save(self):
         """Export PDF to a user-chosen path."""
-        out_dir = os.path.abspath("Docs/Output")
+        out_dir = str(paths.output_dir())
         os.makedirs(out_dir, exist_ok=True)
 
         dest_path = filedialog.asksaveasfilename(

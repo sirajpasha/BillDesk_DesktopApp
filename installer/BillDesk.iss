@@ -21,7 +21,8 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir={#DistDir}
-OutputBaseFilename=BillDesk-Desktop-Setup
+OutputBaseFilename=BillDesk-Setup
+SetupIconFile=..\app\assets\icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -40,8 +41,8 @@ Name: "startup"; Description: "Start BillDesk on Windows sign-in"; GroupDescript
 
 [Files]
 Source: "{#DistDir}\BillDesk\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
-Source: "..\start.bat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\start.ps1"; DestDir: "{app}"; Flags: ignoreversion
+; Per-user data (database, backups, logs, .env) lives in %APPDATA%\BillDesk and is deliberately NOT removed on uninstall.
+Source: "..\Docs\OPERATIONS.md"; DestDir: "{app}\docs"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\BillDesk"; Filename: "{app}\BillDesk.exe"; WorkingDir: "{app}"

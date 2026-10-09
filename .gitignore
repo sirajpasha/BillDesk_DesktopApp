@@ -3,9 +3,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.spec
-build/
-dist/
+/build/
+/dist/
 .pytest_cache/
 *.log
 _ref_billdesk/

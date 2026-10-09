@@ -6,6 +6,7 @@ from app.repositories.billing_repo import BillRepository
 from app.repositories.master_repo import CustomerRepository, SupplierRepository
 from app.repositories.procurement_repo import ProcurementRepository
 from app.services.ledger_service import LedgerService
+from app.database.connection import transactional
 
 class PaymentService:
     def __init__(self, db: Any):
@@ -18,6 +19,7 @@ class PaymentService:
         self.ledger = LedgerService(db)
 
     # ---------------- CUSTOMER PAYMENTS (AR) ----------------
+    @transactional
     def record_customer_payment(
         self,
         customer_id: str,
@@ -114,6 +116,7 @@ class PaymentService:
         return doc
 
     # ---------------- SUPPLIER PAYMENTS (AP) ----------------
+    @transactional
     def record_supplier_payment(
         self,
         purchase_id: str,
