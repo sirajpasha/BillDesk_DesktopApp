@@ -108,3 +108,36 @@ class PurchaseReturnsService:
                 self.item_repo.update_one({"item_id": master["item_id"]}, {"$set": {"cost_qty": left}})
         self.ledger.post_purchase_return(doc, user_id=user_id)
         return doc
+
+    # ------------------------------------------------------------------ cancel
+    @transactional
+    def cancel_return(self, return_id: str, user_id: str = "system", reason: str = "") -> Dict[str, Any]:
+        """Undo a debit note made by mistake: what is owed to the supplier, the vendor bill's balance due, stock (when the goods had
+        been received into stock) and the ledger go back to what they were; the debit note is marked cancelled and no longer counts."""
+        ret = self.proc_repo.returns.find_one({"return_id": return_id, "is_deleted": {"$ne": 1}})
+        if not ret:
+            raise ValueError(f"Return {return_id} not found")
+        if ret.get("status") == "cancelled":
+            raise ValueError(f"Return {return_id} is already cancelled")
+        bill = self.proc_repo.bills.find_one({"purchase_id": ret["purchase_id"], "is_deleted": 0})
+        net = money(ret.get("net_amount"))
+        self.supp_repo.update_balance(ret["supplier_id"], net)
+        applied = money(ret.get("applied_to_bill"))
+        if bill and applied > 0:
+            payable = float(bill.get("payable_amount") or 0.0)
+            new_due = money(min(payable, float(bill.get("balance_due") or 0.0) + applied))
+            self.proc_repo.bills.update_one({"purchase_id": ret["purchase_id"]}, {"$set": {
+                "balance_due": new_due, "status": "active" if new_due >= payable - 0.005 else "partial"}})
+        for i in ret.get("items", []):
+            master = self.item_repo.find_by_alias_or_id(i["item_id"])
+            stock_id = master["item_id"] if master else i["item_id"]
+            if bill and bill.get("grn_id"):
+                self.item_repo.increment_stock(stock_id, float(i["qty"]))
+                self.inv_repo.record_stock_txn(item_id=stock_id, item_name=i.get("name", ""), qty=float(i["qty"]), txn_type="purchase_return_cancelled",
+                                               reference_id=return_id, notes=f"Return {return_id} cancelled", created_by=user_id)
+            if master:
+                self.item_repo.update_one({"item_id": master["item_id"]}, {"$inc": {"cost_qty": float(i["qty"])}})
+        self.ledger.reverse_entries(return_id, ["purchase_return"], user_id)
+        self.proc_repo.returns.update_one({"return_id": return_id}, {"$set": {"status": "cancelled", "cancelled_at": datetime.now(timezone.utc),
+                                                                              "cancelled_by": user_id, "cancel_reason": reason}})
+        return self.proc_repo.returns.find_one({"return_id": return_id}) or ret

@@ -137,3 +137,49 @@ class ReturnsService:
         self.bill_repo.log_audit(invoice_no=invoice_no, action="RETURN", changed_by=user_id, field_changed="return",
                                  old_value="", new_value=f"{doc['return_id']} Rs {refund:.2f}")
         return doc
+
+    # ------------------------------------------------------------------ cancel
+    @transactional
+    def cancel_return(self, return_id: str, user_id: str = "system", reason: str = "") -> Dict[str, Any]:
+        """Undo a return made by mistake: the customer's balance, the invoice's balance due, stock and the ledger go back to
+        what they were before it, and the credit note is marked cancelled (it stays on file; it no longer counts anywhere).
+        Returns made by the older web app are not handled here: they were not recorded with enough detail to undo safely."""
+        ret = self.ret_repo.find_one({"return_id": return_id, "is_deleted": {"$ne": 1}})
+        if not ret:
+            raise ValueError(f"Return {return_id} not found")
+        if ret.get("status") == "cancelled":
+            raise ValueError(f"Return {return_id} is already cancelled")
+        if "applied_to_bill" not in ret:
+            raise ValueError(f"Return {return_id} was made by the older BillDesk and cannot be cancelled here")
+        invoice_no = str(ret.get("original_invoice_no") or "").strip()
+        bill = self.bill_repo.find_one({"invoice_no": invoice_no, "is_deleted": 0})
+        if bill and bill.get("status") in ("void", "cancelled"):
+            raise ValueError(f"Invoice {invoice_no} is void; this return can no longer be cancelled")
+
+        refund = money(ret.get("total_refund_amount"))
+        cust_id = ret.get("customer_id")
+        if cust_id and cust_id != CASH_CUSTOMER_ID:
+            self.cust_repo.update_balance(cust_id, refund)                                  # the credit given is taken back
+            applied = money(ret.get("applied_to_bill"))
+            if bill and applied > 0:
+                total = float(bill.get("total_amount") or 0.0)
+                new_due = money(min(total, float(bill.get("balance_due") or 0.0) + applied))
+                self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {
+                    "balance_due": new_due, "status": "unpaid" if new_due >= total - 0.005 else "partial"}})
+
+        for i in ret.get("items", []):
+            if i.get("is_waste"):
+                continue
+            master = self.item_repo.find_by_alias_or_id(i["item_id"])
+            stock_id = master["item_id"] if master else i["item_id"]
+            self.item_repo.decrement_stock(stock_id, float(i["qty"]))
+            self.item_repo.update_one({"item_id": stock_id}, {"$inc": {"cost_qty": -float(i["qty"])}})
+            self.inv_repo.record_stock_txn(item_id=stock_id, item_name=i.get("name", ""), qty=-float(i["qty"]), txn_type="return_cancelled",
+                                           reference_id=return_id, notes=f"Return {return_id} cancelled", created_by=user_id)
+        self.ledger.reverse_entries(return_id, ["sales_return", "sales_return_cogs"], user_id)
+        now = datetime.now(timezone.utc)
+        self.ret_repo.update_one({"return_id": return_id}, {"$set": {"status": "cancelled", "cancelled_at": now, "cancelled_by": user_id,
+                                                                     "cancel_reason": reason}})
+        self.bill_repo.log_audit(invoice_no=invoice_no, action="RETURN_CANCELLED", changed_by=user_id, field_changed="return",
+                                 old_value=f"{return_id} Rs {refund:.2f}", new_value="cancelled")
+        return self.ret_repo.find_one({"return_id": return_id}) or ret
