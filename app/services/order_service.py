@@ -40,6 +40,17 @@ class OrderService:
     def get_orders(self, query: str = "", status: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
         return self.order_repo.search_orders(query, status, limit)
 
+    def order_stats(self) -> Dict[str, int]:
+        """Counts over ALL orders (the list on screen is capped, the totals must not be)."""
+        base = {"is_deleted": 0}
+        start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start.replace(hour=23, minute=59, second=59, microsecond=999999)
+        return {
+            "total": self.order_repo.count_documents(base),
+            "pending": self.order_repo.count_documents({**base, "status": {"$in": ["pending", "Pending"]}}),
+            "today": self.order_repo.count_documents({**base, "order_date": {"$gte": start, "$lte": end}}),
+        }
+
     def get_order(self, order_id: str) -> Optional[Dict[str, Any]]:
         return self.order_repo.find_one({"order_id": order_id, "is_deleted": 0})
 

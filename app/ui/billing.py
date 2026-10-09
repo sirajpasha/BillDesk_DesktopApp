@@ -371,8 +371,75 @@ class BillingFrame(ttk.Frame):
             logging.getLogger(__name__).warning("Ignored error", exc_info=True)
 
     # ---------------- SPREADSHEET ROW LOGIC ----------------
+    def _resolve_item(self, code: str):
+        """Item for what was typed in the Code box. An exact code (alias or id) wins; otherwise the name is searched
+        and, when more than one item fits, the cashier chooses - the first match is never picked silently.
+        Returns the item, None (nothing matches) or False (the cashier cancelled the choice)."""
+        items = self.db.collection("items")
+        esc = re.escape(code)
+        base = {"status": "active", "is_deleted": 0}
+        exact = items.find_one({"$or": [
+            {"item_alias": code}, {"item_id": code},
+            {"item_alias": {"$regex": f"^{esc}$", "$options": "i"}},
+            {"item_id": {"$regex": f"^{esc}$", "$options": "i"}},
+        ], **base})
+        if exact:
+            return exact
+        found = list(items.find({"name": {"$regex": f"^{esc}", "$options": "i"}, **base}))
+        if not found:
+            found = list(items.find({"name": {"$regex": esc, "$options": "i"}, **base}))
+        if not found:
+            found = list(items.find({"name": {"$regex": esc, "$options": "i"}, "is_deleted": 0}))
+        if not found:
+            return None
+        if len(found) == 1:
+            return found[0]
+        found.sort(key=lambda i: str(i.get("name", "")).lower())
+        self._choosing = True
+        try:
+            return self._choose_item(code, found[:40]) or False
+        finally:
+            self._choosing = False
+
+    def _choose_item(self, code: str, candidates: list):
+        """Keyboard-driven list: Up/Down to move, Enter to choose, Esc to cancel."""
+        dlg = tk.Toplevel(self)
+        dlg.title("Choose item")
+        dlg.transient(self.winfo_toplevel())
+        dlg.configure(bg="#ffffff")
+        tk.Label(dlg, text=f"{len(candidates)} items match '{code}' - choose one (Enter), or Esc to cancel",
+                 font=("Segoe UI", 9, "bold"), fg="#1e293b", bg="#ffffff", padx=12, pady=8).pack(anchor="w")
+        lb = tk.Listbox(dlg, font=("Segoe UI", 10), height=min(12, len(candidates)), width=48, activestyle="dotbox", exportselection=False)
+        for i in candidates:
+            lb.insert(tk.END, f"{(i.get('item_alias') or i.get('item_id') or ''):<8} {i.get('name', '')}  ({i.get('unit') or 'Kg'})")
+        lb.pack(padx=12, pady=(0, 12), fill="both", expand=True)
+        lb.selection_set(0)
+        lb.activate(0)
+        chosen = {"item": None}
+
+        def _ok(_e=None):
+            sel = lb.curselection()
+            if sel:
+                chosen["item"] = candidates[sel[0]]
+            dlg.destroy()
+            return "break"
+
+        lb.bind("<Return>", _ok)
+        lb.bind("<Double-1>", _ok)
+        dlg.bind("<Escape>", lambda _e: dlg.destroy())
+        dlg.choose_selected = _ok
+        dlg.update_idletasks()
+        top = self.winfo_toplevel()
+        dlg.geometry(f"+{top.winfo_rootx() + 120}+{top.winfo_rooty() + 140}")
+        dlg.grab_set()
+        lb.focus_force()
+        self.wait_window(dlg)
+        return chosen["item"]
+
     def _on_code_entered(self, row_idx: int, focus_next: bool = True):
         if row_idx >= len(self.row_widgets):
+            return
+        if getattr(self, "_choosing", False):         # the item list is open; its FocusOut must not re-enter
             return
         row = self.row_widgets[row_idx]
         code = row["code"].get().strip()
@@ -389,31 +456,16 @@ class BillingFrame(ttk.Frame):
                     row["qty"].select_range(0, tk.END)
                 return
 
-        # Query item by item_alias or item_id or name prefix
-        escaped_code = re.escape(code)
-        item = self.db.collection("items").find_one({
-            "$or": [
-                {"item_alias": code},
-                {"item_id": code},
-                {"item_alias": {"$regex": f"^{escaped_code}$", "$options": "i"}},
-                {"item_id": {"$regex": f"^{escaped_code}$", "$options": "i"}},
-                {"name": {"$regex": f"^{escaped_code}", "$options": "i"}}
-            ],
-            "status": "active",
-            "is_deleted": 0
-        })
-
-        if not item:
-            # Fallback search by case-insensitive name contains
-            item = self.db.collection("items").find_one({
-                "name": {"$regex": escaped_code, "$options": "i"},
-                "is_deleted": 0
-            })
-            if not item:
-                messagebox.showwarning("Item Not Found", f"No item matches code or name '{code}'.", parent=self)
-                row["code"].delete(0, tk.END)
-                row["code"].focus_set()
-                return
+        item = self._resolve_item(code)
+        if item is None:
+            messagebox.showwarning("Item Not Found", f"No item matches code or name '{code}'.", parent=self)
+            row["code"].delete(0, tk.END)
+            row["code"].focus_set()
+            return
+        if item is False:                       # several items match and the cashier closed the list without choosing
+            row["code"].focus_set()
+            row["code"].select_range(0, tk.END)
+            return
 
         row["item_id"] = item["item_id"]
         row["code"].delete(0, tk.END)
@@ -760,7 +812,8 @@ class BillingFrame(ttk.Frame):
         s_box.pack(fill="x", pady=(0, 12))
         search_ent = tk.Entry(s_box, font=("Segoe UI", 11), relief="flat", bd=0)
         search_ent.pack(fill="x", ipady=6, padx=8)
-        search_ent.focus_set()
+        modal.focus_force()
+        search_ent.focus_force()
 
         # List Container
         list_canvas = tk.Canvas(frame, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0")
@@ -777,9 +830,26 @@ class BillingFrame(ttk.Frame):
 
         customers = list(self.db.collection("customers").find({"is_deleted": 0}))
 
+        choices: list = []          # (card frame, customer or None for the cash customer), in on-screen order
+        cursor = {"i": 0}
+
+        def _highlight(i: int):
+            if not choices:
+                return
+            cursor["i"] = max(0, min(i, len(choices) - 1))
+            for n, (frame_, _c) in enumerate(choices):
+                frame_.configure(highlightbackground="#4f46e5" if n == cursor["i"] else "#e2e8f0",
+                                 highlightthickness=2 if n == cursor["i"] else 1)
+            frame_ = choices[cursor["i"]][0]
+            list_canvas.update_idletasks()
+            bbox = list_canvas.bbox("all")
+            if bbox and bbox[3] > 0:
+                list_canvas.yview_moveto(max(0.0, (frame_.winfo_y() - 40) / bbox[3]))
+
         def _render_customers(query=""):
             for w in cards_box.winfo_children():
                 w.destroy()
+            choices.clear()
 
             # Always offer Walk-in / Cash option
             if not query or "cash" in query.lower():
@@ -788,6 +858,7 @@ class BillingFrame(ttk.Frame):
                 tk.Label(c_card, text="Cash Customer", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
                 tk.Label(c_card, text="Counter Walk-in Sale", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff").pack(anchor="w")
                 c_card.bind("<Button-1>", lambda _e: _pick_customer(None))
+                choices.append((c_card, None))
 
             q_lower = query.lower()
             matched = [
@@ -811,6 +882,8 @@ class BillingFrame(ttk.Frame):
                 tk.Label(c_card, text=f"{bname_str}{phone_str}{gst_part}", font=("Segoe UI", 8), fg="#64748b", bg="#ffffff").pack(anchor="w")
 
                 c_card.bind("<Button-1>", lambda _e, cu=cust: _pick_customer(cu))
+                choices.append((c_card, cust))
+            _highlight(0)
 
         def _pick_customer(cust):
             self.selected_customer = cust
@@ -852,7 +925,22 @@ class BillingFrame(ttk.Frame):
 
             modal.destroy()
 
-        search_ent.bind("<KeyRelease>", lambda _e: _render_customers(search_ent.get().strip()))
+        def _on_key(e):
+            if e.keysym in ("Up", "Down", "Return", "Escape", "Tab"):
+                return
+            _render_customers(search_ent.get().strip())
+
+        def _enter(_e=None):
+            if choices:
+                _pick_customer(choices[cursor["i"]][1])
+            return "break"
+
+        search_ent.bind("<KeyRelease>", _on_key)
+        search_ent.bind("<Down>", lambda _e: (_highlight(cursor["i"] + 1), "break")[1])
+        search_ent.bind("<Up>", lambda _e: (_highlight(cursor["i"] - 1), "break")[1])
+        search_ent.bind("<Return>", _enter)
+        modal.bind("<Escape>", lambda _e: modal.destroy())
+        modal.refresh_list, modal.move_highlight, modal.pick_highlighted = (lambda: _render_customers(search_ent.get().strip())), (lambda d: _highlight(cursor["i"] + d)), _enter
         _render_customers()
 
     # ---------------- BILL SAVING & PAYMENT RECEIPT MODAL (F2 / F3) ----------------
@@ -1105,6 +1193,15 @@ class BillingFrame(ttk.Frame):
             cursor="hand2",
             command=modal.destroy
         ).pack(side="right")
+
+        # Keyboard: Enter in the amount / reference box posts, Esc closes, and the dialog owns the focus
+        modal.bind("<Escape>", lambda _e: modal.destroy())
+        modal.amount_entry = amt_rec_ent
+        amt_rec_ent.bind("<Return>", lambda _e: _execute_post())
+        utr_ent.bind("<Return>", lambda _e: _execute_post())
+        modal.focus_force()
+        amt_rec_ent.focus_set()
+        amt_rec_ent.select_range(0, tk.END)
 
     def _generate_and_open_pdf(self, bill_data: dict):
         try:
