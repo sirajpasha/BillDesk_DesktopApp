@@ -6,7 +6,7 @@ from app import paths
 import subprocess
 import platform
 import math
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from app.printing.invoice import generate_invoice_pdf, generate_dc_pdf
 from app.ui.print_preview import show_print_preview
@@ -14,6 +14,7 @@ from app.services.master_service import MasterService
 from app.utils.currency import format_inr
 from app.utils.formatters import format_date
 from app.ui.components.calendar_popup import attach_date_picker
+from app.ui import theme
 
 class BillHistoryFrame(tk.Frame):
     """
@@ -35,7 +36,7 @@ class BillHistoryFrame(tk.Frame):
     MAX_BILLS = 5000   # newest bills loaded; a notice is shown when the history is longer
 
     def __init__(self, parent, db, billing, current_user=None, on_navigate=None, **kwargs):
-        super().__init__(parent, bg="#f8fafc", **kwargs)
+        super().__init__(parent, bg=theme.BG, **kwargs)
         self.db = db
         self.billing = billing
         self.current_user = current_user
@@ -54,27 +55,27 @@ class BillHistoryFrame(tk.Frame):
 
     def _build_ui(self):
         # 1. Top Header Strip
-        top_bar = tk.Frame(self, bg="#f8fafc")
+        top_bar = tk.Frame(self, bg=theme.BG)
         top_bar.pack(fill="x", padx=28, pady=(20, 14))
 
         tk.Label(
             top_bar,
             text="Bill History",
             font=("Segoe UI", 22, "bold"),
-            fg="#0f172a",
-            bg="#f8fafc"
+            fg=theme.TEXT,
+            bg=theme.BG
         ).pack(side="left")
 
-        actions_box = tk.Frame(top_bar, bg="#f8fafc")
+        actions_box = tk.Frame(top_bar, bg=theme.BG)
         actions_box.pack(side="right")
 
         self.consolidated_btn = tk.Button(
             actions_box,
             text="📄 Consolidated Bills",
-            font=("Segoe UI", 9, "bold"),
-            bg="#ffffff",
-            fg="#334155",
-            activebackground="#f1f5f9",
+            font=theme.F_BOLD,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_700,
+            activebackground=theme.HEADING_BG,
             relief="solid",
             bd=1,
             padx=14,
@@ -87,11 +88,11 @@ class BillHistoryFrame(tk.Frame):
         self.new_bill_btn = tk.Button(
             actions_box,
             text="+ New Bill",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
-            activeforeground="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=16,
@@ -102,7 +103,7 @@ class BillHistoryFrame(tk.Frame):
         self.new_bill_btn.pack(side="left")
 
         # 2. KPI Cards Row (Purple, Green, Orange matching 08-bills-history.png)
-        kpi_row = tk.Frame(self, bg="#f8fafc")
+        kpi_row = tk.Frame(self, bg=theme.BG)
         kpi_row.pack(fill="x", padx=28, pady=(0, 16))
 
         # Total Bills (Purple)
@@ -111,28 +112,28 @@ class BillHistoryFrame(tk.Frame):
         )
         # Total Revenue (Green)
         self.card_total_rev_val, _ = self._create_kpi_card(
-            kpi_row, "₹0.00", "Total Revenue", bg_color="#059669"
+            kpi_row, "₹0.00", "Total Revenue", bg_color=theme.SUCCESS
         )
         # Today's Bills (Orange)
         self.card_today_bills_val, _ = self._create_kpi_card(
-            kpi_row, "0", "Today's Bills", bg_color="#d97706"
+            kpi_row, "0", "Today's Bills", bg_color=theme.WARNING
         )
 
         # 3. Filter Card Container (White card with subtle border)
-        filter_card = tk.Frame(self, bg="#ffffff", bd=1, relief="solid", highlightthickness=0)
+        filter_card = tk.Frame(self, bg=theme.SURFACE, bd=1, relief="solid", highlightthickness=0)
         filter_card.pack(fill="x", padx=28, pady=(0, 14))
 
-        filter_inner = tk.Frame(filter_card, bg="#ffffff", padx=16, pady=12)
+        filter_inner = tk.Frame(filter_card, bg=theme.SURFACE, padx=16, pady=12)
         filter_inner.pack(fill="x")
 
         # Left section: Calendar Badge + Invoice Date + Reset
-        date_box = tk.Frame(filter_inner, bg="#ffffff")
+        date_box = tk.Frame(filter_inner, bg=theme.SURFACE)
         date_box.pack(side="left")
 
         cal_badge = tk.Label(
             date_box,
             text="📅",
-            font=("Segoe UI", 12),
+            font=theme.F_TEXT12,
             bg="#f0f9ff",
             fg="#0284c7",
             padx=8,
@@ -142,25 +143,25 @@ class BillHistoryFrame(tk.Frame):
         )
         cal_badge.pack(side="left", padx=(0, 8))
 
-        date_lbl_box = tk.Frame(date_box, bg="#ffffff")
+        date_lbl_box = tk.Frame(date_box, bg=theme.SURFACE)
         date_lbl_box.pack(side="left")
 
         tk.Label(
             date_lbl_box,
             text="INVOICE DATE:",
-            font=("Segoe UI", 8, "bold"),
-            fg="#64748b",
-            bg="#ffffff"
+            font=theme.F_LABEL,
+            fg=theme.TEXT_MUTED,
+            bg=theme.SURFACE
         ).pack(anchor="w")
 
-        date_input_row = tk.Frame(date_lbl_box, bg="#ffffff")
+        date_input_row = tk.Frame(date_lbl_box, bg=theme.SURFACE)
         date_input_row.pack(anchor="w", pady=(2, 0))
 
         self.date_var = tk.StringVar(value="")
         self.date_ent = tk.Entry(
             date_input_row,
             textvariable=self.date_var,
-            font=("Segoe UI", 9),
+            font=theme.F_BODY,
             width=13,
             relief="solid",
             bd=1
@@ -172,7 +173,7 @@ class BillHistoryFrame(tk.Frame):
         self.reset_date_btn = tk.Button(
             date_input_row,
             text="Reset Date",
-            font=("Segoe UI", 8, "bold"),
+            font=theme.F_LABEL,
             bg="#fee2e2",
             fg="#ef4444",
             activebackground="#fecaca",
@@ -185,30 +186,30 @@ class BillHistoryFrame(tk.Frame):
         )
 
         # Vertical Divider
-        divider = tk.Frame(filter_inner, bg="#e2e8f0", width=1, height=36)
+        divider = tk.Frame(filter_inner, bg=theme.BORDER, width=1, height=36)
         divider.pack(side="left", padx=16)
 
         # Right section: Search
-        search_box = tk.Frame(filter_inner, bg="#ffffff")
+        search_box = tk.Frame(filter_inner, bg=theme.SURFACE)
         search_box.pack(side="left", fill="x", expand=True)
 
         tk.Label(
             search_box,
             text="SEARCH (OPTIONAL):",
-            font=("Segoe UI", 8, "bold"),
-            fg="#64748b",
-            bg="#ffffff"
+            font=theme.F_LABEL,
+            fg=theme.TEXT_MUTED,
+            bg=theme.SURFACE
         ).pack(anchor="w")
 
-        search_input_f = tk.Frame(search_box, bg="#ffffff")
+        search_input_f = tk.Frame(search_box, bg=theme.SURFACE)
         search_input_f.pack(fill="x", pady=(2, 0))
 
         search_icon = tk.Label(
             search_input_f,
             text="📄",
-            font=("Segoe UI", 10),
-            fg="#94a3b8",
-            bg="#f8fafc",
+            font=theme.F_TEXT10,
+            fg=theme.TEXT_FAINT,
+            bg=theme.BG,
             relief="solid",
             bd=1,
             padx=6
@@ -219,8 +220,8 @@ class BillHistoryFrame(tk.Frame):
         self.search_ent = tk.Entry(
             search_input_f,
             textvariable=self.search_var,
-            font=("Segoe UI", 9),
-            bg="#f8fafc",
+            font=theme.F_BODY,
+            bg=theme.BG,
             relief="solid",
             bd=1
         )
@@ -236,27 +237,27 @@ class BillHistoryFrame(tk.Frame):
         self.status_filter_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter(reset_page=True))
 
         # 4. Main Table Card Container
-        main_card = tk.Frame(self, bg="#ffffff", bd=1, relief="solid", highlightthickness=0)
+        main_card = tk.Frame(self, bg=theme.SURFACE, bd=1, relief="solid", highlightthickness=0)
         main_card.pack(fill="both", expand=True, padx=28, pady=(0, 20))
 
         # Sub-header strip: Showing count + pagination
-        sub_strip = tk.Frame(main_card, bg="#f8fafc", padx=16, pady=8, bd=1, relief="solid")
+        sub_strip = tk.Frame(main_card, bg=theme.BG, padx=16, pady=8, bd=1, relief="solid")
         sub_strip.pack(fill="x")
 
         self.showing_label = tk.Label(
             sub_strip,
             text="Showing 0 to 0 of 0 bills",
-            font=("Segoe UI", 9),
-            fg="#64748b",
-            bg="#f8fafc"
+            font=theme.F_BODY,
+            fg=theme.TEXT_MUTED,
+            bg=theme.BG
         )
         self.showing_label.pack(side="left")
 
         # Pagination controls
-        page_box = tk.Frame(sub_strip, bg="#f8fafc")
+        page_box = tk.Frame(sub_strip, bg=theme.BG)
         page_box.pack(side="right")
 
-        tk.Label(page_box, text="PER PAGE:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
+        tk.Label(page_box, text="PER PAGE:", font=theme.F_LABEL, fg=theme.TEXT_MUTED, bg=theme.BG).pack(side="left", padx=(0, 4))
         self.per_page_var = tk.StringVar(value="25")
         per_page_cb = ttk.Combobox(page_box, textvariable=self.per_page_var, values=["25", "50", "75", "100"], width=4, state="readonly")
         per_page_cb.pack(side="left", padx=(0, 12))
@@ -265,9 +266,9 @@ class BillHistoryFrame(tk.Frame):
         self.prev_btn = tk.Button(
             page_box,
             text="< Previous",
-            font=("Segoe UI", 8),
-            bg="#ffffff",
-            fg="#475569",
+            font=theme.F_SMALL,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=8,
@@ -280,18 +281,18 @@ class BillHistoryFrame(tk.Frame):
         self.page_label = tk.Label(
             page_box,
             text="Page 1 of 1",
-            font=("Segoe UI", 9, "bold"),
-            fg="#1e293b",
-            bg="#f8fafc"
+            font=theme.F_BOLD,
+            fg=theme.TEXT_STRONG,
+            bg=theme.BG
         )
         self.page_label.pack(side="left", padx=(0, 6))
 
         self.next_btn = tk.Button(
             page_box,
             text="Next >",
-            font=("Segoe UI", 8),
-            bg="#ffffff",
-            fg="#475569",
+            font=theme.F_SMALL,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=8,
@@ -302,7 +303,7 @@ class BillHistoryFrame(tk.Frame):
         self.next_btn.pack(side="left")
 
         # Table Container
-        table_container = tk.Frame(main_card, bg="#ffffff", padx=4, pady=4)
+        table_container = tk.Frame(main_card, bg=theme.SURFACE, padx=4, pady=4)
         table_container.pack(fill="both", expand=True)
 
         cols = ("invoice_no", "invoice_date", "company", "customer_name", "items_count", "total_amount", "status", "actions")
@@ -328,10 +329,10 @@ class BillHistoryFrame(tk.Frame):
 
         # Status Tag Color Styling
         self.tree.tag_configure("paid", foreground="#10b981", background="#f0fdf4")
-        self.tree.tag_configure("unpaid", foreground="#dc2626", background="#fef2f2")
-        self.tree.tag_configure("partial", foreground="#d97706", background="#fffbeb")
+        self.tree.tag_configure("unpaid", foreground=theme.DANGER, background="#fef2f2")
+        self.tree.tag_configure("partial", foreground=theme.WARNING, background="#fffbeb")
         self.tree.tag_configure("void", foreground="#9ca3af", background="#f9fafb")
-        self.tree.tag_configure("legacy", foreground="#64748b")
+        self.tree.tag_configure("legacy", foreground=theme.TEXT_MUTED)
 
         # Scrollbar
         vsb = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
@@ -343,7 +344,7 @@ class BillHistoryFrame(tk.Frame):
         self.tree.bind("<Button-3>", self._show_context_menu)
 
         # Action Toolbar at the bottom of the card
-        action_strip = tk.Frame(main_card, bg="#f8fafc", padx=16, pady=8, bd=1, relief="solid")
+        action_strip = tk.Frame(main_card, bg=theme.BG, padx=16, pady=8, bd=1, relief="solid")
         action_strip.pack(fill="x", side="bottom")
         # Re-pack the table after the strip: pack gives space in order, so on a short window the buttons were clipped
         table_container.pack_forget()
@@ -353,11 +354,11 @@ class BillHistoryFrame(tk.Frame):
         self.btn_prev_inv = tk.Button(
             action_strip,
             text="👁️ Preview Invoice",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
-            activeforeground="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -371,11 +372,11 @@ class BillHistoryFrame(tk.Frame):
         self.btn_prev_dc = tk.Button(
             action_strip,
             text="🚚 Preview DC",
-            font=("Segoe UI", 9, "bold"),
-            bg="#d97706",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.WARNING,
+            fg=theme.SURFACE,
             activebackground="#b45309",
-            activeforeground="#ffffff",
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -389,9 +390,9 @@ class BillHistoryFrame(tk.Frame):
         self.btn_dl_inv = tk.Button(
             action_strip,
             text="📥 Save Invoice",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
-            fg="#059669",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
+            fg=theme.SUCCESS,
             activebackground="#f0fdf4",
             activeforeground="#047857",
             relief="solid",
@@ -407,11 +408,11 @@ class BillHistoryFrame(tk.Frame):
         self.btn_dl_dc = tk.Button(
             action_strip,
             text="🚚 Save DC",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
-            fg="#475569",
-            activebackground="#f8fafc",
-            activeforeground="#1e293b",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_600,
+            activebackground=theme.BG,
+            activeforeground=theme.TEXT_STRONG,
             relief="solid",
             bd=1,
             padx=12,
@@ -425,10 +426,10 @@ class BillHistoryFrame(tk.Frame):
         self.btn_view = tk.Button(
             action_strip,
             text="📝 View / Edit Bill",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#334155",
-            activebackground="#e2e8f0",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_700,
+            activebackground=theme.BORDER,
             relief="solid",
             bd=1,
             padx=12,
@@ -442,8 +443,8 @@ class BillHistoryFrame(tk.Frame):
         self.btn_void = tk.Button(
             action_strip,
             text="🚫 Void Bill",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
             fg="#ef4444",
             activebackground="#fee2e2",
             relief="solid",
@@ -456,14 +457,14 @@ class BillHistoryFrame(tk.Frame):
         self.btn_void.pack(side="left", padx=(0, 8))
 
         self.btn_return = tk.Button(
-            action_strip, text="↩ Return Goods", font=("Segoe UI", 9), bg="#ffffff", fg="#b45309",
+            action_strip, text="↩ Return Goods", font=theme.F_BODY, bg=theme.SURFACE, fg="#b45309",
             activebackground="#fef3c7", relief="solid", bd=1, padx=12, pady=4, cursor="hand2",
             command=self._return_selected
         )
         self.btn_return.pack(side="left", padx=(0, 8))
         tk.Button(
-            action_strip, text="🖨 Credit Notes", font=("Segoe UI", 9), bg="#ffffff", fg="#475569",
-            activebackground="#f1f5f9", relief="solid", bd=1, padx=12, pady=4, cursor="hand2",
+            action_strip, text="🖨 Credit Notes", font=theme.F_BODY, bg=theme.SURFACE, fg=theme.SLATE_600,
+            activebackground=theme.HEADING_BG, relief="solid", bd=1, padx=12, pady=4, cursor="hand2",
             command=self._credit_notes_selected
         ).pack(side="left", padx=(0, 8))
 
@@ -471,10 +472,10 @@ class BillHistoryFrame(tk.Frame):
         tk.Button(
             action_strip,
             text="🔄 Refresh",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
-            fg="#475569",
-            activebackground="#f1f5f9",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_600,
+            activebackground=theme.HEADING_BG,
             relief="solid",
             bd=1,
             padx=14,
@@ -483,10 +484,10 @@ class BillHistoryFrame(tk.Frame):
             command=self.refresh
         ).pack(side="right")
 
-        # Global hotkey bindings
-        self.bind_all("<F1>", lambda _e: self.search_ent.focus_set())
-        self.bind_all("<F2>", lambda _e: self._on_new_bill())
-        self.bind_all("<F5>", lambda _e: self.refresh())
+        # F1 (search) and F5 (refresh) are routed to this screen by the main window while it is showing
+
+    def focus_search(self) -> None:
+        self.search_ent.focus_set()
 
     def _create_kpi_card(self, parent, initial_val: str, label_text: str, bg_color: str):
         card = tk.Frame(parent, bg=bg_color, padx=22, pady=18, bd=0)
@@ -496,7 +497,7 @@ class BillHistoryFrame(tk.Frame):
             card,
             text=initial_val,
             font=("Segoe UI", 26, "bold"),
-            fg="#ffffff",
+            fg=theme.SURFACE,
             bg=bg_color,
             anchor="w"
         )
@@ -505,8 +506,8 @@ class BillHistoryFrame(tk.Frame):
         sub_label = tk.Label(
             card,
             text=label_text,
-            font=("Segoe UI", 10),
-            fg="#e0e7ff" if bg_color == "#5046e5" else "#dcfce7" if bg_color == "#059669" else "#fef3c7",
+            font=theme.F_TEXT10,
+            fg="#e0e7ff" if bg_color == "#5046e5" else "#dcfce7" if bg_color == theme.SUCCESS else "#fef3c7",
             bg=bg_color,
             anchor="w"
         )
@@ -885,7 +886,7 @@ class BillHistoryFrame(tk.Frame):
         dlg = tk.Toplevel(self)
         dlg.title(f"Credit notes - {bill['invoice_no']}")
         dlg.transient(self.winfo_toplevel())
-        lb = tk.Listbox(dlg, width=64, height=min(10, len(rets)), font=("Segoe UI", 10))
+        lb = tk.Listbox(dlg, width=64, height=min(10, len(rets)), font=theme.F_TEXT10)
         for r in rets:
             lb.insert(tk.END, f"{r['return_id']}   {format_date(r.get('return_date'))}   {format_inr(r.get('total_refund_amount', 0.0))}")
         lb.pack(padx=14, pady=(14, 6))
@@ -917,7 +918,7 @@ class BillHistoryFrame(tk.Frame):
 
         row = tk.Frame(dlg)
         row.pack(pady=(0, 12))
-        tk.Button(row, text="Print / Save PDF", command=_print, bg="#4f46e5", fg="#ffffff", relief="flat", padx=14, pady=5).pack(side="left", padx=6)
+        tk.Button(row, text="Print / Save PDF", command=_print, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat", padx=14, pady=5).pack(side="left", padx=6)
         tk.Button(row, text="Cancel this return", command=_cancel, fg="#b91c1c", relief="solid", bd=1, padx=12, pady=4).pack(side="left", padx=6)
         self.credit_notes_dialog = dlg
         tk.Button(row, text="Close", command=dlg.destroy, relief="solid", bd=1, padx=14, pady=4).pack(side="left")
@@ -962,38 +963,38 @@ class BillHistoryFrame(tk.Frame):
         dlg.title(f"Invoice Details — {inv_no}")
         dlg.geometry("700x520")
         dlg.transient(self)
-        dlg.configure(bg="#ffffff")
+        dlg.configure(bg=theme.SURFACE)
 
         # Header Strip
-        top_header = tk.Frame(dlg, bg="#4f46e5", padx=16, pady=12)
+        top_header = tk.Frame(dlg, bg=theme.PRIMARY, padx=16, pady=12)
         top_header.pack(fill="x")
         tk.Label(
             top_header,
             text=f"Invoice: {inv_no}",
-            font=("Segoe UI", 12, "bold"),
-            fg="#ffffff",
-            bg="#4f46e5"
+            font=theme.F_H12B,
+            fg=theme.SURFACE,
+            bg=theme.PRIMARY
         ).pack(side="left")
 
         status_str = self.display_status(db_bill.get("status")).upper()
         tk.Label(
             top_header,
             text=f"Status: {status_str}",
-            font=("Segoe UI", 10, "bold"),
+            font=theme.F_TEXT10B,
             fg="#dcfce7" if status_str == "PAID" else "#fee2e2" if status_str == "UNPAID" else "#fef08a",
-            bg="#4f46e5"
+            bg=theme.PRIMARY
         ).pack(side="right")
 
         # Customer & Meta Info
-        info_box = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        info_box = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         info_box.pack(fill="x")
 
         c_name = db_bill.get("customer_name") or "Cash"
         inv_dt = format_date(db_bill.get("invoice_date"))
         tot_amt = format_inr(db_bill.get("total_amount", 0.0))
 
-        tk.Label(info_box, text=f"Customer: {c_name}", font=("Segoe UI", 11, "bold"), fg="#0f172a", bg="#ffffff").pack(anchor="w")
-        tk.Label(info_box, text=f"Date: {inv_dt}   |   Grand Total: {tot_amt}", font=("Segoe UI", 9), fg="#64748b", bg="#ffffff").pack(anchor="w", pady=(2, 0))
+        tk.Label(info_box, text=f"Customer: {c_name}", font=theme.F_H11B, fg=theme.TEXT, bg=theme.SURFACE).pack(anchor="w")
+        tk.Label(info_box, text=f"Date: {inv_dt}   |   Grand Total: {tot_amt}", font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w", pady=(2, 0))
 
         # Items Table
         items_tree = ttk.Treeview(dlg, columns=("item", "qty", "rate", "amount"), show="headings", height=9)
@@ -1018,16 +1019,16 @@ class BillHistoryFrame(tk.Frame):
         items_tree.pack(fill="both", expand=True, padx=16, pady=8)
 
         # Dialog Footer with Print Actions
-        btn_box = tk.Frame(dlg, bg="#ffffff", padx=16, pady=12)
+        btn_box = tk.Frame(dlg, bg=theme.SURFACE, padx=16, pady=12)
         btn_box.pack(fill="x")
 
         tk.Button(
             btn_box,
             text="👁️ Preview Invoice",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
             relief="flat",
             bd=0,
             padx=12,
@@ -1039,9 +1040,9 @@ class BillHistoryFrame(tk.Frame):
         tk.Button(
             btn_box,
             text="🚚 Preview DC",
-            font=("Segoe UI", 9, "bold"),
-            bg="#d97706",
-            fg="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.WARNING,
+            fg=theme.SURFACE,
             activebackground="#b45309",
             relief="flat",
             bd=0,
@@ -1054,9 +1055,9 @@ class BillHistoryFrame(tk.Frame):
         tk.Button(
             btn_box,
             text="📥 Save Invoice",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
-            fg="#059669",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
+            fg=theme.SUCCESS,
             relief="solid",
             bd=1,
             padx=10,
@@ -1068,9 +1069,9 @@ class BillHistoryFrame(tk.Frame):
         tk.Button(
             btn_box,
             text="🚚 Save DC",
-            font=("Segoe UI", 9),
-            bg="#ffffff",
-            fg="#475569",
+            font=theme.F_BODY,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=10,
@@ -1082,9 +1083,9 @@ class BillHistoryFrame(tk.Frame):
         tk.Button(
             btn_box,
             text="Close",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#334155",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_700,
             relief="solid",
             bd=1,
             padx=16,

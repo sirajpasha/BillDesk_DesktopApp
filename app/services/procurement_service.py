@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from app.repositories.procurement_repo import ProcurementRepository
 from app.repositories.master_repo import ItemRepository, SupplierRepository
 from app.repositories.inventory_repo import InventoryRepository
-from app.models.procurement import PurchaseOrder, PurchaseItem
 from app.services.ledger_service import LedgerService
 from app.database.connection import transactional
 

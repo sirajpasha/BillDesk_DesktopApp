@@ -2,7 +2,6 @@ import os
 import sys
 import re
 import copy
-from datetime import datetime, timezone
 import pytest
 
 # Ensure Windows TCL/TK paths are reliably discovered

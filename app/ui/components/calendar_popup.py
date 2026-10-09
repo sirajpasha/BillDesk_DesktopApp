@@ -10,8 +10,9 @@ import calendar
 import tkinter as tk
 from datetime import date, datetime
 from typing import Callable, Optional
+from app.ui import theme
 
-BG, BORDER, PRIMARY, MUTED = "#ffffff", "#cbd5e1", "#4f46e5", "#64748b"
+BG, BORDER, PRIMARY, MUTED = theme.SURFACE, theme.BORDER_DARK, theme.PRIMARY, theme.TEXT_MUTED
 
 
 def parse_date(text: str, fmt: str = "%d/%m/%Y") -> Optional[date]:
@@ -45,21 +46,21 @@ class CalendarPopup(tk.Toplevel):
         head = tk.Frame(body, bg=BG)
         head.pack(fill="x")
         tk.Button(head, text="◀", relief="flat", bg=BG, bd=0, cursor="hand2", command=lambda: self._shift_month(-1)).pack(side="left")
-        self.title_lbl = tk.Label(head, text="", font=("Segoe UI", 10, "bold"), bg=BG, width=16)
+        self.title_lbl = tk.Label(head, text="", font=theme.F_TEXT10B, bg=BG, width=16)
         self.title_lbl.pack(side="left", expand=True)
         tk.Button(head, text="▶", relief="flat", bg=BG, bd=0, cursor="hand2", command=lambda: self._shift_month(1)).pack(side="right")
 
         grid = tk.Frame(body, bg=BG)
         grid.pack(pady=(6, 4))
         for c, name in enumerate(("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")):
-            tk.Label(grid, text=name, font=("Segoe UI", 8, "bold"), fg=MUTED, bg=BG, width=4).grid(row=0, column=c)
+            tk.Label(grid, text=name, font=theme.F_LABEL, fg=MUTED, bg=BG, width=4).grid(row=0, column=c)
         for r in range(6):
             for c in range(7):
-                lbl = tk.Label(grid, text="", font=("Segoe UI", 9), bg=BG, width=4, pady=3, cursor="hand2")
+                lbl = tk.Label(grid, text="", font=theme.F_BODY, bg=BG, width=4, pady=3, cursor="hand2")
                 lbl.grid(row=r + 1, column=c)
                 lbl.bind("<Button-1>", lambda _e, rr=r, cc=c: self._click(rr, cc))
                 self._cells[(r, c)] = lbl
-        tk.Button(body, text="Today", relief="flat", bg="#f1f5f9", bd=0, cursor="hand2", pady=3,
+        tk.Button(body, text="Today", relief="flat", bg=theme.HEADING_BG, bd=0, cursor="hand2", pady=3,
                   command=lambda: self._pick(date.today())).pack(fill="x")
         self.today_btn = body.winfo_children()[-1]
 
@@ -137,13 +138,13 @@ class CalendarPopup(tk.Toplevel):
                     continue
                 inside = d.month == self.view.month
                 if not self.allowed(d):
-                    lbl.config(text=str(d.day), bg=BG, fg="#e2e8f0", cursor="arrow")
+                    lbl.config(text=str(d.day), bg=BG, fg=theme.BORDER, cursor="arrow")
                 elif d == self.selected:
-                    lbl.config(text=str(d.day), bg=PRIMARY, fg="#ffffff")
+                    lbl.config(text=str(d.day), bg=PRIMARY, fg=theme.SURFACE)
                 elif d == today:
-                    lbl.config(text=str(d.day), bg="#e0e7ff", fg="#1e293b")
+                    lbl.config(text=str(d.day), bg="#e0e7ff", fg=theme.TEXT_STRONG)
                 else:
-                    lbl.config(text=str(d.day), bg=BG, fg="#1e293b" if inside else "#cbd5e1")
+                    lbl.config(text=str(d.day), bg=BG, fg=theme.TEXT_STRONG if inside else theme.BORDER_DARK)
 
     def _click(self, r: int, c: int):
         d = getattr(self._cells[(r, c)], "date", None)
@@ -216,7 +217,7 @@ class DatePickerController:
     def flag(self) -> None:
         """Red text while the box holds something that cannot be used."""
         try:
-            self.entry.config(fg="#dc2626" if self.error() else self._normal_fg)
+            self.entry.config(fg=theme.DANGER if self.error() else self._normal_fg)
         except tk.TclError:
             pass
 

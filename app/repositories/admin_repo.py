@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from typing import Any, Dict
+from datetime import datetime
 import uuid
 from app.repositories.base import BaseRepository
 

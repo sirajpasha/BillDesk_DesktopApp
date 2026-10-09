@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
-import copy
 
 class BaseRepository:
     """Base repository directly attached to an already-created MongoDB collection.

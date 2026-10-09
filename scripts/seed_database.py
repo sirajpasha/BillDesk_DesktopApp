@@ -6,7 +6,6 @@ Values are dynamically read from configuration (settings.py / .env) and data/see
 """
 from __future__ import annotations
 import json
-import os
 import sys
 from pathlib import Path
 

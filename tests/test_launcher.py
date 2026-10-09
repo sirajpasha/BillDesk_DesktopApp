@@ -1,6 +1,4 @@
-import os
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +26,7 @@ def test_batch_launcher_check_only():
 
 def test_bash_launcher_check_only():
     """Verify that start.sh runs dependency checks in bash if bash is installed."""
-    bash_path = shutil_which = None
+    bash_path = None
     import shutil
     bash_path = shutil.which("bash")
     if not bash_path:

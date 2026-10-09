@@ -1,12 +1,10 @@
 """Tier 3: sales returns (credit notes) and the daybook / item-wise / customer-wise reports."""
-import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import messagebox
 
 import pytest
 
 from app.models.billing import BillCreate, BillLine
-from app.models.common import CurrentUser
 from app.services.billing_service import BillingService
 from app.services.integrity_service import IntegrityService
 from app.services.ledger_service import LedgerService

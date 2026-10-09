@@ -2,7 +2,7 @@ import logging
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Dict
 from app.config.settings import settings
 
 from app.ui.dashboard import DashboardFrame
@@ -20,6 +20,7 @@ from app.ui.consolidated_view import ConsolidatedReportFrame
 from app.ui.integrity_view import IntegrityView
 from app.ui.reports_view import ReportsFrame
 from app.ui.company_view import CompanyConfigView
+from app.ui import theme
 
 
 class MainWindow:
@@ -68,7 +69,7 @@ class MainWindow:
         root.title(f"BillDesk — {self.company_name}")
         root.geometry("1400x880")
         root.minsize(1120, 700)
-        root.configure(bg="#f8fafc")
+        root.configure(bg=theme.BG)
 
         # Set taskbar and window icon if available
         import os
@@ -99,66 +100,66 @@ class MainWindow:
         theme.apply_ttk_theme(ttk.Style(self.root))
 
     def _build_shell(self):
-        shell = tk.Frame(self.root, bg="#f8fafc")
+        shell = tk.Frame(self.root, bg=theme.BG)
         shell.pack(fill="both", expand=True)
 
         # ---------------- 1. TOP HEADER BAR ----------------
         # Matches screenshots: Left has BillDesk logo + subtitle; Center has Company Name
-        header_bar = tk.Frame(shell, bg="#ffffff", height=56, bd=0)
+        header_bar = tk.Frame(shell, bg=theme.SURFACE, height=56, bd=0)
         header_bar.pack(fill="x", side="top")
         header_bar.pack_propagate(False)
 
         # Left Branding
-        brand_frame = tk.Frame(header_bar, bg="#ffffff", padx=16)
+        brand_frame = tk.Frame(header_bar, bg=theme.SURFACE, padx=16)
         brand_frame.pack(side="left", fill="y", pady=6)
 
         # Small BillDesk emblem
-        logo_canvas = tk.Canvas(brand_frame, width=32, height=32, bg="#ffffff", highlightthickness=0)
+        logo_canvas = tk.Canvas(brand_frame, width=32, height=32, bg=theme.SURFACE, highlightthickness=0)
         logo_canvas.pack(side="left", padx=(0, 8))
         logo_canvas.create_oval(2, 2, 30, 30, fill="#0ea5e9", outline="#0284c7")
-        logo_canvas.create_text(16, 16, text="B", font=("Segoe UI", 13, "bold"), fill="#ffffff")
+        logo_canvas.create_text(16, 16, text="B", font=("Segoe UI", 13, "bold"), fill=theme.SURFACE)
 
-        brand_text_box = tk.Frame(brand_frame, bg="#ffffff")
+        brand_text_box = tk.Frame(brand_frame, bg=theme.SURFACE)
         brand_text_box.pack(side="left")
         tk.Label(
             brand_text_box,
             text="BillDesk",
             font=("Segoe UI", 13, "bold"),
-            fg="#0f172a",
-            bg="#ffffff"
+            fg=theme.TEXT,
+            bg=theme.SURFACE
         ).pack(anchor="w")
         tk.Label(
             brand_text_box,
             text="Your Digital Partner for Freshness & Quality",
             font=("Segoe UI", 8, "italic"),
-            fg="#64748b",
-            bg="#ffffff"
+            fg=theme.TEXT_MUTED,
+            bg=theme.SURFACE
         ).pack(anchor="w")
 
         # Center Company Name (Bold Uppercase)
-        center_box = tk.Frame(header_bar, bg="#ffffff")
+        center_box = tk.Frame(header_bar, bg=theme.SURFACE)
         center_box.pack(side="left", expand=True, fill="both")
         tk.Label(
             center_box,
             text=self.company_name,
             font=("Segoe UI", 16, "bold"),
-            fg="#1e293b",
-            bg="#ffffff"
+            fg=theme.TEXT_STRONG,
+            bg=theme.SURFACE
         ).pack(expand=True)
 
         # Right empty spacer to keep center aligned
-        tk.Frame(header_bar, bg="#ffffff", width=200).pack(side="right")
+        tk.Frame(header_bar, bg=theme.SURFACE, width=200).pack(side="right")
 
         # ---------------- 2. HORIZONTAL MENUBAR (BELOW HEADER) ----------------
         # Matches 02-dashboard.png: File  Masters  Reports  Accounts  Settings
-        menu_strip = tk.Frame(shell, bg="#ffffff", height=34, bd=0)
+        menu_strip = tk.Frame(shell, bg=theme.SURFACE, height=34, bd=0)
         menu_strip.pack(fill="x", side="top")
 
         # Subtle bottom line below menubar
-        tk.Frame(shell, bg="#e2e8f0", height=1).pack(fill="x", side="top")
+        tk.Frame(shell, bg=theme.BORDER, height=1).pack(fill="x", side="top")
 
         # Horizontal Menu Buttons with Popups
-        menu_container = tk.Frame(menu_strip, bg="#ffffff", padx=12)
+        menu_container = tk.Frame(menu_strip, bg=theme.SURFACE, padx=12)
         menu_container.pack(side="left", fill="y")
 
         self.menus_config = self._build_menu_structure()
@@ -168,11 +169,11 @@ class MainWindow:
             btn = tk.Menubutton(
                 menu_container,
                 text=menu_name,
-                font=("Segoe UI", 9, "bold"),
-                bg="#ffffff",
-                fg="#334155",
-                activebackground="#f1f5f9",
-                activeforeground="#0f172a",
+                font=theme.F_BOLD,
+                bg=theme.SURFACE,
+                fg=theme.SLATE_700,
+                activebackground=theme.HEADING_BG,
+                activeforeground=theme.TEXT,
                 relief="flat",
                 bd=0,
                 padx=12,
@@ -182,7 +183,7 @@ class MainWindow:
             btn.pack(side="left")
 
             # Attach drop-down menu
-            menu = tk.Menu(btn, tearoff=0, bg="#ffffff", fg="#0f172a", activebackground="#4f46e5", activeforeground="#ffffff", font=("Segoe UI", 9), bd=1, relief="solid")
+            menu = tk.Menu(btn, tearoff=0, bg=theme.SURFACE, fg=theme.TEXT, activebackground=theme.PRIMARY, activeforeground=theme.SURFACE, font=theme.F_BODY, bd=1, relief="solid")
             for item in items:
                 if item == "---":
                     menu.add_separator()
@@ -196,26 +197,26 @@ class MainWindow:
             btn["menu"] = menu
 
         # ---------------- 3. MAIN WORKSPACE / CONTENT CONTAINER ----------------
-        self.content = tk.Frame(shell, bg="#f8fafc")
+        self.content = tk.Frame(shell, bg=theme.BG)
         self.content.pack(fill="both", expand=True)
 
         # ---------------- 4. BOTTOM ACCENT STRIP & STATUS BAR ----------------
         # Matches 02-dashboard.png: Purple top accent strip + bottom shortcut guide
-        bottom_box = tk.Frame(shell, bg="#ffffff")
+        bottom_box = tk.Frame(shell, bg=theme.SURFACE)
         bottom_box.pack(side="bottom", fill="x")
 
         # Top purple accent border
         tk.Frame(bottom_box, bg="#5b54d6", height=3).pack(fill="x")
 
-        status_bar = tk.Frame(bottom_box, bg="#ffffff", padx=14, pady=5)
+        status_bar = tk.Frame(bottom_box, bg=theme.SURFACE, padx=14, pady=5)
         status_bar.pack(fill="x")
 
         self.shortcut_label = tk.Label(
             status_bar,
             text="",
-            font=("Segoe UI", 8, "bold"),
-            fg="#475569",
-            bg="#ffffff",
+            font=theme.F_LABEL,
+            fg=theme.SLATE_600,
+            bg=theme.SURFACE,
             anchor="w"
         )
         self.shortcut_label.pack(side="left")
@@ -224,9 +225,9 @@ class MainWindow:
         self.clock_label = tk.Label(
             status_bar,
             text="",
-            font=("Segoe UI", 8),
-            fg="#475569",
-            bg="#ffffff",
+            font=theme.F_SMALL,
+            fg=theme.SLATE_600,
+            bg=theme.SURFACE,
             anchor="e"
         )
         self.clock_label.pack(side="right")
@@ -391,12 +392,13 @@ class MainWindow:
 
     def _bind_global_shortcuts(self):
         """Bind keyboard accelerators matching the User Guide."""
-        self.root.bind_all("<F1>", lambda _e: self.show_page("Dashboard"))
+        self.root.bind_all("<F1>", lambda _e: self._on_f1())
         self.root.bind_all("<F2>", lambda _e: self._on_f2())
         self.root.bind_all("<F3>", lambda _e: self._on_f3())
         self.root.bind_all("<F4>", lambda _e: self.show_page("Customer Master"))
         self.root.bind_all("<F5>", lambda _e: self._on_f5())
         self.root.bind_all("<F6>", lambda _e: self._on_f6())
+        self.root.bind_all("<F7>", lambda _e: self._on_f7())
         self.root.bind_all("<F8>", lambda _e: self._on_f8())
         self.root.bind_all("<F10>", lambda _e: self._on_f10())
         self.root.bind_all("<Escape>", lambda _e: self._on_escape())
@@ -421,6 +423,18 @@ class MainWindow:
             self.order_form_view._on_f3_save()
         else:
             self.show_page("New Bill")
+
+    def _on_f1(self):
+        """F1 = search on the screens that have a search box (Bill History), else the dashboard."""
+        frame = self.frames.get(self.active_page) if self.active_page else None
+        if frame is not None and self.active_page != "Dashboard" and hasattr(frame, "focus_search"):
+            frame.focus_search()
+        else:
+            self.show_page("Dashboard")
+
+    def _on_f7(self):
+        if self.active_page == "New Bill" and hasattr(self.frames["New Bill"], "_open_parked_modal"):
+            self.frames["New Bill"]._open_parked_modal()
 
     def _on_f8(self):
         if self._order_form():
@@ -558,10 +572,8 @@ class MainWindow:
             shortcuts_text = "F2: Save Bill | F3: Save & Print | F5: Customer Search | F6: Park Bill | F7: View Parked Bills | F12: Logout"
         elif name in self.ORDER_PAGES:
             shortcuts_text = "F3: Save Order | F5: Customer Search | F8: Smart Import (text / image) | F10: Save & Print | Esc: Close"
-        elif "Master" in name or name in ("Customers", "Items", "Suppliers"):
-            shortcuts_text = "F1: Search | F2: Add Record | F5: Refresh | F12: Back"
         elif name == "Bill History":
-            shortcuts_text = "F1: Search | F2: New Bill | F5: Refresh | F12: Back"
+            shortcuts_text = "F1: Search | F2: New Bill | F5: Refresh | F12: Logout"
         else:
             shortcuts_text = "F1: Dashboard | F2: New Bill | F5: Refresh | F12: Logout"
 

@@ -2,7 +2,7 @@
 and the Smart Importer that reads an order photo with Tesseract."""
 import os
 import tkinter as tk
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from tkinter import messagebox
 
 import pytest

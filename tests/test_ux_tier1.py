@@ -217,7 +217,7 @@ def test_customer_picker_works_without_the_mouse(billing, fake_db):
 
 
 def test_payment_dialog_takes_focus_and_escape_closes_it(billing):
-    r = _type_code(billing, "201")
+    _type_code(billing, "201")
     billing._update_grand_total()
     billing._open_payment_modal()
     billing.update()

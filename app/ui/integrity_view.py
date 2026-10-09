@@ -6,40 +6,41 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from app.services.integrity_service import IntegrityService
+from app.ui import theme
 
 log = logging.getLogger(__name__)
 ICONS = {"ok": "OK", "warn": "WARNING", "fail": "FAIL", "info": "NOTE"}
-COLORS = {"ok": "#15803d", "warn": "#b45309", "fail": "#b91c1c", "info": "#475569"}
+COLORS = {"ok": "#15803d", "warn": "#b45309", "fail": "#b91c1c", "info": theme.SLATE_600}
 
 
 class IntegrityView(tk.Frame):
     def __init__(self, parent, db, current_user=None, **kwargs):
-        super().__init__(parent, bg="#f8fafc", **kwargs)
+        super().__init__(parent, bg=theme.BG, **kwargs)
         self.db = db
         self.current_user = current_user
         self.report = None
         self._build()
 
     def _build(self):
-        top = tk.Frame(self, bg="#f8fafc")
+        top = tk.Frame(self, bg=theme.BG)
         top.pack(fill="x", padx=14, pady=(16, 8))
-        title = tk.Frame(top, bg="#f8fafc")
+        title = tk.Frame(top, bg=theme.BG)
         title.pack(side="left")
-        tk.Label(title, text="Integrity Check", font=("Segoe UI", 18, "bold"), fg="#0f172a", bg="#f8fafc").pack(anchor="w")
+        tk.Label(title, text="Integrity Check", font=("Segoe UI", 18, "bold"), fg=theme.TEXT, bg=theme.BG).pack(anchor="w")
         tk.Label(title, text="Do bills, payments, customer balances, stock and the ledger agree with each other? (read-only)",
-                 font=("Segoe UI", 9), fg="#64748b", bg="#f8fafc").pack(anchor="w")
-        btns = tk.Frame(top, bg="#f8fafc")
+                 font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.BG).pack(anchor="w")
+        btns = tk.Frame(top, bg=theme.BG)
         btns.pack(side="right")
-        self.run_btn = tk.Button(btns, text="Run Check", command=self.run, bg="#4f46e5", fg="#ffffff", relief="flat",
-                                 font=("Segoe UI", 9, "bold"), padx=16, pady=6)
+        self.run_btn = tk.Button(btns, text="Run Check", command=self.run, bg=theme.PRIMARY, fg=theme.SURFACE, relief="flat",
+                                 font=theme.F_BOLD, padx=16, pady=6)
         self.run_btn.pack(side="left", padx=4)
-        tk.Button(btns, text="Save Report...", command=self.save_report, relief="solid", bd=1, bg="#ffffff",
-                  font=("Segoe UI", 9), padx=12, pady=5).pack(side="left", padx=4)
+        tk.Button(btns, text="Save Report...", command=self.save_report, relief="solid", bd=1, bg=theme.SURFACE,
+                  font=theme.F_BODY, padx=12, pady=5).pack(side="left", padx=4)
 
-        self.summary_lbl = tk.Label(self, text="", font=("Segoe UI", 10, "bold"), bg="#f8fafc", fg="#0f172a", anchor="w")
+        self.summary_lbl = tk.Label(self, text="", font=theme.F_TEXT10B, bg=theme.BG, fg=theme.TEXT, anchor="w")
         self.summary_lbl.pack(fill="x", padx=16, pady=(0, 6))
 
-        box = tk.Frame(self, bg="#f8fafc")
+        box = tk.Frame(self, bg=theme.BG)
         box.pack(fill="both", expand=True, padx=14, pady=(0, 10))
         self.tree = ttk.Treeview(box, columns=("status", "check", "result"), show="headings", height=13, selectmode="browse")
         for col, text, w in (("status", "Status", 90), ("check", "Check", 360), ("result", "Result", 620)):
@@ -50,8 +51,8 @@ class IntegrityView(tk.Frame):
         self.tree.pack(side="top", fill="x")
         self.tree.bind("<<TreeviewSelect>>", self._show_details)
 
-        tk.Label(box, text="Details of the selected check", font=("Segoe UI", 9, "bold"), bg="#f8fafc", fg="#475569").pack(anchor="w", pady=(10, 2))
-        self.details = tk.Text(box, height=10, font=("Consolas", 9), bg="#ffffff", relief="solid", bd=1, wrap="none", state="disabled")
+        tk.Label(box, text="Details of the selected check", font=theme.F_BOLD, bg=theme.BG, fg=theme.SLATE_600).pack(anchor="w", pady=(10, 2))
+        self.details = tk.Text(box, height=10, font=("Consolas", 9), bg=theme.SURFACE, relief="solid", bd=1, wrap="none", state="disabled")
         self.details.pack(fill="both", expand=True)
 
     # ------------------------------------------------------------------ actions

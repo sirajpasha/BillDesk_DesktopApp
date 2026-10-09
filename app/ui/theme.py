@@ -23,6 +23,12 @@ ROW_ALT = "#f9fafb"
 HEADING_BG = "#f1f5f9"
 SELECT_BG = "#e0e7ff"
 
+SLATE_600 = "#475569"
+SLATE_700 = "#334155"
+TEXT_STRONG = "#1e293b"
+BORDER_DARK = "#cbd5e1"
+DANGER_DARK = "#b91c1c"
+
 # ---- fonts
 FONT = "Segoe UI"
 F_TITLE = (FONT, 22, "bold")
@@ -31,6 +37,13 @@ F_BODY = (FONT, 9)
 F_BOLD = (FONT, 9, "bold")
 F_SMALL = (FONT, 8)
 F_BUTTON = (FONT, 9, "bold")
+F_LABEL = (FONT, 8, "bold")
+F_TEXT10 = (FONT, 10)
+F_TEXT10B = (FONT, 10, "bold")
+F_H11B = (FONT, 11, "bold")
+F_TEXT11 = (FONT, 11)
+F_TEXT12 = (FONT, 12)
+F_H12B = (FONT, 12, "bold")
 
 
 def apply_ttk_theme(style: ttk.Style) -> None:

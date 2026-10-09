@@ -7,6 +7,7 @@ from app.services.master_service import MasterService
 from app.services.session_service import SessionService
 from app.utils.currency import format_inr
 from app.utils.formatters import format_date
+from app.ui import theme
 
 class AdminView(ttk.Frame):
     """System Administration: Users, Roles and Cashier Drawer Sessions (company details live in Settings > Company Settings)."""
@@ -45,10 +46,10 @@ class AdminView(ttk.Frame):
         self.session_card = ttk.LabelFrame(self.session_tab, text="Active Drawer Session", padding=14)
         self.session_card.pack(fill="x", padx=10, pady=10)
 
-        self.session_status_lbl = ttk.Label(self.session_card, text="Status: Checking...", font=("Segoe UI", 11, "bold"))
+        self.session_status_lbl = ttk.Label(self.session_card, text="Status: Checking...", font=theme.F_H11B)
         self.session_status_lbl.pack(anchor="w", pady=4)
 
-        self.session_info_lbl = ttk.Label(self.session_card, text="", font=("Segoe UI", 10))
+        self.session_info_lbl = ttk.Label(self.session_card, text="", font=theme.F_TEXT10)
         self.session_info_lbl.pack(anchor="w", pady=4)
 
         btn_row = ttk.Frame(self.session_card)
@@ -87,7 +88,7 @@ class AdminView(ttk.Frame):
         dlg.grab_set()
 
         ttk.Label(dlg, text="Opening Float / Cash in Drawer (₹):").pack(padx=12, pady=(16, 6))
-        cash_ent = ttk.Entry(dlg, width=20, font=("Segoe UI", 11))
+        cash_ent = ttk.Entry(dlg, width=20, font=theme.F_TEXT11)
         cash_ent.insert(0, "1000.0")
         cash_ent.pack(padx=12, pady=6)
 
@@ -118,7 +119,7 @@ class AdminView(ttk.Frame):
         dlg.grab_set()
 
         ttk.Label(dlg, text="Counted Actual Cash in Drawer (₹):").pack(padx=12, pady=(16, 6))
-        count_ent = ttk.Entry(dlg, width=20, font=("Segoe UI", 11))
+        count_ent = ttk.Entry(dlg, width=20, font=theme.F_TEXT11)
         count_ent.pack(padx=12, pady=6)
 
         ttk.Label(dlg, text="Closing Notes / Variance Reason:").pack(padx=12, pady=(8, 4))

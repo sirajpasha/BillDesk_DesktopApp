@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from app.repositories.master_repo import (
     ItemRepository, CustomerRepository, SupplierRepository, FixedPriceRepository, CompanyRepository
 )
-from app.models.master import Item, Customer, Supplier, FixedPrice, Company
+from app.models.master import Item, Customer, Supplier
 from app.config.settings import settings
 
 class MasterService:

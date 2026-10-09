@@ -1,7 +1,7 @@
 """Regression tests for D-09 .. D-16: input handling, arithmetic integrity and workflow controls."""
 import tkinter as tk
 from datetime import datetime, timezone
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 
 import pytest
 

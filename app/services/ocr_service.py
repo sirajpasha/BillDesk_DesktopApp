@@ -1,12 +1,11 @@
 from __future__ import annotations
 import os
 import re
-import sys
 import shutil
 import difflib
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from typing import Any, Dict, List, Optional
+from PIL import Image, ImageEnhance, ImageFilter
 import pytesseract
 
 

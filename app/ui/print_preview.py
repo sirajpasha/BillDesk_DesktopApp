@@ -6,7 +6,7 @@ import subprocess
 import platform
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-from typing import Optional, List
+from app.ui import theme
 
 try:
     import pymupdf
@@ -48,7 +48,7 @@ class PrintPreviewDialog(tk.Toplevel):
         # Window sizing and centering
         self.geometry("1020x860")
         self.minsize(720, 520)
-        self.configure(bg="#f8fafc")
+        self.configure(bg=theme.BG)
         self.transient(parent)
         self.grab_set()
 
@@ -82,53 +82,53 @@ class PrintPreviewDialog(tk.Toplevel):
             try:
                 self.doc = pymupdf.open(self.pdf_path)
                 self.page_count = len(self.doc)
-            except Exception as ex:
+            except Exception:
                 self.doc = None
                 self.page_count = 1
 
     def _build_ui(self):
         # 1. Top Indigo Accent Strip
-        tk.Frame(self, bg="#4f46e5", height=3).pack(fill="x")
+        tk.Frame(self, bg=theme.PRIMARY, height=3).pack(fill="x")
 
         # 2. Control Toolbar
-        toolbar = tk.Frame(self, bg="#ffffff", bd=1, relief="solid", padx=16, pady=8)
+        toolbar = tk.Frame(self, bg=theme.SURFACE, bd=1, relief="solid", padx=16, pady=8)
         toolbar.pack(fill="x")
 
         # Left Section: Document title and badge
-        left_box = tk.Frame(toolbar, bg="#ffffff")
+        left_box = tk.Frame(toolbar, bg=theme.SURFACE)
         left_box.pack(side="left")
 
         tk.Label(
             left_box,
             text=f"📄 {self.doc_title}",
-            font=("Segoe UI", 11, "bold"),
-            fg="#0f172a",
-            bg="#ffffff"
+            font=theme.F_H11B,
+            fg=theme.TEXT,
+            bg=theme.SURFACE
         ).pack(side="left", padx=(0, 10))
 
         pages_label = f"{self.page_count} Pages" if self.page_count > 1 else "1 Page"
         tk.Label(
             left_box,
             text=pages_label,
-            font=("Segoe UI", 8, "bold"),
-            fg="#4f46e5",
+            font=theme.F_LABEL,
+            fg=theme.PRIMARY,
             bg="#e0e7ff",
             padx=8,
             pady=2
         ).pack(side="left")
 
         # Right Section: Action Buttons
-        right_box = tk.Frame(toolbar, bg="#ffffff")
+        right_box = tk.Frame(toolbar, bg=theme.SURFACE)
         right_box.pack(side="right")
 
         self.print_btn = tk.Button(
             right_box,
             text="🖨️ Print",
-            font=("Segoe UI", 9, "bold"),
-            bg="#4f46e5",
-            fg="#ffffff",
-            activebackground="#4338ca",
-            activeforeground="#ffffff",
+            font=theme.F_BOLD,
+            bg=theme.PRIMARY,
+            fg=theme.SURFACE,
+            activebackground=theme.PRIMARY_DARK,
+            activeforeground=theme.SURFACE,
             relief="flat",
             bd=0,
             padx=14,
@@ -141,10 +141,10 @@ class PrintPreviewDialog(tk.Toplevel):
         self.save_btn = tk.Button(
             right_box,
             text="💾 Save PDF",
-            font=("Segoe UI", 9, "bold"),
-            bg="#ffffff",
-            fg="#334155",
-            activebackground="#f1f5f9",
+            font=theme.F_BOLD,
+            bg=theme.SURFACE,
+            fg=theme.SLATE_700,
+            activebackground=theme.HEADING_BG,
             relief="solid",
             bd=1,
             padx=12,
@@ -157,9 +157,9 @@ class PrintPreviewDialog(tk.Toplevel):
         tk.Button(
             right_box,
             text="✕ Close",
-            font=("Segoe UI", 9),
-            bg="#f1f5f9",
-            fg="#475569",
+            font=theme.F_BODY,
+            bg=theme.HEADING_BG,
+            fg=theme.SLATE_600,
             relief="solid",
             bd=1,
             padx=10,
@@ -169,20 +169,20 @@ class PrintPreviewDialog(tk.Toplevel):
         ).pack(side="left")
 
         # Center Section: Navigation & Zoom controls
-        center_box = tk.Frame(toolbar, bg="#ffffff")
+        center_box = tk.Frame(toolbar, bg=theme.SURFACE)
         center_box.pack(side="right", padx=(0, 24))
 
         # Page navigation (if multi-page)
         if self.page_count > 1:
-            nav_box = tk.Frame(center_box, bg="#f8fafc", bd=1, relief="solid", padx=6, pady=2)
+            nav_box = tk.Frame(center_box, bg=theme.BG, bd=1, relief="solid", padx=6, pady=2)
             nav_box.pack(side="left", padx=(0, 16))
 
             self.prev_btn = tk.Button(
                 nav_box,
                 text="◀",
-                font=("Segoe UI", 8, "bold"),
-                bg="#f8fafc",
-                fg="#334155",
+                font=theme.F_LABEL,
+                bg=theme.BG,
+                fg=theme.SLATE_700,
                 relief="flat",
                 bd=0,
                 padx=6,
@@ -194,9 +194,9 @@ class PrintPreviewDialog(tk.Toplevel):
             self.page_lbl = tk.Label(
                 nav_box,
                 text=f"Page 1 of {self.page_count}",
-                font=("Segoe UI", 9, "bold"),
-                fg="#1e293b",
-                bg="#f8fafc",
+                font=theme.F_BOLD,
+                fg=theme.TEXT_STRONG,
+                bg=theme.BG,
                 padx=8
             )
             self.page_lbl.pack(side="left")
@@ -204,9 +204,9 @@ class PrintPreviewDialog(tk.Toplevel):
             self.next_btn = tk.Button(
                 nav_box,
                 text="▶",
-                font=("Segoe UI", 8, "bold"),
-                bg="#f8fafc",
-                fg="#334155",
+                font=theme.F_LABEL,
+                bg=theme.BG,
+                fg=theme.SLATE_700,
                 relief="flat",
                 bd=0,
                 padx=6,
@@ -216,15 +216,15 @@ class PrintPreviewDialog(tk.Toplevel):
             self.next_btn.pack(side="left")
 
         # Zoom controls
-        zoom_box = tk.Frame(center_box, bg="#f8fafc", bd=1, relief="solid", padx=6, pady=2)
+        zoom_box = tk.Frame(center_box, bg=theme.BG, bd=1, relief="solid", padx=6, pady=2)
         zoom_box.pack(side="left")
 
         tk.Button(
             zoom_box,
             text="➖",
-            font=("Segoe UI", 8),
-            bg="#f8fafc",
-            fg="#475569",
+            font=theme.F_SMALL,
+            bg=theme.BG,
+            fg=theme.SLATE_600,
             relief="flat",
             bd=0,
             padx=4,
@@ -235,9 +235,9 @@ class PrintPreviewDialog(tk.Toplevel):
         self.zoom_lbl = tk.Label(
             zoom_box,
             text="100%",
-            font=("Segoe UI", 8, "bold"),
-            fg="#475569",
-            bg="#f8fafc",
+            font=theme.F_LABEL,
+            fg=theme.SLATE_600,
+            bg=theme.BG,
             width=5
         )
         self.zoom_lbl.pack(side="left")
@@ -245,9 +245,9 @@ class PrintPreviewDialog(tk.Toplevel):
         tk.Button(
             zoom_box,
             text="➕",
-            font=("Segoe UI", 8),
-            bg="#f8fafc",
-            fg="#475569",
+            font=theme.F_SMALL,
+            bg=theme.BG,
+            fg=theme.SLATE_600,
             relief="flat",
             bd=0,
             padx=4,
@@ -258,9 +258,9 @@ class PrintPreviewDialog(tk.Toplevel):
         tk.Button(
             zoom_box,
             text="Fit",
-            font=("Segoe UI", 8, "bold"),
+            font=theme.F_LABEL,
             bg="#e0e7ff",
-            fg="#4f46e5",
+            fg=theme.PRIMARY,
             relief="flat",
             bd=0,
             padx=6,
@@ -269,10 +269,10 @@ class PrintPreviewDialog(tk.Toplevel):
         ).pack(side="left", padx=(4, 0))
 
         # 3. Canvas Viewing Container
-        view_container = tk.Frame(self, bg="#e2e8f0")
+        view_container = tk.Frame(self, bg=theme.BORDER)
         view_container.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(view_container, bg="#e2e8f0", highlightthickness=0)
+        self.canvas = tk.Canvas(view_container, bg=theme.BORDER, highlightthickness=0)
         self.vsb = ttk.Scrollbar(view_container, orient="vertical", command=self.canvas.yview)
         self.hsb = ttk.Scrollbar(view_container, orient="horizontal", command=self.canvas.xview)
 
@@ -321,7 +321,7 @@ class PrintPreviewDialog(tk.Toplevel):
                 cx, 250,
                 text="Document Preview Ready\n\nClick 'Print' to print directly,\nor 'Save PDF' to export.",
                 font=("Segoe UI", 13, "bold"),
-                fill="#475569",
+                fill=theme.SLATE_600,
                 justify="center"
             )
             return
@@ -348,14 +348,14 @@ class PrintPreviewDialog(tk.Toplevel):
             self.canvas.create_rectangle(
                 x_pos + 4, y_pos + 4,
                 x_pos + pix.width + 4, y_pos + pix.height + 4,
-                fill="#cbd5e1", outline=""
+                fill=theme.BORDER_DARK, outline=""
             )
 
             # Draw white page border outline
             self.canvas.create_rectangle(
                 x_pos - 1, y_pos - 1,
                 x_pos + pix.width + 1, y_pos + pix.height + 1,
-                fill="#ffffff", outline="#94a3b8"
+                fill=theme.SURFACE, outline=theme.TEXT_FAINT
             )
 
             # Draw page image
@@ -377,8 +377,8 @@ class PrintPreviewDialog(tk.Toplevel):
             self.canvas.create_text(
                 300, 200,
                 text=f"Failed to render preview:\n{ex}",
-                font=("Segoe UI", 11),
-                fill="#dc2626"
+                font=theme.F_TEXT11,
+                fill=theme.DANGER
             )
 
     def _prev_page(self):

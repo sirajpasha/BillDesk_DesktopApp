@@ -1,6 +1,4 @@
-import os
-import pytest
-from app.ui.print_preview import PrintPreviewDialog, show_print_preview
+from app.ui.print_preview import show_print_preview
 from app.printing.consolidated import generate_consolidated_report_pdf
 
 

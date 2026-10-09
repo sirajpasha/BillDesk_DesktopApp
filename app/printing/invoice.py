@@ -1,7 +1,6 @@
 from __future__ import annotations
 import logging
 import os
-import sys
 import subprocess
 import tempfile
 import base64
@@ -10,7 +9,7 @@ import shutil
 import time
 from typing import Any, Dict, Optional, List
 from app.config.settings import settings
-from app.utils.currency import format_inr, amount_in_words
+from app.utils.currency import amount_in_words
 from app.utils.formatters import format_date
 
 ITEMS_PER_PAGE = 19
@@ -451,7 +450,6 @@ def render_dc_html(bill: Dict[str, Any], company: Optional[Dict[str, Any]] = Non
     comp_gst = comp.get("gst_number")
     gst_str = f" | GSTIN: {comp_gst}" if comp_gst else (" | GSTIN: " if comp_gst == "" else "")
 
-    bill_to_name = cust.get("bill_to_name") or cust.get("name") or bill.get("customer_name") or "Cash"
     ship_to_name = cust.get("name") or bill.get("customer_name") or "Cash"
     ship_to_addr = (cust.get("address") or "").replace("\n", "<br>")
     ship_to_phone = _format_phone(cust.get("contact_person_phone"))
@@ -856,7 +854,8 @@ def _generate_reportlab_invoice_fallback(path: str, bill: Dict[str, Any], compan
 
     c1 = f"<b>BILL TO:</b><br/><b>{bill_to_name}</b><br/>{bill_to_addr}<br/>Ph: {bill_to_phone}"
     c2 = f"<b>SHIP TO:</b><br/><b>{ship_to_name}</b><br/>{ship_to_addr}<br/>Ph: {ship_to_phone}"
-    c3 = f"<b>{"DELIVERY DETAILS" if is_dc else "INVOICE DETAILS"}:</b><br/>No: <b>{bill.get('invoice_no')}</b><br/>Date: {format_date(bill.get('invoice_date'))}<br/>Place: Local"
+    details_title = "DELIVERY DETAILS" if is_dc else "INVOICE DETAILS"
+    c3 = f"<b>{details_title}:</b><br/>No: <b>{bill.get('invoice_no')}</b><br/>Date: {format_date(bill.get('invoice_date'))}<br/>Place: Local"
 
     grid_table = Table([[
         Paragraph(c1, normal),

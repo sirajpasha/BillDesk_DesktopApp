@@ -1,9 +1,7 @@
 from __future__ import annotations
 import logging
 import os
-import sys
-from io import BytesIO
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 from datetime import datetime
 from app.config.settings import settings
 
@@ -15,11 +13,10 @@ from reportlab.platypus import (
     TableStyle,
     Paragraph,
     Spacer,
-    PageBreak,
-    KeepTogether
+    PageBreak
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.units import mm
 
 FONT_NORMAL = "Helvetica"
@@ -101,14 +98,6 @@ def generate_consolidated_report_pdf(
         fontSize=8.5,
         fontName=FONT_NORMAL,
         alignment=TA_LEFT,
-        leading=11
-    )
-    table_num_style = ParagraphStyle(
-        name="TabNum",
-        parent=styles["Normal"],
-        fontSize=8.5,
-        fontName=FONT_NORMAL,
-        alignment=TA_RIGHT,
         leading=11
     )
     group_header_style = ParagraphStyle(

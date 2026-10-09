@@ -6,7 +6,6 @@ Traceability & Task Alignment Report aligned with GitHub Epics,
 User Stories, and Tasks on sirajpasha/BillDesk_DesktopApp.
 """
 from __future__ import annotations
-import os
 import sys
 import subprocess
 from pathlib import Path
@@ -51,9 +50,9 @@ def run_and_generate_report():
     md_lines = [
         "# BillDesk Desktop — Automated Test Traceability Report",
         "",
-        f"**Repository**: [sirajpasha/BillDesk_DesktopApp](https://github.com/sirajpasha/BillDesk_DesktopApp)  ",
+        "**Repository**: [sirajpasha/BillDesk_DesktopApp](https://github.com/sirajpasha/BillDesk_DesktopApp)  ",
         f"**Verification Status**: **{passed_count}/{total} Tasks Passed (100%)**  ",
-        f"**GitHub Epics & Stories**: **All Mapped Issues CLOSED & Verified**  ",
+        "**GitHub Epics & Stories**: **All Mapped Issues CLOSED & Verified**  ",
         "",
         "---",
         "",

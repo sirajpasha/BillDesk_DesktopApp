@@ -15,11 +15,12 @@ from typing import Any, Dict, List, Optional
 
 from app.printing.invoice import _resolve_company_logo
 from app.services.master_service import MasterService
+from app.ui import theme
 
 log = logging.getLogger(__name__)
 
-BG, CARD, INK, MUTED, LINE = "#f3f4f6", "#ffffff", "#0f172a", "#64748b", "#e5e7eb"
-PURPLE, GREEN, RED = "#5b54d6", "#059669", "#ef4444"
+BG, CARD, INK, MUTED, LINE = "#f3f4f6", theme.SURFACE, theme.TEXT, theme.TEXT_MUTED, "#e5e7eb"
+PURPLE, GREEN, RED = "#5b54d6", theme.SUCCESS, "#ef4444"
 FONT = "Segoe UI"
 
 
@@ -323,7 +324,7 @@ class CompanyConfigView(tk.Frame):
             self._photos.append(photo)
             tk.Label(info, image=photo, bg=CARD).pack(side="left", padx=(0, 10))
         else:
-            tk.Label(info, text=(comp.get("name") or "?")[:1].upper(), width=3, height=1, bg="#e0e7ff", fg="#4338ca", font=(FONT, 12, "bold")).pack(side="left", padx=(0, 10))
+            tk.Label(info, text=(comp.get("name") or "?")[:1].upper(), width=3, height=1, bg="#e0e7ff", fg=theme.PRIMARY_DARK, font=(FONT, 12, "bold")).pack(side="left", padx=(0, 10))
         names = tk.Frame(info, bg=CARD)
         names.pack(side="left")
         tk.Label(names, text=comp.get("name", ""), font=(FONT, 10, "bold"), fg=INK, bg=CARD, wraplength=190, justify="left").pack(anchor="w")
@@ -341,8 +342,8 @@ class CompanyConfigView(tk.Frame):
             tk.Label(contact, text="✉  " + comp["email"], font=(FONT, 9), fg="#374151", bg=CARD, anchor="w").pack(anchor="w")
 
         gst = (comp.get("gst_number") or "").strip()
-        badge = tk.Label(self.table, text=gst or "N/A", font=(FONT, 8, "bold"), fg="#4338ca" if gst else "#475569",
-                         bg="#e0e7ff" if gst else "#f1f5f9", padx=10, pady=3)
+        badge = tk.Label(self.table, text=gst or "N/A", font=(FONT, 8, "bold"), fg=theme.PRIMARY_DARK if gst else theme.SLATE_600,
+                         bg="#e0e7ff" if gst else theme.HEADING_BG, padx=10, pady=3)
         badge.grid(row=row, column=2, sticky="w", **pad)
 
         addr = " ".join(str(comp.get("address", "")).split())

@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from typing import Callable, List, Optional, Tuple, Any, Dict
+from app.ui import theme
 
 class DataTable(ttk.Frame):
     """Reusable Treeview data table with sorting, search filter, and double-click callbacks."""
@@ -53,10 +54,10 @@ class DataTable(ttk.Frame):
             self.tree.column(col_id, width=width, anchor="w")
 
         # Striped tag colors
-        self.tree.tag_configure("odd", background="#ffffff")
+        self.tree.tag_configure("odd", background=theme.SURFACE)
         self.tree.tag_configure("even", background="#f9fafb")
 
-        self.empty_lbl = tk.Label(self.tree, text=self.empty_text, font=("Segoe UI", 10), fg="#64748b", bg="#ffffff",
+        self.empty_lbl = tk.Label(self.tree, text=self.empty_text, font=theme.F_TEXT10, fg=theme.TEXT_MUTED, bg=theme.SURFACE,
                                   justify="center", wraplength=420)
         self.tree.bind("<<TreeviewSelect>>", self._handle_select)
         if self.on_double_click:
