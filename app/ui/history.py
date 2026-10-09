@@ -425,7 +425,7 @@ class BillHistoryFrame(tk.Frame):
         # 5. View Details Button
         self.btn_view = tk.Button(
             action_strip,
-            text="📝 View / Edit Bill",
+            text="👁 View Bill",
             font=theme.F_BODY,
             bg=theme.HEADING_BG,
             fg=theme.SLATE_700,
