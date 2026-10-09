@@ -17,12 +17,11 @@ class AdminView(ttk.Frame):
         self.master_svc = MasterService(db)
         self.session_svc = SessionService(db)
 
-        header = ttk.Frame(self)
-        header.pack(fill="x", padx=10, pady=(10, 6))
-        ttk.Label(header, text="System Administration & Cash Sessions", font=("Segoe UI", 16, "bold")).pack(side="left")
+        from app.ui import theme
+        theme.page_header(self, "System Administration", "Cashier drawer sessions, users and access").pack(fill="x", padx=28, pady=(20, 10))
 
         notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=10, pady=6)
+        notebook.pack(fill="both", expand=True, padx=28, pady=(0, 16))
 
         # Tab 1: Cashier Sessions
         self.session_tab = ttk.Frame(notebook)
@@ -164,7 +163,7 @@ class AdminView(ttk.Frame):
             ("phone", "Phone", 130),
             ("status", "Status", 90),
         ]
-        self.users_table = DataTable(self.users_tab, columns=cols)
+        self.users_table = DataTable(self.users_tab, columns=cols, empty_text="No users yet.")
         self.users_table.pack(fill="both", expand=True)
 
     def load_users(self):

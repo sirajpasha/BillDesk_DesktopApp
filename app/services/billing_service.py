@@ -251,7 +251,7 @@ class BillingService:
             raise ValueError(f"Invoice {invoice_no} not found")
         if bill.get("status") == "void":
             raise ValueError(f"Invoice {invoice_no} is already voided")
-        if self.db.collection("sales_returns").count_documents({"original_invoice_no": invoice_no, "is_deleted": 0}) > 0:
+        if self.db.collection("sales_returns").count_documents({"original_invoice_no": {"$in": [invoice_no, " " + invoice_no]}, "is_deleted": {"$ne": 1}, "status": {"$ne": "cancelled"}}) > 0:
             raise ValueError(f"Invoice {invoice_no} has goods returned against it, so it cannot be voided")
 
         # 1. Restore Customer Balance (whole sale is reversed; anything already paid becomes customer credit)

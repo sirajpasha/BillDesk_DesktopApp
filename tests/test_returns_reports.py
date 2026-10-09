@@ -165,6 +165,7 @@ def quiet(monkeypatch):
     shown = []
     for n in ("showinfo", "showwarning", "showerror"):
         monkeypatch.setattr(messagebox, n, lambda t=None, m=None, _n=n, **k: shown.append((_n, t, m)))
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: False)
     return shown
 
 
@@ -237,3 +238,20 @@ def test_return_on_an_older_bill_that_stores_the_item_code_restocks_the_right_it
     stock0 = _item(fake_db)["stock"]
     ReturnsService(fake_db).create_return(inv, [{"item_id": "TOM", "qty": 2}])
     assert _item(fake_db)["stock"] == stock0 + 2
+
+
+def test_older_returns_and_bills_use_different_item_keys_but_count_as_the_same_item(fake_db):
+    """The older web app stored the item code on bills and the item id on returns; both must land on one item."""
+    _prepare(fake_db)
+    inv = _sell(fake_db)
+    bill = fake_db.collection("bills").find_one({"invoice_no": inv})
+    fake_db.collection("bills").update_one({"invoice_no": inv}, {"$set": {"items": [{**bill["items"][0], "item_id": "TOM"}]}})     # code
+    fake_db.collection("sales_returns").insert_one({"return_id": "RET-OLD", "return_date": datetime.now(), "original_invoice_no": " " + inv,
+        "customer_id": "CUST001", "customer_name": "Metro", "total_refund_amount": 60.0, "status": "completed",
+        "items": [{"item_id": "ITEM001", "name": "Tomato", "qty": 3.0, "unit": "kg", "rate": 20.0, "amount": 60.0}]})                  # id, no is_deleted
+    line = ReturnsService(fake_db).returnable_lines(inv)[0]
+    assert (line["returned"], line["returnable"]) == (3.0, 7.0)
+    rows = ReportService(fake_db).item_sales()["rows"]
+    assert len(rows) == 1 and rows[0]["returned_qty"] == 3.0 and rows[0]["net_qty"] == 7.0
+    with pytest.raises(ValueError, match="returned"):
+        BillingService(fake_db).void_bill(inv)

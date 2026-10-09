@@ -60,7 +60,7 @@ class ReportService:
 
     def _returns(self, lo, hi) -> List[Dict[str, Any]]:
         out = []
-        for r in self.db.collection("sales_returns").find({"is_deleted": 0, "status": {"$ne": "cancelled"}}):
+        for r in self.db.collection("sales_returns").find({"is_deleted": {"$ne": 1}, "status": {"$ne": "cancelled"}}):
             d = _dt(r.get("return_date") or r.get("created_at"))
             if self._within(d, lo, hi):
                 r = dict(r)
@@ -98,7 +98,12 @@ class ReportService:
             if self._within(d, lo, hi):
                 rows.append({"date": d, "type": "Paid out", "ref": p.get("payment_id", p.get("purchase_id", "")), "party": p.get("supplier_id", ""),
                              "billed": 0.0, "bought": 0.0, "money_in": 0.0, "money_out": _f(p.get("net_amount_paid"))})
-        order = {"Sale": 0, "Return": 1, "Purchase": 2, "Receipt": 3, "Paid out": 4}
+        for r in self.db.collection("purchase_returns").find({"is_deleted": 0, "status": {"$ne": "cancelled"}}):
+            d = _dt(r.get("return_date") or r.get("created_at"))
+            if self._within(d, lo, hi):
+                rows.append({"date": d, "type": "Purchase return", "ref": r.get("return_id", ""), "party": r.get("supplier_name", ""),
+                             "billed": 0.0, "bought": -_f(r.get("net_amount")), "money_in": 0.0, "money_out": 0.0})
+        order = {"Sale": 0, "Return": 1, "Purchase": 2, "Purchase return": 3, "Receipt": 4, "Paid out": 5}
         rows.sort(key=lambda r: (r["date"] or datetime.min, order.get(r["type"], 9), str(r["ref"])))
         totals = {k: money(sum(r[k] for r in rows)) for k in ("billed", "bought", "money_in", "money_out")}
         totals["net_money"] = money(totals["money_in"] - totals["money_out"])
@@ -108,8 +113,15 @@ class ReportService:
     def item_sales(self, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None) -> Dict[str, Any]:
         lo, hi = self._bounds(date_from, date_to)
         agg: Dict[str, Dict[str, Any]] = {}
+        canon: Dict[str, str] = {}
+        for it in self.db.collection("items").find({}):                  # older bills hold the item code, older returns the id
+            if it.get("item_id"):
+                canon[str(it["item_id"])] = it["item_id"]
+                if it.get("item_alias"):
+                    canon.setdefault(str(it["item_alias"]), it["item_id"])
 
         def slot(item_id, name, unit):
+            item_id = canon.get(str(item_id), item_id)
             s = agg.setdefault(item_id, {"item_id": item_id, "name": name, "unit": unit, "qty": 0.0, "amount": 0.0,
                                          "bills": set(), "returned_qty": 0.0, "returned_amount": 0.0, "names": Counter()})
             s["names"][name] += 1                  # older bills let the name be typed over the code: label by the usual one

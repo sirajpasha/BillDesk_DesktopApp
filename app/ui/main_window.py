@@ -95,17 +95,8 @@ class MainWindow:
         return settings.default_company_name.upper()
 
     def _configure_style(self):
-        style = ttk.Style(self.root)
-        try:
-            style.theme_use("vista")
-        except tk.TclError:
-            pass
-        style.configure("App.TFrame", background="#f8fafc")
-        style.configure("White.TFrame", background="#ffffff")
-        style.configure("Card.TFrame", background="#ffffff", relief="solid", borderwidth=1)
-        style.configure("Title.TLabel", font=("Segoe UI", 20, "bold"), background="#f8fafc", foreground="#0f172a")
-        style.configure("Section.TLabel", font=("Segoe UI", 12, "bold"), background="#f8fafc", foreground="#1e293b")
-        style.configure("Primary.TButton", font=("Segoe UI", 10, "bold"), padding=(14, 7))
+        from app.ui import theme
+        theme.apply_ttk_theme(ttk.Style(self.root))
 
     def _build_shell(self):
         shell = tk.Frame(self.root, bg="#f8fafc")

@@ -25,18 +25,33 @@ class ReturnsService:
         self.ledger = LedgerService(db)
 
     # ------------------------------------------------------------------ reads
+    def _canon(self) -> Dict[str, str]:
+        """code or id -> the item master's item_id. Older bills store the item's code; older returns store its id."""
+        m: Dict[str, str] = {}
+        for it in self.item_repo.find({}, limit=0):
+            iid = it.get("item_id")
+            if iid:
+                m[str(iid)] = iid
+                if it.get("item_alias"):
+                    m.setdefault(str(it["item_alias"]), iid)
+        return m
+
     def returns_for_invoice(self, invoice_no: str) -> List[Dict[str, Any]]:
-        return self.ret_repo.find({"original_invoice_no": invoice_no, "is_deleted": 0, "status": {"$ne": "cancelled"}}, limit=0)
+        # returns made by the older web app have no is_deleted field and sometimes a leading space in the invoice number
+        return self.ret_repo.find({"original_invoice_no": {"$in": [invoice_no, " " + invoice_no]}, "is_deleted": {"$ne": 1},
+                                   "status": {"$ne": "cancelled"}}, limit=0)
 
     def returnable_lines(self, invoice_no: str) -> List[Dict[str, Any]]:
         """Each invoice line with how much was billed, already returned, and is still returnable."""
         bill = self.bill_repo.find_one({"invoice_no": invoice_no, "is_deleted": 0})
         if not bill:
             raise ValueError(f"Invoice {invoice_no} not found")
+        canon = self._canon()
         back: Dict[str, float] = {}
         for r in self.returns_for_invoice(invoice_no):
             for l in r.get("items", []):
-                back[l["item_id"]] = back.get(l["item_id"], 0.0) + float(l.get("qty", 0.0))
+                k = canon.get(str(l["item_id"]), l["item_id"])
+                back[k] = back.get(k, 0.0) + float(l.get("qty", 0.0))
         merged: Dict[str, Dict[str, Any]] = {}
         for l in bill.get("items", []):
             m = merged.setdefault(l["item_id"], {"item_id": l["item_id"], "name": l.get("name", ""), "unit": l.get("unit", ""),
@@ -44,7 +59,7 @@ class ReturnsService:
             m["billed"] += float(l.get("qty", 0.0))
             m["amount"] += float(l.get("amount", 0.0))
         for m in merged.values():
-            m["returned"] = round(back.get(m["item_id"], 0.0), 3)
+            m["returned"] = round(back.get(canon.get(str(m["item_id"]), m["item_id"]), 0.0), 3)
             m["returnable"] = round(m["billed"] - m["returned"], 3)
         return list(merged.values())
 

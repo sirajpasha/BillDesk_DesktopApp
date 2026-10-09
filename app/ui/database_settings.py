@@ -6,46 +6,62 @@ from app.database.connection import MongoDatabase
 from app.config.settings import Settings
 from app.logging_setup import log_path
 from app.services.backup_service import BackupService
+from app.ui import theme
 
 
 class DatabaseSettingsFrame(ttk.Frame):
-    def __init__(self, parent, db, billing=None):
-        super().__init__(parent, padding=10)
-        self.db = db
-        ttk.Label(self, text="MongoDB Connection", style="Title.TLabel").pack(anchor="w", pady=(0, 20))
+    """Backups first (what an owner needs), then where the data lives (rarely touched)."""
 
-        form = ttk.Frame(self)
-        form.pack(fill="x", anchor="nw")
-        ttk.Label(form, text="MongoDB URI").grid(row=0, column=0, sticky="w", padx=(0, 12), pady=8)
+    def __init__(self, parent, db, billing=None):
+        super().__init__(parent)
+        self.db = db
+        theme.page_header(self, "Backup & Database", "Keep a safe copy of your data").pack(fill="x", padx=28, pady=(20, 12))
+        self._build_backup_section()
+        self._build_connection_section()
+
+    # ------------------------------------------------------------------ connection
+    def _build_connection_section(self):
+        box = theme.card(self)
+        box.pack(fill="x", padx=28, pady=(0, 16))
+        inner = tk.Frame(box, bg=theme.SURFACE, padx=18, pady=14)
+        inner.pack(fill="x")
+        tk.Label(inner, text="Where your data is kept", font=theme.F_SECTION, fg=theme.TEXT, bg=theme.SURFACE).pack(anchor="w")
+        tk.Label(inner, text="Normally this is the database on this computer. Change it only if you were asked to.",
+                 font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE).pack(anchor="w", pady=(0, 10))
+        form = tk.Frame(inner, bg=theme.SURFACE)
+        form.pack(fill="x")
         default_url = getattr(self.db.settings, "mongodb_url", "mongodb://127.0.0.1:27018") if hasattr(self.db, "settings") and self.db.settings else "mongodb://127.0.0.1:27018"
         default_db = getattr(self.db.settings, "db_name", "sv_billing") if hasattr(self.db, "settings") and self.db.settings else "sv_billing"
+        tk.Label(form, text="Database address", font=theme.F_BOLD, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=0, column=0, sticky="w", padx=(0, 12), pady=6)
         self.url = ttk.Entry(form, width=70)
         self.url.insert(0, default_url)
-        self.url.grid(row=0, column=1, sticky="ew", pady=8)
-        ttk.Label(form, text="Database").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=8)
+        self.url.grid(row=0, column=1, sticky="ew", pady=6)
+        tk.Label(form, text="Database name", font=theme.F_BOLD, fg=theme.TEXT_MUTED, bg=theme.SURFACE).grid(row=1, column=0, sticky="w", padx=(0, 12), pady=6)
         self.name = ttk.Entry(form, width=50)
         self.name.insert(0, default_db)
-        self.name.grid(row=1, column=1, sticky="ew", pady=8)
+        self.name.grid(row=1, column=1, sticky="ew", pady=6)
         form.columnconfigure(1, weight=1)
-
-        ttk.Button(form, text="Test Connection", command=self.test).grid(row=2, column=1, sticky="w", pady=15)
-        ttk.Label(self, text="Local example: mongodb://127.0.0.1:27018\nAtlas example: mongodb+srv://username:password@cluster.mongodb.net/", foreground="#555").pack(anchor="w", pady=10)
-
-        self._build_backup_section()
+        theme.secondary_button(form, "Test Connection", self.test).grid(row=2, column=1, sticky="w", pady=(10, 0))
+        tk.Label(inner, text="This computer: mongodb://127.0.0.1:27018     Online (Atlas): mongodb+srv://user:password@cluster.mongodb.net/",
+                 font=theme.F_SMALL, fg=theme.TEXT_FAINT, bg=theme.SURFACE).pack(anchor="w", pady=(10, 0))
 
     # ------------------------------------------------------------------ backups
     def _build_backup_section(self):
-        box = ttk.LabelFrame(self, text="Backups", padding=12)
-        box.pack(fill="x", anchor="nw", pady=(16, 0))
-        self.backup_status = ttk.Label(box, text="")
-        self.backup_status.pack(anchor="w", pady=(0, 8))
-        row = ttk.Frame(box)
+        box = theme.card(self)
+        box.pack(fill="x", padx=28, pady=(0, 16))
+        inner = tk.Frame(box, bg=theme.SURFACE, padx=18, pady=14)
+        inner.pack(fill="x")
+        tk.Label(inner, text="Backups", font=theme.F_SECTION, fg=theme.TEXT, bg=theme.SURFACE).pack(anchor="w")
+        self.backup_status = tk.Label(inner, text="", font=(theme.FONT, 11), fg=theme.TEXT, bg=theme.SURFACE)
+        self.backup_status.pack(anchor="w", pady=(4, 10))
+        row = tk.Frame(inner, bg=theme.SURFACE)
         row.pack(anchor="w")
-        ttk.Button(row, text="Back Up Now", command=self.backup_now).pack(side="left")
-        ttk.Button(row, text="Open Backup Folder", command=self.open_backup_folder).pack(side="left", padx=8)
-        ttk.Button(row, text="Open Log File", command=lambda: self._open(log_path())).pack(side="left")
-        ttk.Label(box, foreground="#555", text="A backup is taken automatically once a day while BillDesk is used. "
-                  "To restore, use: python scripts/restore_backup.py <backup.zip> --target-db <new name>").pack(anchor="w", pady=(8, 0))
+        theme.primary_button(row, "Back Up Now", self.backup_now).pack(side="left")
+        theme.secondary_button(row, "Open Backup Folder", self.open_backup_folder).pack(side="left", padx=8)
+        theme.secondary_button(row, "Open Log File", lambda: self._open(log_path())).pack(side="left")
+        tk.Label(inner, font=theme.F_BODY, fg=theme.TEXT_MUTED, bg=theme.SURFACE, justify="left",
+                 text="A backup is taken automatically once a day while BillDesk is used, and each one is checked after it is written.\n"
+                      "To restore: python scripts/restore_backup.py <backup.zip> --target-db <new name>").pack(anchor="w", pady=(10, 0))
         self.refresh_backup_status()
 
     def refresh_backup_status(self):
