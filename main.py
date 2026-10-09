@@ -28,15 +28,17 @@ from app.ui.login_window import LoginWindow
 from app.ui.main_window import MainWindow
 
 
-def _acquire_single_instance():
+def _acquire_single_instance(name: str = "BillDeskDesktopNativeMutex"):
     """Two BillDesk windows on one database would fight over parked bills and invoice numbers. Windows only; the
     installer uses the same mutex name (AppMutex) to refuse upgrades while the app runs."""
     if sys.platform != "win32":
         return True
     import ctypes
-    handle = ctypes.windll.kernel32.CreateMutexW(None, False, "BillDeskDesktopNativeMutex")
+    handle = ctypes.windll.kernel32.CreateMutexW(None, False, name)
     already = ctypes.windll.kernel32.GetLastError() == 183          # ERROR_ALREADY_EXISTS
-    _acquire_single_instance.handle = handle                        # keep it alive for the life of the process
+    handles = getattr(_acquire_single_instance, "handles", [])
+    handles.append(handle)                                          # keep it alive for the life of the process
+    _acquire_single_instance.handles = handles
     return not already
 
 
