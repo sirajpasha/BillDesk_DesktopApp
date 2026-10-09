@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.utils import validation as V
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -14,8 +15,7 @@ class SessionService:
 
     def open_session(self, user_id: str, username: str, opening_cash: float) -> Dict[str, Any]:
         """Open a new cashier drawer session."""
-        if opening_cash < 0:
-            raise ValueError("Opening cash cannot be negative")
+        opening_cash = V.number(opening_cash, "Opening cash", minimum=0, maximum=100_000_000)
         active = self.get_active_session(user_id)
         if active:
             raise ValueError("You already have an open cashier session. Please close it first.")

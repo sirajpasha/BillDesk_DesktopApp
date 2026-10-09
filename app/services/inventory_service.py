@@ -1,4 +1,5 @@
 from __future__ import annotations
+from app.utils import validation as V
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 from app.repositories.master_repo import ItemRepository
@@ -28,9 +29,11 @@ class InventoryService:
     @transactional
     def adjust_stock(self, item_id: str, delta_qty: float, reason: str, user_id: str = "system") -> Dict[str, Any]:
         """Manually adjust item stock (+ or -) with mandatory reason and immutable audit log."""
-        item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
+        item = self.item_repo.find_by_alias_or_id((item_id or "").strip())
         if not item:
             raise ValueError(f"Item '{item_id}' not found")
+        item_id = item["item_id"]
+        delta_qty = V.number(delta_qty, "Adjustment quantity", minimum=-10_000_000, maximum=10_000_000)
         if delta_qty == 0:
             raise ValueError("Adjustment quantity cannot be zero")
         if not (reason or "").strip():
@@ -54,13 +57,12 @@ class InventoryService:
     @transactional
     def record_waste(self, item_id: str, qty: float, rate: float, reason: str, user_id: str = "system") -> Dict[str, Any]:
         """Record produce spoilage/waste, decrement stock, and log financial loss."""
-        item = self.item_repo.find_one({"item_id": item_id, "is_deleted": 0})
+        item = self.item_repo.find_by_alias_or_id((item_id or "").strip())
         if not item:
             raise ValueError(f"Item '{item_id}' not found")
-        if qty <= 0:
-            raise ValueError("Waste quantity must be greater than zero")
-        if rate < 0:
-            raise ValueError("Waste rate cannot be negative")
+        item_id = item["item_id"]
+        qty = V.number(qty, "Waste quantity", greater_than=0, maximum=10_000_000)
+        rate = V.number(rate, "Waste rate", minimum=0, maximum=1_000_000)
         if not (reason or "").strip():
             raise ValueError("A reason is required to log waste")
         on_hand = float(item.get("stock") or 0.0)

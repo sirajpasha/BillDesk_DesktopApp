@@ -1,4 +1,5 @@
 import tkinter as tk
+from app.utils import validation as V
 from tkinter import ttk, messagebox
 from app.ui.components.data_table import DataTable
 from app.services.admin_service import AdminService
@@ -92,7 +93,7 @@ class AdminView(ttk.Frame):
 
         def on_open():
             try:
-                val = float(cash_ent.get().strip())
+                val = V.number(cash_ent.get(), "Opening cash", minimum=0, maximum=100_000_000)
                 self.session_svc.open_session(
                     user_id=self.current_user.user_id,
                     username=self.current_user.username,
@@ -126,7 +127,7 @@ class AdminView(ttk.Frame):
 
         def on_close():
             try:
-                counted = float(count_ent.get().strip())
+                counted = V.number(count_ent.get(), "Counted cash", minimum=0, maximum=100_000_000)
                 notes = notes_ent.get().strip()
                 res = self.session_svc.close_session(self.active_session_id, counted, notes)
                 diff = res["difference"]
@@ -186,22 +187,26 @@ class AdminView(ttk.Frame):
         fields = [
             ("Username *", "username", ""),
             ("Password *", "password", ""),
-            ("Role (Admin / Manager / User / Accountant)", "role", "User"),
+            ("Role *", "role", "user"),
             ("Email", "email", ""),
             ("Phone", "phone", ""),
         ]
 
         for idx, (label, key, val) in enumerate(fields):
             ttk.Label(dlg, text=label).grid(row=idx, column=0, padx=12, pady=6, sticky="w")
-            ent = ttk.Entry(dlg, width=24, show="*" if key == "password" else "")
-            ent.insert(0, val)
+            if key == "role":
+                ent = ttk.Combobox(dlg, values=[r.get("name") for r in self.admin_svc.get_roles() if r.get("name")] or ["user"], state="readonly", width=22)
+                ent.set(val)
+            else:
+                ent = ttk.Entry(dlg, width=24, show="*" if key == "password" else "")
+                ent.insert(0, val)
             ent.grid(row=idx, column=1, padx=12, pady=6, sticky="ew")
             entries[key] = ent
 
         def on_save():
             try:
-                uname = entries["username"].get().strip()
-                pword = entries["password"].get().strip()
+                uname = V.username(entries["username"].get())
+                pword = entries["password"].get()
                 role = entries["role"].get().strip()
                 email = entries["email"].get().strip()
                 phone = entries["phone"].get().strip()

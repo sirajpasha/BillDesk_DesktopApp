@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from app.config.settings import settings
 from app.ui.components.customer_picker import open_customer_picker
+from app.utils import validation as V
 from app.ui.components.calendar_popup import attach_date_picker
 from app.ui.smart_import_dialog import SmartImportDialog
 from app.utils.currency import money
@@ -1137,6 +1138,14 @@ class OrderFormView(tk.Frame):
         return idx
 
     # ---------------- SAVE & VALIDATION (F2 / F10) ----------------
+    @staticmethod
+    def _crate_count(text: str, label: str) -> int:
+        """A whole number of crates, 0 or more (blank = 0). It used to turn anything unreadable into 0 silently."""
+        n = V.number(text, label, minimum=0, maximum=1_000_000, required=False, default=0.0)
+        if n != int(n):
+            raise ValueError(f"{label} must be a whole number.")
+        return int(n)
+
     def _on_f2_save(self):
         self._save_order(print_pdf=False)
 
@@ -1227,14 +1236,11 @@ class OrderFormView(tk.Frame):
             return
 
         try:
-            c_out = int(self.crates_out_var.get().strip() or 0)
-        except ValueError:
-            c_out = 0
-
-        try:
-            c_in = int(self.crates_in_var.get().strip() or 0)
-        except ValueError:
-            c_in = 0
+            c_out = self._crate_count(self.crates_out_var.get(), "Crates out")
+            c_in = self._crate_count(self.crates_in_var.get(), "Crates in")
+        except ValueError as exc:
+            messagebox.showwarning("Crates", str(exc), parent=self)
+            return
 
         selected_comp_name = self.company_cbo.get()
         selected_comp = next((c for c in self.companies if c.get("name") == selected_comp_name), self.companies[0] if self.companies else {})

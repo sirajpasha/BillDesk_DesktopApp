@@ -96,12 +96,12 @@ def test_user_creation_validations(fake_db):
     fake_db.collection("roles").insert_one({"name": "user"})
     ads = AdminService(fake_db)
     with pytest.raises(ValueError, match="at least 6"):
-        ads.create_user("a", "1", ["user"])
+        ads.create_user("ann", "1", ["user"])
     with pytest.raises(ValueError, match="Unknown role"):
-        ads.create_user("b", "secret1", ["nonexistent"])
+        ads.create_user("bob", "secret1", ["nonexistent"])
     with pytest.raises(ValueError, match="too long"):
-        ads.create_user("c", "x" * 73, ["user"])
-    assert ads.create_user("d", "secret1", ["user"])["username"] == "d"
+        ads.create_user("cat", "x" * 73, ["user"])
+    assert ads.create_user("dan", "secret1", ["user"])["username"] == "dan"
 
 
 @pytest.mark.parametrize("lines,msg", [

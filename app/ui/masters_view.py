@@ -1,4 +1,5 @@
 import tkinter as tk
+from app.utils import validation as V
 from tkinter import ttk, messagebox
 from datetime import datetime, timezone, timedelta
 from app.config.settings import settings
@@ -312,8 +313,8 @@ class MastersView(tk.Frame):
                 messagebox.showwarning("Validation Error", "Alias and Item Name are required.", parent=dlg)
                 return
             try:
-                rate_f = float(rate_ent.get().strip() or 0.0)
-                stock_f = float(stock_ent.get().strip() or 0.0)
+                rate_f = V.number(rate_ent.get(), "Standard rate", minimum=0, maximum=1_000_000, required=False, default=0.0)
+                stock_f = V.number(stock_ent.get(), "Stock quantity", minimum=0 if is_new else None, maximum=10_000_000, required=False, default=0.0)
                 item_id = item.get("item_id") if not is_new else f"ITEM_{alias}"
                 data = {
                     "item_id": item_id,
@@ -761,9 +762,9 @@ class MastersView(tk.Frame):
                     "bill_to_phone": bill_phone_ent.get().strip() or phone_ent.get().strip(),
                     "bill_to_address": bill_addr_ent.get().strip() or addr_ent.get().strip(),
                     "bill_to_email": bill_email_ent.get().strip() or email_ent.get().strip(),
-                    "credit_limit": float(credit_ent.get().strip() or 0.0),
+                    "credit_limit": V.number(credit_ent.get(), "Credit limit", minimum=0, maximum=1_000_000_000, required=False, default=0.0),
                     "gst_number": gst_ent.get().strip(),
-                    "current_balance": float(bal_ent.get().strip() or 0.0),
+                    "current_balance": V.number(bal_ent.get(), "Opening balance", minimum=-1_000_000_000, maximum=1_000_000_000, required=False, default=0.0),
                     "status": "active"
                 })
                 self.master_svc.save_customer(data, is_new=is_new)

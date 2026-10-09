@@ -1,5 +1,7 @@
 from __future__ import annotations
 import logging
+import math
+from app.utils import validation as V
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 import uuid
@@ -58,8 +60,20 @@ class OrderService:
         if not order_data.items:
             raise ValueError("Order must contain at least one item")
         for item in order_data.items:
+            if not (math.isfinite(float(item.qty)) and math.isfinite(float(item.rate))):
+                raise ValueError(f"{item.name or item.item_id}: quantity and rate must be numbers.")
             if item.qty <= 0:
                 raise ValueError("Item quantity must be greater than zero")
+            if item.rate < 0:
+                raise ValueError("Item rate cannot be negative")
+            if item.qty > 10_000_000 or item.rate > 1_000_000:
+                raise ValueError(f"{item.name or item.item_id}: quantity or rate is unreasonably large - check for a typing mistake.")
+        for label, value in (("Crates out", order_data.crates_issued), ("Crates in", order_data.crates_returned)):
+            V.number(value, label, minimum=0, maximum=1_000_000)
+        for label, value in (("Commission", order_data.commission_amt), ("Mandi fee", order_data.mandi_fee_amt)):
+            V.number(value or 0, label, minimum=0, maximum=1_000_000_000)
+        if not self.cust_repo.find_one({"cust_id": order_data.customer_id, "is_deleted": {"$ne": 1}}):
+            raise ValueError("Choose a customer from the customer master (F5).")
 
         order_id = self.next_order_number()
         items_total = money(sum(money(float(i.qty) * float(i.rate)) for i in order_data.items))
