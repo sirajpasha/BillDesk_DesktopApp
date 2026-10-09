@@ -99,7 +99,7 @@ class OrdersView(tk.Frame):
             bd=1,
             width=36
         )
-        s_ent.pack(side="left")
+        s_ent.pack(side="left", ipady=4)
         self.order_search_var.trace_add("write", lambda *_: self._filter_orders())
         tk.Label(filter_bar, text=" (Search orders & shipments...)", font=("Segoe UI", 8), fg="#94a3b8", bg="#ffffff").pack(side="left", padx=6)
 
@@ -107,7 +107,7 @@ class OrdersView(tk.Frame):
         tk.Label(filter_bar, text="📅 Date:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left", padx=(16, 4))
         self.order_date_var = tk.StringVar(value="")
         d_ent = tk.Entry(filter_bar, textvariable=self.order_date_var, font=("Segoe UI", 9), relief="solid", bd=1, width=12)
-        d_ent.pack(side="left")
+        d_ent.pack(side="left", ipady=4)
         self.order_date_var.trace_add("write", lambda *_: self._filter_orders())
 
         # Table
@@ -471,7 +471,7 @@ class OrdersView(tk.Frame):
         now_date_str = datetime.now().strftime("%d-%m-%Y")
         self.matrix_date_var = tk.StringVar(value=now_date_str)
         d_ent = tk.Entry(ctrl_card, textvariable=self.matrix_date_var, font=("Segoe UI", 9), relief="solid", bd=1, width=14)
-        d_ent.pack(side="left", padx=(0, 16))
+        d_ent.pack(side="left", padx=(0, 16), ipady=4)
 
         tk.Button(ctrl_card, text="📄 Export to Excel", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._export_matrix).pack(side="left", padx=(0, 16))
 

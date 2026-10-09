@@ -164,7 +164,7 @@ class BillHistoryFrame(tk.Frame):
             relief="solid",
             bd=1
         )
-        self.date_ent.pack(side="left", padx=(0, 6))
+        self.date_ent.pack(side="left", padx=(0, 6), ipady=4)
         self.date_var.trace_add("write", lambda *_: self._on_date_changed())
 
         self.reset_date_btn = tk.Button(
@@ -313,7 +313,7 @@ class BillHistoryFrame(tk.Frame):
         self.tree.heading("items_count", text="Items", anchor="center")
         self.tree.heading("total_amount", text="Amount", anchor="e")
         self.tree.heading("status", text="Status", anchor="center")
-        self.tree.heading("actions", text="Actions", anchor="center")
+        self.tree.heading("actions", text="Right-click for actions", anchor="center")
 
         self.tree.column("invoice_no", width=140, anchor="w")
         self.tree.column("invoice_date", width=110, anchor="center")
@@ -343,6 +343,9 @@ class BillHistoryFrame(tk.Frame):
         # Action Toolbar at the bottom of the card
         action_strip = tk.Frame(main_card, bg="#f8fafc", padx=16, pady=8, bd=1, relief="solid")
         action_strip.pack(fill="x", side="bottom")
+        # Re-pack the table after the strip: pack gives space in order, so on a short window the buttons were clipped
+        table_container.pack_forget()
+        table_container.pack(fill="both", expand=True)
 
         # 1. Preview Invoice Button (Primary Indigo)
         self.btn_prev_inv = tk.Button(
@@ -649,7 +652,7 @@ class BillHistoryFrame(tk.Frame):
                     b.get("items_count_display", ""),
                     b.get("amount_display", ""),
                     status_txt.lower(),
-                    "📥 Inv   📄 DC   📝 Edit"
+                    "Invoice · DC · Edit"
                 ),
                 tags=(status_txt.lower(),)
             )

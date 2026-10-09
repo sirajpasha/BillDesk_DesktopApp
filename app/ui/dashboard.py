@@ -48,6 +48,9 @@ class DashboardFrame(ttk.Frame):
             bg="#f8fafc"
         ).pack(anchor="w", pady=(0, 20))
 
+        # ---------------- AT A GLANCE: what needs attention today ----------------
+        self._build_insights(scrollable_frame)
+
         # ---------------- SECTION 1: Sales Analytics ----------------
         self._build_analytics_section(
             scrollable_frame,
@@ -87,6 +90,124 @@ class DashboardFrame(ttk.Frame):
                 ("pur_last_month", "LAST MONTH PURCHASES", "📋", "#64748b"),
             ]
         )
+
+    def _build_insights(self, parent):
+        tk.Label(parent, text="At a glance", font=("Segoe UI", 13, "bold"), fg="#1e293b", bg="#f8fafc").pack(anchor="w", pady=(0, 10))
+        row = tk.Frame(parent, bg="#f8fafc")
+        row.pack(fill="x", pady=(0, 10))
+        self.insight_vals = {}
+        for col, (key, title, color) in enumerate((
+                ("receivable", "TO COLLECT (RECEIVABLES)", "#4f46e5"),
+                ("overdue", "OVERDUE OVER 30 DAYS", "#dc2626"),
+                ("collected", "COLLECTED TODAY", "#059669"),
+                ("pending", "ORDERS WAITING", "#d97706"))):
+            card = tk.Frame(row, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=16, pady=12)
+            card.grid(row=0, column=col, sticky="nsew", padx=6)
+            row.columnconfigure(col, weight=1)
+            tk.Label(card, text=title, font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(anchor="w")
+            val = tk.Label(card, text="0", font=("Segoe UI", 18, "bold"), fg=color, bg="#ffffff")
+            val.pack(anchor="w", pady=(6, 0))
+            sub = tk.Label(card, text="", font=("Segoe UI", 9), fg="#94a3b8", bg="#ffffff")
+            sub.pack(anchor="w")
+            self.insight_vals[key] = (val, sub)
+
+        panels = tk.Frame(parent, bg="#f8fafc")
+        panels.pack(fill="x", pady=(0, 16))
+        panels.columnconfigure(0, weight=3)
+        panels.columnconfigure(1, weight=2)
+        left = tk.Frame(panels, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        left.grid(row=0, column=0, sticky="nsew", padx=6)
+        tk.Label(left, text="Sales - last 14 days", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
+        self.trend_canvas = tk.Canvas(left, height=150, bg="#ffffff", highlightthickness=0)
+        self.trend_canvas.pack(fill="x", pady=(6, 0))
+        self.trend_canvas.bind("<Configure>", lambda _e: self._draw_trend())
+        self._trend_data = []
+        right = tk.Frame(panels, bg="#ffffff", highlightbackground="#e2e8f0", highlightthickness=1, padx=14, pady=10)
+        right.grid(row=0, column=1, sticky="nsew", padx=6)
+        tk.Label(right, text="Customers who owe the most", font=("Segoe UI", 10, "bold"), fg="#1e293b", bg="#ffffff").pack(anchor="w")
+        self.top_owing_box = tk.Frame(right, bg="#ffffff")
+        self.top_owing_box.pack(fill="x", pady=(6, 0))
+
+    def _draw_trend(self):
+        c = self.trend_canvas
+        c.delete("all")
+        data = self._trend_data
+        w, h = max(c.winfo_width(), 200), 150
+        if not data or max(v for _d, v in data) <= 0:
+            c.create_text(w // 2, h // 2, text="No sales in the last 14 days", fill="#94a3b8", font=("Segoe UI", 10))
+            return
+        top = max(v for _d, v in data)
+        slot = (w - 20) / len(data)
+        for i, (day, val) in enumerate(data):
+            bar_h = int((h - 40) * val / top)
+            x0 = 10 + i * slot + slot * 0.15
+            x1 = 10 + (i + 1) * slot - slot * 0.15
+            c.create_rectangle(x0, h - 22 - bar_h, x1, h - 22, fill="#4f46e5" if i == len(data) - 1 else "#818cf8", outline="")
+            c.create_text((x0 + x1) / 2, h - 10, text=day.strftime("%d"), fill="#64748b", font=("Segoe UI", 8))
+            if val > 0:
+                c.create_text((x0 + x1) / 2, h - 28 - bar_h, text=f"{val / 1000:.0f}k" if val >= 1000 else f"{val:.0f}", fill="#334155", font=("Segoe UI", 7))
+
+    def _refresh_insights(self, bills, to_dt):
+        now = datetime.now()
+        days = [(now - timedelta(days=n)).replace(hour=0, minute=0, second=0, microsecond=0) for n in range(13, -1, -1)]
+        per_day = {d.strftime("%Y-%m-%d"): 0.0 for d in days}
+        for b in bills:
+            dt = to_dt(b, "invoice_date")
+            if dt:
+                k = dt.strftime("%Y-%m-%d")
+                if k in per_day:
+                    per_day[k] += float(b.get("total_amount", 0.0) or 0.0)
+        self._trend_data = [(d, per_day[d.strftime("%Y-%m-%d")]) for d in days]
+        self._draw_trend()
+
+        try:
+            from app.services.payment_service import PaymentService
+            ar = PaymentService(self.db).get_ar_aging()
+        except Exception:
+            logging.getLogger(__name__).warning("Dashboard receivables failed", exc_info=True)
+            ar = {"summary": {}, "customers": []}
+        summ = ar.get("summary", {})
+        over = sum(summ.get(k, 0.0) for k in ("31_60", "61_90", "90_plus"))
+        v, sub = self.insight_vals["receivable"]
+        v.config(text=format_inr(summ.get("total", 0.0)))
+        sub.config(text=f"{len(ar.get('customers', []))} customers" + (f"  |  advances held {format_inr(summ['advances'])}" if summ.get("advances") else ""))
+        v, sub = self.insight_vals["overdue"]
+        v.config(text=format_inr(over))
+        sub.config(text="31+ days old" if over else "nothing overdue")
+
+        collected, n_pay = 0.0, 0
+        try:
+            for p in self.db.collection("payments").find({"is_deleted": {"$ne": 1}}):
+                dt = to_dt(p, "payment_date")
+                if dt and dt.strftime("%Y-%m-%d") == now.strftime("%Y-%m-%d") and p.get("party_type") in (None, "customer"):
+                    collected += float(p.get("amount", 0.0) or 0.0)
+                    n_pay += 1
+        except Exception:
+            logging.getLogger(__name__).warning("Dashboard collections failed", exc_info=True)
+        v, sub = self.insight_vals["collected"]
+        v.config(text=format_inr(collected))
+        sub.config(text=f"{n_pay} receipts")
+
+        try:
+            from app.services.order_service import OrderService
+            pending = OrderService(self.db).order_stats()["pending"]
+        except Exception:
+            logging.getLogger(__name__).warning("Dashboard order count failed", exc_info=True)
+            pending = 0
+        v, sub = self.insight_vals["pending"]
+        v.config(text=str(pending))
+        sub.config(text="not yet billed" if pending else "all caught up")
+
+        for w in self.top_owing_box.winfo_children():
+            w.destroy()
+        rows = ar.get("customers", [])[:5]
+        if not rows:
+            tk.Label(self.top_owing_box, text="Nobody owes anything.", font=("Segoe UI", 9), fg="#94a3b8", bg="#ffffff").pack(anchor="w")
+        for r in rows:
+            line = tk.Frame(self.top_owing_box, bg="#ffffff")
+            line.pack(fill="x", pady=1)
+            tk.Label(line, text=str(r["customer_name"])[:28], font=("Segoe UI", 9), fg="#334155", bg="#ffffff").pack(side="left")
+            tk.Label(line, text=format_inr(r["total"]), font=("Segoe UI", 9, "bold"), fg="#0f172a", bg="#ffffff").pack(side="right")
 
     def _build_analytics_section(self, parent, section_title: str, card_keys: list):
         tk.Label(
@@ -205,8 +326,8 @@ class DashboardFrame(ttk.Frame):
             return None
 
         # Sales Buckets
-        s_today, c_today = _calc_sales(lambda b: b.get("invoice_date") == today_str)
-        s_yest, c_yest = _calc_sales(lambda b: b.get("invoice_date") == yesterday_str)
+        s_today, c_today = _calc_sales(lambda b: _to_dt(b, "invoice_date") and _to_dt(b, "invoice_date").strftime("%Y-%m-%d") == today_str)
+        s_yest, c_yest = _calc_sales(lambda b: _to_dt(b, "invoice_date") and _to_dt(b, "invoice_date").strftime("%Y-%m-%d") == yesterday_str)
         s_tweek, c_tweek = _calc_sales(lambda b: _to_dt(b, "invoice_date") and start_of_week <= _to_dt(b, "invoice_date") < end_of_week)
         s_lweek, c_lweek = _calc_sales(lambda b: _to_dt(b, "invoice_date") and start_last_week <= _to_dt(b, "invoice_date") < start_of_week)
         s_tmonth, c_tmonth = _calc_sales(lambda b: _to_dt(b, "invoice_date") and _to_dt(b, "invoice_date") >= start_of_month)
@@ -218,6 +339,7 @@ class DashboardFrame(ttk.Frame):
         self._set_card("sales_last_week", s_lweek, f"{c_lweek} bills")
         self._set_card("sales_this_month", s_tmonth, f"{c_tmonth} bills")
         self._set_card("sales_last_month", s_lmonth, f"{c_lmonth} bills")
+        self._refresh_insights(bills, _to_dt)
 
         # 2. Orders Analytics
         try:
