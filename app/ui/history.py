@@ -222,8 +222,16 @@ class BillHistoryFrame(tk.Frame):
             relief="solid",
             bd=1
         )
-        self.search_ent.pack(side="left", fill="x", expand=True)
+        self.search_ent.pack(side="left", fill="x", expand=True, ipady=3)
         self.search_var.trace_add("write", lambda *_: self._apply_filter(reset_page=True))
+
+        self.status_filter_var = tk.StringVar(value="All")
+        self.status_filter_cb = ttk.Combobox(
+            search_input_f, textvariable=self.status_filter_var, width=10, state="readonly",
+            values=["All", "Unpaid", "Partial", "Paid", "Void", "Legacy"],
+        )
+        self.status_filter_cb.pack(side="left", padx=(8, 0))
+        self.status_filter_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter(reset_page=True))
 
         # 4. Main Table Card Container
         main_card = tk.Frame(self, bg="#ffffff", bd=1, relief="solid", highlightthickness=0)
@@ -321,6 +329,7 @@ class BillHistoryFrame(tk.Frame):
         self.tree.tag_configure("unpaid", foreground="#dc2626", background="#fef2f2")
         self.tree.tag_configure("partial", foreground="#d97706", background="#fffbeb")
         self.tree.tag_configure("void", foreground="#9ca3af", background="#f9fafb")
+        self.tree.tag_configure("legacy", foreground="#64748b")
 
         # Scrollbar
         vsb = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
@@ -533,6 +542,13 @@ class BillHistoryFrame(tk.Frame):
             self.current_page += 1
             self._render_current_page()
 
+    @staticmethod
+    def display_status(raw: Any) -> str:
+        """paid / unpaid / partial / void as recorded; anything else (older bills carry the word "active" and no
+        payment tracking, their money sits in the customer balance) is shown as "legacy"."""
+        st = str(raw or "unpaid").lower()
+        return st if st in ("paid", "unpaid", "partial", "void") else "legacy"
+
     def refresh(self):
         bills = self.billing.search_bills(limit=self.MAX_BILLS)
         self._all_bills = []
@@ -553,7 +569,7 @@ class BillHistoryFrame(tk.Frame):
             amt = float(d.get("total_amount", 0.0))
             d["amount_display"] = format_inr(amt)
             d["company_display"] = d.get("company_name") or company_names.get(d.get("company_id")) or "-"
-            d["status_display"] = str(d.get("status", "unpaid")).lower()
+            d["status_display"] = self.display_status(d.get("status"))
 
             if d["status_display"] != "void":
                 total_rev += amt
@@ -586,6 +602,7 @@ class BillHistoryFrame(tk.Frame):
 
         q = self.search_var.get().strip().lower()
         d_filter = self.date_var.get().strip().lower()
+        status_filter = self.status_filter_var.get().strip().lower()
 
         self._filtered_bills = []
         for b in self._all_bills:
@@ -594,6 +611,8 @@ class BillHistoryFrame(tk.Frame):
             date_str = str(b.get("date_display", "")).lower()
 
             if q and (q not in inv and q not in cust):
+                continue
+            if status_filter != "all" and b.get("status_display") != status_filter:
                 continue
             if d_filter and (d_filter not in date_str and d_filter not in str(b.get("invoice_date", "")).lower()):
                 continue
@@ -870,7 +889,7 @@ class BillHistoryFrame(tk.Frame):
             bg="#4f46e5"
         ).pack(side="left")
 
-        status_str = str(db_bill.get("status", "unpaid")).upper()
+        status_str = self.display_status(db_bill.get("status")).upper()
         tk.Label(
             top_header,
             text=f"Status: {status_str}",

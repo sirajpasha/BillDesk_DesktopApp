@@ -246,6 +246,10 @@ class FinanceView(tk.Frame):
             cursor="hand2",
             command=self._record_payment_dialog
         ).pack(side="right")
+        tk.Button(
+            top_bar, text="Customer Statement", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155",
+            relief="solid", bd=1, padx=12, pady=4, cursor="hand2", command=self._open_statement
+        ).pack(side="right", padx=(0, 8))
 
         card = tk.Frame(self.ar_tab, bg="#ffffff", bd=1, relief="solid")
         card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -265,6 +269,14 @@ class FinanceView(tk.Frame):
         self.ar_table = DataTable(card, columns=cols)
         self.ar_table.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
+    def _open_statement(self):
+        row = self.ar_table.get_selected()
+        if not row or not row.get("customer_id"):
+            messagebox.showinfo("Select Customer", "Select a customer in the list first.", parent=self)
+            return
+        from app.ui.statement_view import StatementWindow
+        StatementWindow(self, self.db, row["customer_id"], row.get("customer_name", ""))
+
     def load_ar(self):
         res = self.pay_svc.get_ar_aging()
         summary = res.get("summary", {})
@@ -272,7 +284,8 @@ class FinanceView(tk.Frame):
             text=f"Total AR Outstanding: {format_inr(summary.get('total', 0.0))}   |   "
                  f"Current: {format_inr(summary.get('current', 0.0))}   |   "
                  f"1-30 Days: {format_inr(summary.get('1_30', 0.0))}   |   "
-                 f"90+ Overdue: {format_inr(summary.get('90_plus', 0.0))}"
+                 f"90+ Overdue: {format_inr(summary.get('90_plus', 0.0))}   |   "
+                 f"Advances held (not counted): {format_inr(summary.get('advances', 0.0))}"
         )
         formatted = []
         for c in res.get("customers", []):
@@ -385,10 +398,13 @@ class FinanceView(tk.Frame):
         self.ap_table.pack(fill="both", expand=True, padx=12, pady=12)
 
     def load_ap(self):
-        purchases = list(self.db.collection("purchases").find().sort("date", -1).limit(100))
+        purchases = list(self.db.collection("purchase_bills").find({"is_deleted": 0}).sort("bill_date", -1).limit(200))
         formatted = []
         for p in purchases:
             d = dict(p)
+            due = float(d.get("balance_due", 0.0) or 0.0)
+            paid = due <= 0.005
+            d["status"] = "paid" if paid else ("partial" if due < float(d.get("payable_amount", 0.0) or 0.0) - 0.005 else "unpaid")
             d["payable_amount"] = format_inr(d.get("payable_amount", 0.0), symbol=False)
             d["balance_due"] = format_inr(d.get("balance_due", 0.0), symbol=False)
             formatted.append(d)

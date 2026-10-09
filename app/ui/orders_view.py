@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import logging
 from datetime import datetime, timezone
 from app.services.order_service import OrderService
 from app.models.order import OrderCreate, OrderItem
@@ -287,9 +288,14 @@ class OrdersView(tk.Frame):
 
             self._raw_orders.append(d)
 
-        self.kpi_ord_total.config(text=str(len(self._raw_orders)))
-        self.kpi_ord_pending.config(text=str(pending_cnt))
-        self.kpi_ord_today.config(text=str(today_cnt))
+        try:
+            stats = self.order_svc.order_stats()
+        except Exception:
+            logging.getLogger(__name__).warning("Could not count orders", exc_info=True)
+            stats = {"total": len(self._raw_orders), "pending": pending_cnt, "today": today_cnt}
+        self.kpi_ord_total.config(text=str(stats["total"]))
+        self.kpi_ord_pending.config(text=str(stats["pending"]))
+        self.kpi_ord_today.config(text=str(stats["today"]))
         self._filter_orders()
 
     def _convert_to_bill(self):
