@@ -1,0 +1,124 @@
+"""Sales returns (credit notes): goods brought back after an invoice was issued."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from app.database.connection import transactional
+from app.repositories.billing_repo import BillRepository, SalesReturnRepository
+from app.repositories.inventory_repo import InventoryRepository
+from app.repositories.master_repo import CustomerRepository, ItemRepository
+from app.services.ledger_service import LedgerService
+from app.utils.currency import money
+
+CASH_CUSTOMER_ID = "CASH"
+
+
+class ReturnsService:
+    def __init__(self, db: Any):
+        self.db = db
+        self.bill_repo = BillRepository(db)
+        self.ret_repo = SalesReturnRepository(db)
+        self.item_repo = ItemRepository(db)
+        self.cust_repo = CustomerRepository(db)
+        self.inv_repo = InventoryRepository(db)
+        self.ledger = LedgerService(db)
+
+    # ------------------------------------------------------------------ reads
+    def returns_for_invoice(self, invoice_no: str) -> List[Dict[str, Any]]:
+        return self.ret_repo.find({"original_invoice_no": invoice_no, "is_deleted": 0, "status": {"$ne": "cancelled"}}, limit=0)
+
+    def returnable_lines(self, invoice_no: str) -> List[Dict[str, Any]]:
+        """Each invoice line with how much was billed, already returned, and is still returnable."""
+        bill = self.bill_repo.find_one({"invoice_no": invoice_no, "is_deleted": 0})
+        if not bill:
+            raise ValueError(f"Invoice {invoice_no} not found")
+        back: Dict[str, float] = {}
+        for r in self.returns_for_invoice(invoice_no):
+            for l in r.get("items", []):
+                back[l["item_id"]] = back.get(l["item_id"], 0.0) + float(l.get("qty", 0.0))
+        merged: Dict[str, Dict[str, Any]] = {}
+        for l in bill.get("items", []):
+            m = merged.setdefault(l["item_id"], {"item_id": l["item_id"], "name": l.get("name", ""), "unit": l.get("unit", ""),
+                                                 "rate": float(l.get("rate", 0.0)), "billed": 0.0, "amount": 0.0})
+            m["billed"] += float(l.get("qty", 0.0))
+            m["amount"] += float(l.get("amount", 0.0))
+        for m in merged.values():
+            m["returned"] = round(back.get(m["item_id"], 0.0), 3)
+            m["returnable"] = round(m["billed"] - m["returned"], 3)
+        return list(merged.values())
+
+    # ------------------------------------------------------------------ write
+    @transactional
+    def create_return(self, invoice_no: str, lines: List[Dict[str, Any]], reason: str = "",
+                      refund_method: str = "Cash", user_id: str = "system") -> Dict[str, Any]:
+        """Take goods back against an invoice.
+
+        lines: [{"item_id", "qty", "is_waste"}]. The credit is at the rate billed. Good stock goes back on the shelf at the
+        cost it was sold at; spoiled goods (is_waste) are credited to the customer but not added back to stock.
+        A customer's credit first reduces what is still due on that invoice; any excess stays as credit on their account.
+        A walk-in (cash) customer is refunded in `refund_method`."""
+        bill = self.bill_repo.find_one({"invoice_no": invoice_no, "is_deleted": 0})
+        if not bill:
+            raise ValueError(f"Invoice {invoice_no} not found")
+        if bill.get("status") in ("void", "cancelled"):
+            raise ValueError(f"Invoice {invoice_no} is void; nothing can be returned against it")
+        wanted = [l for l in lines if float(l.get("qty") or 0) > 0]
+        if not wanted:
+            raise ValueError("Enter a quantity to return for at least one item")
+        avail = {l["item_id"]: l for l in self.returnable_lines(invoice_no)}
+
+        items: List[Dict[str, Any]] = []
+        for l in wanted:
+            line = avail.get(l["item_id"])
+            if not line:
+                raise ValueError(f"Item {l['item_id']} is not on invoice {invoice_no}")
+            qty = round(float(l["qty"]), 3)
+            if qty - line["returnable"] > 0.0005:
+                raise ValueError(f"{line['name']}: only {line['returnable']:g} {line['unit']} can still be returned "
+                                 f"(billed {line['billed']:g}, already returned {line['returned']:g})")
+            items.append({"item_id": line["item_id"], "name": line["name"], "qty": qty, "unit": line["unit"], "rate": line["rate"],
+                          "amount": money(qty * line["rate"]), "is_waste": bool(l.get("is_waste"))})
+        refund = money(sum(i["amount"] for i in items))
+
+        # cost that was booked for these goods, in proportion to their share of the invoice
+        billed_amount = sum(float(x.get("amount", 0.0)) for x in bill.get("items", [])) or 1.0
+        booked_cost = float(bill.get("cost_of_goods") or 0.0)
+        restock_cost = money(sum(booked_cost * i["amount"] / billed_amount for i in items if not i["is_waste"]))
+
+        cust_id = bill.get("customer_id")
+        walk_in = not cust_id or cust_id == CASH_CUSTOMER_ID
+        applied, credit = 0.0, 0.0
+        if not walk_in:
+            self.cust_repo.update_balance(cust_id, -refund)
+            due = float(bill.get("balance_due") or 0.0) if bill.get("status") in ("unpaid", "partial") else 0.0
+            applied = min(refund, due)
+            credit = money(refund - applied)
+            if applied > 0:
+                new_due = money(due - applied)
+                self.bill_repo.update_one({"invoice_no": invoice_no}, {"$set": {"balance_due": new_due,
+                                                                                "status": "paid" if new_due <= 0 else "partial"}})
+
+        now = datetime.now(timezone.utc)
+        doc = {
+            "return_id": self.ret_repo.next_return_id(), "return_date": now, "original_invoice_no": invoice_no,
+            "customer_id": cust_id, "customer_name": bill.get("customer_name", ""), "items": items,
+            "total_refund_amount": refund, "applied_to_bill": money(applied), "credit_amount": credit,
+            "refund_method": refund_method if walk_in else "Credit to account", "restock_cost": restock_cost,
+            "status": "completed", "notes": reason, "is_deleted": 0, "created_by": user_id, "created_at": now,
+        }
+        self.ret_repo.insert_one(doc)
+
+        for i in items:
+            if i["is_waste"]:
+                continue
+            master = self.item_repo.find_by_alias_or_id(i["item_id"])      # older bills store the item's code, not its id
+            stock_id = master["item_id"] if master else i["item_id"]
+            self.item_repo.increment_stock(stock_id, i["qty"])
+            self.item_repo.update_one({"item_id": stock_id}, {"$inc": {"cost_qty": i["qty"]}})
+            self.inv_repo.record_stock_txn(item_id=stock_id, item_name=i["name"], qty=i["qty"], txn_type="return",
+                                           reference_id=doc["return_id"], notes=f"Returned against {invoice_no}", created_by=user_id)
+        self.ledger.post_sales_return(doc, refund_method=refund_method, user_id=user_id)
+        self.bill_repo.log_audit(invoice_no=invoice_no, action="RETURN", changed_by=user_id, field_changed="return",
+                                 old_value="", new_value=f"{doc['return_id']} Rs {refund:.2f}")
+        return doc

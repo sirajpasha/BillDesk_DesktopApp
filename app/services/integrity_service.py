@@ -103,6 +103,9 @@ class IntegrityService:
                 unallocated = _f(p.get("amount")) - sum(_f(a.get("amount")) for a in p.get("allocations", []))
                 if unallocated > TOL:
                     expected[p.get("party_id")] -= unallocated
+        for r in self._live("sales_returns"):                       # credit left on the account after a return
+            if r.get("status") != "cancelled" and r.get("customer_id") != "CASH":
+                expected[r.get("customer_id")] -= _f(r.get("credit_amount"))
         bad = []
         for c in self._live("customers"):
             cid = c.get("cust_id")

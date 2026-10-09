@@ -453,6 +453,13 @@ class BillHistoryFrame(tk.Frame):
         )
         self.btn_void.pack(side="left", padx=(0, 8))
 
+        self.btn_return = tk.Button(
+            action_strip, text="↩ Return Goods", font=("Segoe UI", 9), bg="#ffffff", fg="#b45309",
+            activebackground="#fef3c7", relief="solid", bd=1, padx=12, pady=4, cursor="hand2",
+            command=self._return_selected
+        )
+        self.btn_return.pack(side="left", padx=(0, 8))
+
         # 5. Refresh Button (Right aligned)
         tk.Button(
             action_strip,
@@ -838,6 +845,22 @@ class BillHistoryFrame(tk.Frame):
                 subprocess.call(["xdg-open", file_path])
         except Exception:
             logging.getLogger(__name__).warning("Ignored error", exc_info=True)
+
+    def _return_selected(self):
+        bill = self._get_selected_bill()
+        if not bill:
+            messagebox.showinfo("Select Bill", "Please select the invoice the goods were bought on.", parent=self)
+            return
+        if bill.get("status_display") == "void":
+            messagebox.showwarning("Void invoice", "A void invoice cannot have goods returned against it.", parent=self)
+            return
+        from app.ui.return_dialog import ReturnDialog
+        dlg = ReturnDialog(self, self.db, bill["invoice_no"], bill.get("customer_name", ""),
+                           walk_in=bill.get("customer_id") in (None, "CASH"),
+                           user=self.current_user.username if self.current_user else "system")
+        self.wait_window(dlg)
+        if dlg.result:
+            self.refresh()
 
     def _void_selected(self):
         bill = self._get_selected_bill()

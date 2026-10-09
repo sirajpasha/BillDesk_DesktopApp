@@ -18,6 +18,7 @@ from app.ui.admin_view import AdminView
 from app.ui.database_settings import DatabaseSettingsFrame
 from app.ui.consolidated_view import ConsolidatedReportFrame
 from app.ui.integrity_view import IntegrityView
+from app.ui.reports_view import ReportsFrame
 from app.ui.company_view import CompanyConfigView
 
 
@@ -274,6 +275,9 @@ class MainWindow:
         # 3. Reports Menu
         menus["Reports"] = [
             ("Bills History", "Bill History", "F6"),
+            ("Daybook", "Daybook", ""),
+            ("Item-wise Sales", "Item-wise Sales", ""),
+            ("Customer-wise Sales", "Customer-wise Sales", ""),
             ("Bills Consolidated Report", "Consolidated Billing", ""),
             ("Order Consolidation", "Order Matrix", ""),
             ("Fixed Rates Report", "Fixed Rates", ""),
@@ -321,6 +325,11 @@ class MainWindow:
         self.frames["New Bill"] = BillingFrame(
             content, self.db, self.billing, self.current_user
         )
+
+        # Reports: daybook, item-wise and customer-wise sales
+        self.reports_view = ReportsFrame(content, self.db, current_user=self.current_user)
+        for report_page in ("Reports", "Daybook", "Item-wise Sales", "Customer-wise Sales"):
+            self.frames[report_page] = self.reports_view
 
         # 3. Bill History
         self.frames["Bill History"] = BillHistoryFrame(
@@ -482,6 +491,8 @@ class MainWindow:
             frame.pack_forget()
 
         # Handle sub-tabs inside parent views
+        if name in ("Daybook", "Item-wise Sales", "Customer-wise Sales"):
+            self.reports_view.report_var.set(name)
         if name == "Item Master" and hasattr(self.masters_view, "notebook"):
             self.masters_view.notebook.select(self.masters_view.items_tab)
         elif name == "Customer Master" and hasattr(self.masters_view, "notebook"):
