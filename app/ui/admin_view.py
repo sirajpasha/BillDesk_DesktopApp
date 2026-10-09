@@ -22,7 +22,7 @@ class AdminView(ttk.Frame):
         from app.ui import theme
         theme.page_header(self, "System Administration", "Cashier drawer sessions, users and access").pack(fill="x", padx=28, pady=(20, 10))
 
-        notebook = ttk.Notebook(self)
+        self.notebook = notebook = ttk.Notebook(self)
         notebook.pack(fill="both", expand=True, padx=28, pady=(0, 16))
 
         # Tab 1: Cashier Sessions

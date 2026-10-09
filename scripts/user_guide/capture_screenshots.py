@@ -622,6 +622,7 @@ def company_dialog():
 step("company dialog", company_dialog)
 page("DB Connection", "116-backup-and-database")
 page("System Audit Logs", "117-audit-logs")
+page("System Audit Logs", "118-audit-logs-activity", extra=lambda: win.audit_view.notebook.select(win.audit_view.activity_tab))
 
 root.destroy()
 DUMP.close()

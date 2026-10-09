@@ -132,7 +132,7 @@ def test_every_menu_screen_has_its_own_help_topic(svc):
 def test_the_help_menu_and_f9_are_wired_in_the_main_window():
     from app.ui.main_window import MainWindow
     src = (ROOT / "app" / "ui" / "main_window.py").read_text(encoding="utf-8")
-    assert '"Help & User Guide", "Help", "F9"' in src and "bind_all(\"<F9>\"" in src
+    assert '"Help & User Guide", "Help", "F9"' in src and '"<F9>": self._on_f9' in src
     # F9 on a screen opens that screen's topic; on the Help screen it just focuses the search box
     calls = []
 
