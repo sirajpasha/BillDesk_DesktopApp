@@ -205,7 +205,12 @@ class OrderService:
     def get_order_matrix(self, delivery_date: Optional[str] = None) -> Dict[str, Any]:
         """Generate Order Matrix (Item x Customer Demand vs Current Stock & Shortfall)."""
         filter_doc: Dict[str, Any] = {"status": {"$in": ["pending", "confirmed"]}, "is_deleted": 0}
-        orders = self.order_repo.find(filter_doc)
+        orders = self.order_repo.find(filter_doc, limit=0)              # every pending order, not just the first 100
+        if delivery_date:                                                # YYYY-MM-DD: only the orders due that day
+            def _due(o: Dict[str, Any]) -> str:
+                d = o.get("delivery_date")
+                return d.strftime("%Y-%m-%d") if isinstance(d, datetime) else str(d or "")[:10]
+            orders = [o for o in orders if _due(o) == delivery_date[:10]]
 
         items_map: Dict[str, Dict[str, Any]] = {}
         customers_set = set()

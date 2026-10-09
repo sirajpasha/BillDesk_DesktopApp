@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from app.services.report_service import ReportService
 from app.utils.currency import format_inr, format_balance
 from app.utils.formatters import format_date
+from app.ui.components.calendar_popup import attach_date_picker
 
 log = logging.getLogger(__name__)
 
@@ -39,15 +40,16 @@ class ReportsFrame(tk.Frame):
 
         today = datetime.now()
         tk.Label(bar, text="FROM", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left")
-        self.from_var = tk.StringVar(value=today.replace(day=1).strftime("%Y-%m-%d"))
+        self.from_var = tk.StringVar(value=today.replace(day=1).strftime("%d/%m/%Y"))
         self.from_ent = tk.Entry(bar, textvariable=self.from_var, width=12, relief="solid", bd=1)
         self.from_ent.pack(side="left", padx=(6, 12), ipady=4)
+        self.from_picker = attach_date_picker(self.from_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The From date")
         tk.Label(bar, text="TO", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left")
-        self.to_var = tk.StringVar(value=today.strftime("%Y-%m-%d"))
+        self.to_var = tk.StringVar(value=today.strftime("%d/%m/%Y"))
         self.to_ent = tk.Entry(bar, textvariable=self.to_var, width=12, relief="solid", bd=1)
         self.to_ent.pack(side="left", padx=(6, 12), ipady=4)
-        for e in (self.from_ent, self.to_ent):
-            e.bind("<Return>", lambda _e: self.refresh())
+        self.to_picker = attach_date_picker(self.to_ent, "%d/%m/%Y", on_selected=lambda _d: self.refresh(), label="The To date",
+                                            not_before=lambda: self.from_picker.value())
         tk.Button(bar, text="Show", bg="#4f46e5", fg="#ffffff", relief="flat", bd=0, padx=16, pady=5, cursor="hand2", command=self.refresh).pack(side="left")
         tk.Button(bar, text="Export CSV", bg="#ffffff", relief="solid", bd=1, padx=12, pady=3, cursor="hand2", command=self.export_csv).pack(side="right")
         for label, days in (("This month", 0), ("Today", -1)):
@@ -73,22 +75,23 @@ class ReportsFrame(tk.Frame):
 
     def _preset(self, which: int) -> None:
         today = datetime.now()
-        self.to_var.set(today.strftime("%Y-%m-%d"))
-        self.from_var.set(today.strftime("%Y-%m-%d") if which < 0 else today.replace(day=1).strftime("%Y-%m-%d"))
+        self.to_var.set(today.strftime("%d/%m/%Y"))
+        self.from_var.set(today.strftime("%d/%m/%Y") if which < 0 else today.replace(day=1).strftime("%d/%m/%Y"))
         self.refresh()
 
     def _dates(self):
-        def parse(text):
-            text = text.strip()
-            return datetime.strptime(text, "%Y-%m-%d") if text else None
-        return parse(self.from_var.get()), parse(self.to_var.get())
+        def as_dt(d):
+            return datetime.combine(d, datetime.min.time()) if d else None
+        return as_dt(self.from_picker.value()), as_dt(self.to_picker.value())
 
     def refresh(self) -> None:
-        try:
-            lo, hi = self._dates()
-        except ValueError:
-            messagebox.showwarning("Date", "Enter dates as YYYY-MM-DD (for example 2026-04-01), or leave them blank.", parent=self)
-            return
+        for picker, entry in ((self.from_picker, self.from_ent), (self.to_picker, self.to_ent)):
+            problem = picker.error()
+            if problem:
+                messagebox.showwarning("Date", problem, parent=self)
+                entry.focus_set()
+                return
+        lo, hi = self._dates()
         name = self.report_var.get()
         try:
             if name == "Daybook":

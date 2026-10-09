@@ -11,6 +11,7 @@ from app.utils.currency import format_inr
 from app.utils.formatters import format_date
 from app.printing.consolidated import generate_consolidated_report_pdf
 from app.ui.print_preview import show_print_preview
+from app.ui.components.calendar_popup import attach_date_picker
 
 
 def _normalize_date_to_iso(date_str: str) -> str:
@@ -363,7 +364,7 @@ class ConsolidatedReportFrame(tk.Frame):
         from_box.pack(side="left", padx=(0, 10))
 
         tk.Label(from_box, text="📅 From:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
-        self.from_date_var = tk.StringVar(value="30-08-2026")
+        self.from_date_var = tk.StringVar(value=datetime.now().replace(day=1).strftime("%d-%m-%Y"))
         self.from_date_ent = tk.Entry(
             from_box,
             textvariable=self.from_date_var,
@@ -375,13 +376,14 @@ class ConsolidatedReportFrame(tk.Frame):
             width=11
         )
         self.from_date_ent.pack(side="left")
+        self.from_picker = attach_date_picker(self.from_date_ent, "%d-%m-%Y", allow_blank=False, allow_future=False, label="The From date")
 
         # C. To Date
         to_box = tk.Frame(filter_inner, bg="#f8fafc", bd=1, relief="solid", padx=10, pady=6)
         to_box.pack(side="left", padx=(0, 14))
 
         tk.Label(to_box, text="📅 To:", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#f8fafc").pack(side="left", padx=(0, 4))
-        self.to_date_var = tk.StringVar(value="05-10-2026")
+        self.to_date_var = tk.StringVar(value=datetime.now().strftime("%d-%m-%Y"))
         self.to_date_ent = tk.Entry(
             to_box,
             textvariable=self.to_date_var,
@@ -393,6 +395,8 @@ class ConsolidatedReportFrame(tk.Frame):
             width=11
         )
         self.to_date_ent.pack(side="left")
+        self.to_picker = attach_date_picker(self.to_date_ent, "%d-%m-%Y", allow_blank=False, label="The To date",
+                                            not_before=lambda: self.from_picker.value())
 
         # D. Actions: Generate & PDF buttons
         actions_bar = tk.Frame(filter_inner, bg="#ffffff")
@@ -531,12 +535,14 @@ class ConsolidatedReportFrame(tk.Frame):
             messagebox.showwarning("Select Entity", "Please select a Bill To entity first.", parent=self)
             return
 
-        from_date = _normalize_date_to_iso(self.from_date_var.get())
-        to_date = _normalize_date_to_iso(self.to_date_var.get())
-
-        if not from_date or not to_date:
-            messagebox.showwarning("Invalid Dates", "Please provide valid From and To dates.", parent=self)
-            return
+        for picker, entry in ((self.from_picker, self.from_date_ent), (self.to_picker, self.to_date_ent)):
+            problem = picker.error()
+            if problem:
+                messagebox.showwarning("Invalid Dates", problem, parent=self)
+                entry.focus_set()
+                return
+        from_date = self.from_picker.value().strftime("%Y-%m-%d")
+        to_date = self.to_picker.value().strftime("%Y-%m-%d")
 
         try:
             report = self.billing.get_consolidated_report(

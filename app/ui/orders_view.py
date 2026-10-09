@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import logging
+from app.ui.components.calendar_popup import attach_date_picker
 from datetime import datetime, timezone
 from app.services.order_service import OrderService
 from app.models.order import OrderCreate, OrderItem
@@ -108,6 +109,7 @@ class OrdersView(tk.Frame):
         self.order_date_var = tk.StringVar(value="")
         d_ent = tk.Entry(filter_bar, textvariable=self.order_date_var, font=("Segoe UI", 9), relief="solid", bd=1, width=12)
         d_ent.pack(side="left", ipady=4)
+        attach_date_picker(d_ent, "%d/%m/%Y", label="The order date filter", partial_ok=True)
         self.order_date_var.trace_add("write", lambda *_: self._filter_orders())
 
         # Table
@@ -468,10 +470,12 @@ class OrdersView(tk.Frame):
         ctrl_card.pack(fill="x", padx=12, pady=(0, 12))
 
         tk.Label(ctrl_card, text="Delivery Date", font=("Segoe UI", 8, "bold"), fg="#64748b", bg="#ffffff").pack(side="left", padx=(0, 6))
-        now_date_str = datetime.now().strftime("%d-%m-%Y")
-        self.matrix_date_var = tk.StringVar(value=now_date_str)
+        self.matrix_date_var = tk.StringVar(value="")          # blank = every pending order
         d_ent = tk.Entry(ctrl_card, textvariable=self.matrix_date_var, font=("Segoe UI", 9), relief="solid", bd=1, width=14)
-        d_ent.pack(side="left", padx=(0, 16), ipady=4)
+        d_ent.pack(side="left", padx=(0, 4), ipady=4)
+        self.matrix_date_picker = attach_date_picker(d_ent, "%d/%m/%Y", on_selected=lambda _d: self.load_matrix(), label="The delivery date")
+        tk.Button(ctrl_card, text="All", font=("Segoe UI", 8), relief="solid", bd=1, padx=8, pady=2, cursor="hand2",
+                  command=lambda: (self.matrix_date_var.set(""), self.load_matrix())).pack(side="left", padx=(0, 16))
 
         tk.Button(ctrl_card, text="📄 Export to Excel", font=("Segoe UI", 8), bg="#ffffff", relief="solid", bd=1, padx=10, pady=3, command=self._export_matrix).pack(side="left", padx=(0, 16))
 
@@ -518,7 +522,11 @@ class OrdersView(tk.Frame):
         for widget in self.matrix_tree_frame.winfo_children():
             widget.destroy()
 
-        res = self.order_svc.get_order_matrix()
+        picked = self.matrix_date_picker.value()
+        if self.matrix_date_picker.error():
+            messagebox.showwarning("Delivery Date", self.matrix_date_picker.error(), parent=self)
+            return
+        res = self.order_svc.get_order_matrix(picked.strftime("%Y-%m-%d") if picked else None)
         customers = res.get("customers", [])
         rows = res.get("rows", [])
 
@@ -529,7 +537,7 @@ class OrdersView(tk.Frame):
         self.kpi_mat_orders.config(text=str(len(self._raw_orders) if hasattr(self, "_raw_orders") else len(rows)))
 
         now_str = datetime.now().strftime("%d/%m/%Y, %I:%M:%S %p")
-        self.rep_date_label.config(text=f"Delivery Date: {self.matrix_date_var.get()}\nGenerated: {now_str}")
+        self.rep_date_label.config(text=f"Delivery Date: {self.matrix_date_var.get() or 'All pending orders'}\nGenerated: {now_str}")
 
         if not rows:
             tk.Label(
